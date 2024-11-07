@@ -2,7 +2,7 @@ import numpy as np
 
 from scipy.special import exp1
 from scipy.stats import lognorm
-from constants import LAMBDA_14C, INTERP_14C
+from constants import LAMBDA_14C, INTERP_R_14C
 
 # TODO: make a parent class for all of the models.
 # TODO: write some simple unit tests checking internal consistency of models.
@@ -30,10 +30,10 @@ class PowerLawDisKin:
     def radiocarbon_age_integrand(self, a):
         # Interpolation was done with x as years before present,
         # so a is the correct input here
-        initial_r = INTERP_14C(a) 
+        initial_r = INTERP_R_14C(a) 
         radiocarbon_decay = np.exp(-LAMBDA_14C*a)
         age_dist_term = np.power((self.e1_term * (self.t0 + a)), -1) * np.exp(-(self.t0 + a)/self.tinf)
-        return initial_r * a * age_dist_term * radiocarbon_decay
+        return initial_r * age_dist_term * radiocarbon_decay
     
     def mean_transit_time_integrand(self, a):
         return self.t0 * np.exp(-a/self.tinf) / (self.t0 + a)

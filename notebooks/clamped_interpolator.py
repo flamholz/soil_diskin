@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.interpolate import make_interp_spline
+from scipy.interpolate import make_interp_spline, interp1d
 
 
 class ClampedInterpolator:
@@ -16,7 +16,8 @@ class ClampedInterpolator:
         y: array-like
             The y values of the data points
         """
-        self.interpolator = make_interp_spline(x, y)
+        #self.interpolator = make_interp_spline(x, y)
+        self.interpolator = interp1d(x, y, kind='linear')
         self.lb, self.ub = x.min(), x.max()
 
     def call_single(self, x):
