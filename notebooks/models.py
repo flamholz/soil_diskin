@@ -78,10 +78,10 @@ class LognormalDisKin:
         return a * np.exp(-k*a) * p_k / T
 
     def radiocarbon_age_integrand(self, a, k):
-        # TODO: add the historical 14C concentration
+        initial_r = INTERP_R_14C(a)
         lognormal_term = self.age_dist_integrand(k)
         radiocarbon_decay = np.exp(-LAMBDA_14C*a)
-        return a * radiocarbon_decay * lognormal_term
+        return initial_r * radiocarbon_decay * lognormal_term
     
     def radiocarbon_age_integrand_mc(self, x):
         a, k = x
