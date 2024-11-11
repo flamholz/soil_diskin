@@ -1,7 +1,6 @@
 import pandas as pd
 
 from scipy.interpolate import interp1d
-from clamped_interpolator import ClampedInterpolator
 
 # Description: Constants used in the notebooks
 
