@@ -14,10 +14,25 @@ class PowerLawDisKin:
 
     We call these bounding timescales tau_0 and tau_inf as in the notes. 
     """
-    def __init__(self, tau_0, tau_inf):
+    def __init__(self, tau_0, tau_inf, interp_r_14c=None):
+        """
+        Args:
+        tau_0: float
+            The short time scale
+        tau_inf: float
+            The long time scale
+        interp_r_14c: callable
+            An interpolator for the estimated historical radiocarbon concentration.
+            Takes a single argument, the number of years before a reference time (e.g. 2000).
+            If None uses the default interpolator from constants.
+        """
         self.t0 = tau_0  # short time scale
         self.tinf = tau_inf  # long time scale
         self.tratio = tau_0/ tau_inf
+
+        self.interp_14c = interp_r_14c
+        if interp_r_14c is None:
+            self.interp_14c = INTERP_R_14C
 
         # steady-state transit time
         e1_term = exp1(self.tratio)
@@ -30,7 +45,7 @@ class PowerLawDisKin:
     def radiocarbon_age_integrand(self, a):
         # Interpolation was done with x as years before present,
         # so a is the correct input here
-        initial_r = INTERP_R_14C(a) 
+        initial_r = self.interp_14c(a) 
         radiocarbon_decay = np.exp(-LAMBDA_14C*a)
         age_dist_term = np.power((self.e1_term * (self.t0 + a)), -1) * np.exp(-(self.t0 + a)/self.tinf)
         return initial_r * age_dist_term * radiocarbon_decay
@@ -52,9 +67,24 @@ class PowerLawDisKin:
 class LognormalDisKin:
     """Not ready for use."""
     
-    def __init__(self, mu, sigma):
+    def __init__(self, mu, sigma, interp_r_14c=None):
+        """
+        Args:
+        mu: float
+            The mean of the underlying normal distribution
+        sigma: float
+            The standard deviation underlying normal distribution
+        interp_r_14c: callable
+            An interpolator for the estimated historical radiocarbon concentration.
+            Takes a single argument, the number of years before a reference time (e.g. 2000).
+            If None uses the default interpolator from constants.
+        """
         self.mu = mu
         self.sigma = sigma
+
+        self.interp_14c = interp_r_14c
+        if interp_r_14c is None:
+            self.interp_14c = INTERP_R_14C
 
         # steady-state transit time
         self.T = np.exp((-self.mu + self.sigma**2)/2)
@@ -78,7 +108,7 @@ class LognormalDisKin:
         return a * np.exp(-k*a) * p_k / T
 
     def radiocarbon_age_integrand(self, a, k):
-        initial_r = INTERP_R_14C(a)
+        initial_r = self.interp_14c(a)
         lognormal_term = self.age_dist_integrand(k)
         radiocarbon_decay = np.exp(-LAMBDA_14C*a)
         return initial_r * radiocarbon_decay * lognormal_term
