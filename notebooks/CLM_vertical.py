@@ -115,11 +115,13 @@ class CLM_vertical:
         # print("V shape ", self.V.shape)
         # print("X shape ", X.shape)
 
-        dX = I_t
-        dX -= self.A @ K_t @ X.values
-        dX += self.V @ X.values
-
-        #dX = I_t - (self.A @ K_t - self.V) @ X
+        # Created an error - the I_t was not copied and then was modiefied in place
+        # dX = I_t
+        # print(self.ldd.I[0,:].values)
+        # dX -= self.A @ K_t @ X.values
+        # dX += self.V @ X.values
+        
+        dX = I_t + (self.A @ K_t - self.V) @ X.values
         return dX
     
     def run(self, timesteps, dt):

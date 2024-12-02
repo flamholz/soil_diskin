@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.linalg import block_diag
-
+import warnings
 
 SECS_PER_DAY = 86400
 DAYS_PER_YEAR = 365
@@ -66,8 +66,10 @@ def make_V_matrix(Gamma_soil, F_soil, npools, nlevels,
     F_p[-1] = 0
 
 
-    # Define the Peclet number
-    Pe_e = F_e / D_e
+    # Define the Peclet number - ignore the warning 
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        Pe_e = F_e / D_e
     Pe_e[0] = 0;
     Pe_p = F_p / D_p
 
