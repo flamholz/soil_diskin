@@ -1,5 +1,6 @@
 import numpy as np
 
+from scipy.integrate import quad, dblquad
 from scipy.special import exp1
 from scipy.stats import lognorm
 from constants import LAMBDA_14C, INTERP_R_14C
@@ -102,10 +103,19 @@ class LognormalDisKin:
         p_k = lognorm.pdf(k, s=sigma, scale=np.exp(mu))
         return p_k/T
     
-    def mean_age_integrand(self, a, k):
+    def _pA_integrand(self, a, k):
         sigma, mu, T = self.sigma, self.mu, self.T
         p_k = lognorm.pdf(k, s=sigma, scale=np.exp(mu))
-        return a * np.exp(-k*a) * p_k / T
+        return np.exp(-k*a) * p_k / T
+    
+    def pA(self, a):
+        return quad(self._pA_integrand, 0, np.inf, args=(a))
+
+    def _mean_age_integrand(self, a, k):
+        return a * self._pA_integrand(a, k)
+    
+    def mean_age(self):
+        return dblquad(self._mean_age_integrand, 0, np.inf, 0, np.inf)
 
     def radiocarbon_age_integrand(self, a, k):
         initial_r = self.interp_14c(a)
