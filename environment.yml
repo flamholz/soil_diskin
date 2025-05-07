@@ -1,0 +1,16 @@
+name: soil_diskin
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - snakemake
+  - matplotlib
+  - seaborn
+  - pandas
+  - numpy
+  - scipy
+  - ipykernel
+  - pip
+  - squarify
+  - openpyxl
+  - sympy
