@@ -69,12 +69,17 @@ class PowerLawDisKin:
         return a*self.pA(a)
     
     def calc_mean_age(self):
-        """Calculate the mean by integrating the age distribution."""
+        """Calculate the mean by integrating the age distribution.
+        
+        Returns:
+            A two-tuple of the mean age and an estimate of the absolute error.
+        """
         return quad(self.mean_age_integrand, 0, np.inf)
+
 
 class LognormalDisKin:
 
-    def __init__(self, mu, sigma, k_min=1e-6, k_max=1e6, interp_r_14c=None):
+    def __init__(self, mu, sigma, k_min=None, k_max=None, interp_r_14c=None):
         """
         Args:
         mu: float
@@ -93,8 +98,8 @@ class LognormalDisKin:
         self.mu = mu
         self.k_star = np.exp(mu)
         self.sigma = sigma
-        self.k_min = k_min
-        self.k_max = k_max
+        self.k_min = k_min or lognorm.ppf(1e-10, s=sigma, scale=np.exp(mu))
+        self.k_max = k_max or lognorm.ppf(1.0-1e-10, s=sigma, scale=np.exp(mu))
 
         # rescale ks by the median
         self.kappa_min = self.k_min / self.k_star
@@ -114,10 +119,28 @@ class LognormalDisKin:
 
     @classmethod
     def from_age_and_transit_time(cls, a, T):
+        """Construct a LognormalDisKin object from the mean age and transit time.
+        
+        Note: a/T >= 1 is required. a/T < 1 implies a negative lognormal standard deviation.
+
+        Args:
+            a: float
+                The mean age
+            T: float
+                The transit time
+
+        Returns:
+            LognormalDisKin
+                An instance of the LognormalDisKin class.
+        """
         sigma_squared = np.log(a/T)
         sigma = np.sqrt(sigma_squared)
-        mu = sigma_squared - 2*(np.log(T)) 
-        return cls(mu, sigma)
+        mu = sigma_squared/2 - np.log(T)
+
+        # choose the min and max ks to be tails of the lognormal distribution
+        lognorm_min = lognorm.ppf(1e-10, s=sigma, scale=np.exp(mu))
+        lognorm_max = lognorm.ppf(1.0-1e-10, s=sigma, scale=np.exp(mu))     
+        return cls(mu, sigma, k_min=lognorm_min, k_max=lognorm_max)
     
     def _pA_alpha_logscale_integrand(self, alpha, q):
         """Integrand for the age distribution in log scale."""
@@ -145,12 +168,67 @@ class LognormalDisKin:
         p_q = norm.pdf(q, loc=0, scale=self.sigma)
         exp_factor = np.exp(-a*self.k_star*np.exp(q))
         return initial_r * radiocarbon_decay * p_q * exp_factor
-        
 
     def calc_radiocarbon_age(self):
         """Integrate the radiocarbon age distribution."""
         res = dblquad(self._radiocarbon_age_integrand, self.q_min, self.q_max, 0, np.inf)
         return res
+    
+
+import unittest
+import itertools
+
+class TestLognormalDisKin(unittest.TestCase):
+    
+    MEAN_AGES = [10, 100, 1000]
+    MEAN_TRANSIT_TIMES = [10, 100, 1000]
+
+    def test_input_output(self):
+        for a, T in itertools.product(self.MEAN_AGES, self.MEAN_TRANSIT_TIMES):
+            if a/T < 1:
+                # not allowed
+                continue
+
+            print('constructing model with mean_age', a, 'and T', T)
+            model = LognormalDisKin.from_age_and_transit_time(a, T)
+            mu, sigma = model.mu, model.sigma
+            expected_ln_a = 1.5*sigma**2 - mu
+            expected_ln_T = sigma**2/2 - mu
+            expected_a = np.exp(expected_ln_a)
+            expected_T = np.exp(expected_ln_T)
+            self.assertAlmostEqual(expected_a, a, msg=f"Age mismatch for a={a}, T={T}, mu={mu}, sigma={sigma}")
+            self.assertAlmostEqual(expected_T, T, msg=f"Transit time mismatch for a={a}, T={T}, mu={mu}, sigma={sigma}")    
+
+    def test_mean_age_integral(self):
+        for a, T in itertools.product(self.MEAN_AGES, self.MEAN_TRANSIT_TIMES):
+            if a/T <= 1:
+                # not allowed
+                continue
+            
+            print('constructing model with mean_age', a, 'and T', T)
+            model = LognormalDisKin.from_age_and_transit_time(a, T)
+            mu, sigma = model.mu, model.sigma
+            print(f'calculated mu {mu:.2f}, sigma {sigma:.2f}')
+            expected_ln_a = 1.5*sigma**2 - mu
+            expected_ln_T = sigma**2/2 - mu
+            self.assertAlmostEqual(np.exp(expected_ln_a), a, delta=1e-5)
+            self.assertAlmostEqual(np.exp(expected_ln_T), T, delta=1e-5)
+
+            mean_age_calc, mean_age_err = model.calc_mean_age()
+            print(f'calculated mean age {mean_age_calc:.2f} +/- {mean_age_err:.2f} compared to input age {a}')
+
+            abs_diff = np.abs(mean_age_calc - a)
+            relative_diff = abs_diff / a
+            self.assertLessEqual(relative_diff, 0.01,
+                                 msg=f"Mean age {mean_age_calc:.2f} is not within 1% of expected {a}")
+            #self.assertLessEqual(abs_diff, mean_age_err, 
+            #                     msg=f"Mean age {mean_age_calc:.2f} is not within error {mean_age_err:.4f} of expected {a}")
+
+        
+if __name__ == "__main__":
+    # Run the tests
+    unittest.main()
+
 
 class old_LognormalDisKin:
     """Not ready for use."""
@@ -213,4 +291,3 @@ class old_LognormalDisKin:
     def radiocarbon_age_integrand_mc(self, x):
         a, k = x
         return self.radiocarbon_age_integrand(a, k)
-    
