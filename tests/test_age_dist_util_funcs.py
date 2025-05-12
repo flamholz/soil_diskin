@@ -33,6 +33,6 @@ ages = np.arange(1,1001)
 
 pA = util.box_model_ss_age_dist(ARC,RcI,ages)
 
-sierra = pd.read_csv('notebooks/tests/sierra_2018_test.csv',sep=' ')
+sierra = pd.read_csv('notebooks/tests/sierra_2018_test.csv')
 
 np.testing.assert_almost_equal(pA.flatten(), sierra['age_pdf'].values)

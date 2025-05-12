@@ -30,8 +30,6 @@ def box_model_ss_age_dist(A:np.array, u: np.array, ages: np.array) -> np.array:
     return age_pdf
     
 
-
-
 # tmax sets the length of the simulation
 # keep it small so that runtimes are reasonable
 # timestep = 0.2 # yrs
