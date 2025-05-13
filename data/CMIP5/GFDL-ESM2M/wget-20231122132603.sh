@@ -1,0 +1,1 @@
+wget -e robots=off --mirror --no-parent -r https://dap.ceda.ac.uk/badc/cmip5/data/cmip5/output1/NOAA-GFDL/GFDL-ESM2M/esmFixClim1/mon/land/Lmon/r1i1p1/files/rh_20110601/

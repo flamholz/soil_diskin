@@ -1,0 +1,265 @@
+\begin{thebibliography}{41}
+\providecommand{\natexlab}[1]{#1}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi:\discretionary{}{}{}#1}\else
+  \providecommand{\doi}{doi:\discretionary{}{}{}\begingroup
+  \urlstyle{rm}\Url}\fi
+
+\bibitem[{\textit{Andren and Katterer}(1997)}]{Andren1997}
+Andren, O., and T.~Katterer (1997), {ICBM}: The introductory carbon balance
+  model for exploration of soil carbon balances, \textit{Ecological
+  Applications}, \textit{7}(4), 1226--1236.
+
+\bibitem[{\textit{Bolin and Rodhe}(1973)}]{Bolin1973}
+Bolin, B., and H.~Rodhe (1973), A note on the concepts of age distribution and
+  transit time in natural reservoirs, \textit{Tellus}, \textit{25}(1), 58--62.
+
+\bibitem[{\textit{Bruun et~al.}(2004)\textit{Bruun, Six, and
+  Jensen}}]{Bruun2004}
+Bruun, S., J.~Six, and L.~S. Jensen (2004), Estimating vital statistics and age
+  distributions of measurable soil organic carbon fractions based on their
+  pathway of formation and radiocarbon content, \textit{Journal of Theoretical
+  Biology}, \textit{230}(2), 241--250.
+
+\bibitem[{\textit{Carvalhais et~al.}(2014)\textit{Carvalhais, Forkel, Khomik,
+  Bellarby, Jung, Migliavacca, Μu, Saatchi, Santoro, Thurner, Weber, Ahrens,
+  Beer, Cescatti, Randerson, and Reichstein}}]{Carvalhais2014}
+Carvalhais, N., M.~Forkel, M.~Khomik, J.~Bellarby, M.~Jung, M.~Migliavacca,
+  M.~Μu, S.~Saatchi, M.~Santoro, M.~Thurner, U.~Weber, B.~Ahrens, C.~Beer,
+  A.~Cescatti, J.~T. Randerson, and M.~Reichstein (2014), Global covariation of
+  carbon turnover times with climate in terrestrial ecosystems,
+  \textit{Nature}, \textit{514}, 213--217.
+
+\bibitem[{\textit{Derrien and Amelung}(2011)}]{Derrien2011}
+Derrien, D., and W.~Amelung (2011), Computing the mean residence time of soil
+  carbon fractions using stable isotopes: impacts of the model framework,
+  \textit{European Journal of Soil Science}, \textit{62}(2), 237--252.
+
+\bibitem[{\textit{Don et~al.}(2013)\textit{Don, R{\"o}denbeck, and
+  Gleixner}}]{Don2013}
+Don, A., C.~R{\"o}denbeck, and G.~Gleixner (2013), Unexpected control of soil
+  carbon turnover by soil carbon concentration, \textit{Environmental Chemistry
+  Letters}, pp. 1--7, \doi{10.1007/s10311-013-0433-3}.
+
+\bibitem[{\textit{Dungait et~al.}(2012)\textit{Dungait, Hopkins, Gregory, and
+  Whitmore}}]{Dungait2012}
+Dungait, J. A.~J., D.~W. Hopkins, A.~S. Gregory, and A.~P. Whitmore (2012),
+  Soil organic matter turnover is governed by accessibility not recalcitrance,
+  \textit{Global Change Biology}, \textit{18}(6), 1781--1796,
+  \doi{10.1111/j.1365-2486.2012.02665.x}.
+
+\bibitem[{\textit{Eriksson}(1971)}]{Eriksson1971}
+Eriksson, E. (1971), Compartment models and reservoir theory, \textit{Annual
+  Review of Ecology and Systematics}, \textit{2}(1), 67--84.
+
+\bibitem[{\textit{Gleixner}(2013)}]{Gleixner2013}
+Gleixner, G. (2013), Soil organic matter dynamics: a biological perspective
+  derived from the use of compound-specific isotopes studies,
+  \textit{Ecological Research}, \textit{28}(5), 683--695,
+  \doi{10.1007/s11284-012-1022-9}.
+
+\bibitem[{\textit{Gleixner et~al.}(1999)\textit{Gleixner, Bol, and
+  Balesdent}}]{Gleixner1999}
+Gleixner, G., R.~Bol, and J.~Balesdent (1999), Molecular insight into soil
+  carbon turnover, \textit{Rapid Communications in Mass Spectrometry},
+  \textit{13}(13), 1278--1283,
+  \doi{10.1002/(SICI)1097-0231(19990715)13:13<1278::AID-RCM649>3.0.CO;2-N}.
+
+\bibitem[{\textit{Goll et~al.}(2015)\textit{Goll, Brovkin, Liski, Raddatz,
+  Thum, and Todd-Brown}}]{Goll2015}
+Goll, D.~S., V.~Brovkin, J.~Liski, T.~Raddatz, T.~Thum, and K.~E.~O. Todd-Brown
+  (2015), Strong dependence of co2 emissions from anthropogenic land cover
+  change on initial land cover and soil carbon parametrization, \textit{Global
+  Biogeochemical Cycles}, \textit{29}(9), 1511--1523,
+  \doi{10.1002/2014GB004988}, 2014GB004988.
+
+\bibitem[{\textit{He et~al.}(2016)\textit{He, Trumbore, Torn, Harden, Vaughn,
+  Allison, and Randerson}}]{He2016}
+He, Y., S.~E. Trumbore, M.~S. Torn, J.~W. Harden, L.~J.~S. Vaughn, S.~D.
+  Allison, and J.~T. Randerson (2016), Radiocarbon constraints imply reduced
+  carbon uptake by soils during the 21st century, \textit{Science},
+  \textit{353}(6306), 1419--1424, \doi{10.1126/science.aad4273}.
+
+\bibitem[{\textit{Heim and Schmidt}(2007)}]{Heim2007}
+Heim, A., and M.~W.~I. Schmidt (2007), Lignin turnover in arable soil and
+  grassland analysed with two different labelling approaches, \textit{European
+  Journal of Soil Science}, \textit{58}(3), 599--608,
+  \doi{10.1111/j.1365-2389.2006.00848.x}.
+
+\bibitem[{\textit{Jenkinson et~al.}(1990)\textit{Jenkinson, Andrew, Lynch,
+  Goss, and Tinker}}]{Jenkinson1990}
+Jenkinson, D.~S., S.~P.~S. Andrew, J.~M. Lynch, M.~J. Goss, and P.~B. Tinker
+  (1990), The turnover of organic carbon and nitrogen in soil [and discussion],
+  \textit{Philosophical Transactions: Biological Sciences}, \textit{329}(1255),
+  361--368.
+
+\bibitem[{\textit{Kiem and K{\"o}gel-Knabner}(2003)}]{Kiem2003}
+Kiem, R., and I.~K{\"o}gel-Knabner (2003), Contribution of lignin and
+  polysaccharides to the refractory carbon pool in c-depleted arable soils,
+  \textit{Soil Biology and Biochemistry}, \textit{35}(1), 101 -- 118,
+  \doi{https://doi.org/10.1016/S0038-0717(02)00242-0}.
+
+\bibitem[{\textit{Kleber}(2010)}]{Kleber2010}
+Kleber, M. (2010), What is recalcitrant soil organic matter?,
+  \textit{Environmental Chemistry}, \textit{7}(4), 320--332.
+
+\bibitem[{\textit{Lehmann and Kleber}(2015)}]{LehmannKleber}
+Lehmann, J., and M.~Kleber (2015), The contentious nature of soil organic
+  matter, \textit{Nature}, \textit{528}, 60 EP --.
+
+\bibitem[{\textit{Lehmann et~al.}(2015)\textit{Lehmann, Abiven, Kleber, Pan,
+  Singh, Sohi, and Zimmerman}}]{Lehmann2015}
+Lehmann, J., S.~Abiven, M.~Kleber, G.~Pan, B.~P. Singh, S.~P. Sohi, and A.~R.
+  Zimmerman (2015), Persistence of biochar in soil, in \textit{Biochar for
+  Environmental Management: Science, Technology and Implementation}, edited by
+  J.~Lehmann and S.~Joseph, Earthscan, London.
+
+\bibitem[{\textit{Lu et~al.}(2018)\textit{Lu, Wang, Luo, and Jiang}}]{Lu2018}
+Lu, X., Y.-P. Wang, Y.~Luo, and L.~Jiang (2018), Ecosystem carbon transit
+  versus turnover times in response to climate warming and rising atmospheric
+  co$_2$ concentration, \textit{Biogeosciences Discussions}, \textit{2018},
+  1--22, \doi{10.5194/bg-2018-175}.
+
+\bibitem[{\textit{Manzoni and Porporato}(2009)}]{Manzoni2009SBB}
+Manzoni, S., and A.~Porporato (2009), Soil carbon and nitrogen mineralization:
+  Theory and models across scales, \textit{Soil Biology and Biochemistry},
+  \textit{41}(7), 1355 -- 1379,
+  \doi{http://dx.doi.org/10.1016/j.soilbio.2009.02.031}.
+
+\bibitem[{\textit{Manzoni et~al.}(2009)\textit{Manzoni, Katul, and
+  Porporato}}]{Manzoni2009}
+Manzoni, S., G.~G. Katul, and A.~Porporato (2009), Analysis of soil carbon
+  transit times and age distributions using network theories, \textit{J.
+  Geophys. Res.}, \textit{114}.
+
+\bibitem[{\textit{Metzler and Sierra}(2018)}]{Metzler2018MG}
+Metzler, H., and C.~A. Sierra (2018), Linear autonomous compartmental models as
+  continuous-time {Markov} chains: Transit-time and age distributions,
+  \textit{Mathematical Geosciences}, \textit{50}(1), 1--34,
+  \doi{10.1007/s11004-017-9690-1}.
+
+\bibitem[{\textit{Parton et~al.}(1987)\textit{Parton, Schimel, Cole, and
+  Ojima}}]{Parton1987}
+Parton, W.~J., D.~S. Schimel, C.~V. Cole, and D.~S. Ojima (1987), Analysis of
+  factors controlling soil organic matter levels in great plains grasslands,
+  \textit{Soil Sci. Soc. Am. J.}, \textit{51}(5), 1173--1179.
+
+\bibitem[{\textit{Paul}(2016)}]{Paul2016}
+Paul, E.~A. (2016), The nature and dynamics of soil organic matter: Plant
+  inputs, microbial transformations, and organic matter stabilization,
+  \textit{Soil Biology and Biochemistry}, \textit{98}, 109 -- 126,
+  \doi{http://dx.doi.org/10.1016/j.soilbio.2016.04.001}.
+
+\bibitem[{\textit{Schmidt et~al.}(2011)\textit{Schmidt, Torn, Abiven, Dittmar,
+  Guggenberger, Janssens, Kleber, Kogel-Knabner, Lehmann, Manning, Nannipieri,
+  Rasse, Weiner, and Trumbore}}]{Schmidt2011}
+Schmidt, M. W.~I., M.~S. Torn, S.~Abiven, T.~Dittmar, G.~Guggenberger, I.~A.
+  Janssens, M.~Kleber, I.~Kogel-Knabner, J.~Lehmann, D.~A.~C. Manning,
+  P.~Nannipieri, D.~P. Rasse, S.~Weiner, and S.~E. Trumbore (2011), Persistence
+  of soil organic matter as an ecosystem property, \textit{Nature},
+  \textit{478}(7367), 49--56.
+
+\bibitem[{\textit{Seifert et~al.}(2013)\textit{Seifert, Trumbore, Xu, Zhang,
+  and Gleixner}}]{Seifert2013}
+Seifert, A.-G., S.~Trumbore, X.~Xu, D.~Zhang, and G.~Gleixner (2013), Variable
+  effects of plant colonization on black slate uptake into microbial {PLFAs},
+  \textit{Geochimica et Cosmochimica Acta}, \textit{106}, 391 -- 403,
+  \doi{https://doi.org/10.1016/j.gca.2012.12.011}.
+
+\bibitem[{\textit{Sierra and M{\"u}ller}(2015)}]{Sierra2015EM}
+Sierra, C.~A., and M.~M{\"u}ller (2015), A general mathematical framework for
+  representing soil organic matter dynamics, \textit{Ecological Monographs},
+  \textit{85}, 505--524, \doi{10.1890/15-0361.1}.
+
+\bibitem[{\textit{Sierra et~al.}(2011)\textit{Sierra, Harmon, and
+  Perakis}}]{Sierra2011EM}
+Sierra, C.~A., M.~E. Harmon, and S.~S. Perakis (2011), Decomposition of
+  heterogeneous organic matter and its long-term stabilization in soils,
+  \textit{Ecological Monographs}, \textit{81}(4), 619--634,
+  \doi{10.1890/11-0811.1}.
+
+\bibitem[{\textit{Sierra et~al.}(2014)\textit{Sierra, M{\"u}ller, and
+  Trumbore}}]{Sierra2014GMD}
+Sierra, C.~A., M.~M{\"u}ller, and S.~E. Trumbore (2014), Modeling radiocarbon
+  dynamics in soils: {SoilR} version 1.1, \textit{Geoscientific Model
+  Development}, \textit{7}(5), 1919--1931, \doi{10.5194/gmd-7-1919-2014}.
+
+\bibitem[{\textit{Sierra et~al.}(2017)\textit{Sierra, M{\"u}ller, Metzler,
+  Manzoni, and Trumbore}}]{Sierra2017}
+Sierra, C.~A., M.~M{\"u}ller, H.~Metzler, S.~Manzoni, and S.~E. Trumbore
+  (2017), The muddle of ages, turnover, transit, and residence times in the
+  carbon cycle, \textit{Global Change Biology}, \textit{23}(5), 1763--1773,
+  \doi{10.1111/gcb.13556}.
+
+\bibitem[{\textit{Sollins et~al.}(1996)\textit{Sollins, Homann, and
+  Caldwell}}]{Sollins1996}
+Sollins, P., P.~Homann, and B.~A. Caldwell (1996), Stabilization and
+  destabilization of soil organic matter: mechanisms and controls,
+  \textit{Geoderma}, \textit{74}(1-2), 65--105, doi: DOI:
+  10.1016/S0016-7061(96)00036-5.
+
+\bibitem[{\textit{Spohn and Kuzyakov}(2014)}]{Spohn2014}
+Spohn, M., and Y.~Kuzyakov (2014), Spatial and temporal dynamics of hotspots of
+  enzyme activity in soil as affected by living and dead roots---a soil
+  zymography analysis, \textit{Plant and Soil}, \textit{379}(1), 67--77,
+  \doi{10.1007/s11104-014-2041-9}.
+
+\bibitem[{\textit{Spohn and Sierra}(2018)}]{Spohn2018}
+Spohn, M., and C.~A. Sierra (2018), How long do elements cycle in terrestrial
+  ecosystems?, \textit{Biogeochemistry}, \textit{139}(1), 69--83,
+  \doi{10.1007/s10533-018-0452-z}.
+
+\bibitem[{\textit{Thompson and Randerson}(1999)}]{Thompson1999}
+Thompson, M.~V., and J.~T. Randerson (1999), Impulse response functions of
+  terrestrial carbon cycle models: method and application, \textit{Global
+  Change Biology}, \textit{5}(4), 371--394, 10.1046/j.1365-2486.1999.00235.x.
+
+\bibitem[{\textit{Trumbore}(2000)}]{Trumbore2000}
+Trumbore, S. (2000), Age of soil organic matter and soil respiration:
+  radiocarbon constraints on belowground c dynamics, \textit{Ecological
+  Applications}, \textit{10}(2), 399--411.
+
+\bibitem[{\textit{Trumbore}(2009)}]{Trumbore2009}
+Trumbore, S. (2009), Radiocarbon and soil carbon dynamics, \textit{Annual
+  Review of Earth and Planetary Sciences}, \textit{37}(1), 47--66.
+
+\bibitem[{\textit{Trumbore et~al.}(2016)\textit{Trumbore, Sierra, and
+  Hicks~Pries}}]{Trumbore2016}
+Trumbore, S.~E., C.~A. Sierra, and C.~E. Hicks~Pries (2016), Radiocarbon
+  nomenclature, theory, models, and interpretation: Measuring age, determining
+  cycling rates, and tracing source pools, in \textit{Radiocarbon and Climate
+  Change: Mechanisms, Applications and Laboratory Techniques}, edited by A.~E.
+  Schuur, E.~Druffel, and E.~S. Trumbore, pp. 45--82, Springer International
+  Publishing.
+
+\bibitem[{\textit{Tuomi et~al.}(2009)\textit{Tuomi, Thum, J{\"a}rvinen,
+  Fronzek, Berg, Harmon, Trofymow, Sevanto, and Liski}}]{Tuomi2009}
+Tuomi, M., T.~Thum, H.~J{\"a}rvinen, S.~Fronzek, B.~Berg, M.~Harmon,
+  J.~Trofymow, S.~Sevanto, and J.~Liski (2009), Leaf litter
+  decomposition---estimates of global variability based on yasso07 model,
+  \textit{Ecological Modelling}, \textit{220}(23), 3362 -- 3371,
+  \doi{10.1016/j.ecolmodel.2009.05.016}.
+
+\bibitem[{\textit{von L{\"u}tzow et~al.}(2008)\textit{von L{\"u}tzow,
+  K{\"o}gel-Knabner, Ludwig, Matzner, Flessa, Ekschmitt, Guggenberger,
+  Marschner, and Kalbitz}}]{vonLutzow2008}
+von L{\"u}tzow, M., I.~K{\"o}gel-Knabner, B.~Ludwig, E.~Matzner, H.~Flessa,
+  K.~Ekschmitt, G.~Guggenberger, B.~Marschner, and K.~Kalbitz (2008),
+  Stabilization mechanisms of organic matter in four temperate soils:
+  Development and application of a conceptual model, \textit{Journal of Plant
+  Nutrition and Soil Science}, \textit{171}(1), 111--124.
+
+\bibitem[{\textit{Wang et~al.}(2018)\textit{Wang, Sun, Xia, He, Li, and
+  Niu}}]{Wang2018}
+Wang, J., J.~Sun, J.~Xia, N.~He, M.~Li, and S.~Niu (2018), Soil and vegetation
+  carbon turnover times from tropical to boreal forests, \textit{Functional
+  Ecology}, \textit{32}(1), 71--82, \doi{10.1111/1365-2435.12914}.
+
+\bibitem[{\textit{Wieder et~al.}(2014)\textit{Wieder, Boehnert, and
+  Bonan}}]{Wieder2014}
+Wieder, W.~R., J.~Boehnert, and G.~B. Bonan (2014), Evaluating soil
+  biogeochemistry parameterizations in earth system models with observations,
+  \textit{Global Biogeochemical Cycles}, \textit{28}(3), 211--222,
+  \doi{10.1002/2013GB004665}.
+
+\end{thebibliography}

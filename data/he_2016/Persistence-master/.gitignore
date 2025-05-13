@@ -1,0 +1,7 @@
+*.log
+*.Rhistory
+*.gz
+*.aux
+.DS_Store
+.DS_Store?
+

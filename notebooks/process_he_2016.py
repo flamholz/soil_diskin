@@ -15,7 +15,7 @@ def download_he_data():
     """
     url = "https://git.bgc-jena.mpg.de/csierra/Persistence/-/archive/master/Persistence-master.zip"
     
-    if not path.exists('../data/he_2016/'):
+    if not path.exists('data/he_2016/'):
 
         # Download the file
         response = requests.get(url)
@@ -24,10 +24,11 @@ def download_he_data():
 
         # Unzip the file
         with zipfile.ZipFile('he_2016.zip', 'r') as zip_ref:
-            zip_ref.extractall('../data/he_2016/')
+            zip_ref.extractall('data/he_2016/')
 
         # Remove the zip file
         os.remove('he_2016.zip')
+        os.remove('data/he_2016/Persistence-master/CodeData/WorldGrids/')
     else:
         print("Data already downloaded.")
         return
@@ -38,7 +39,7 @@ def parse_he_data(model='CESM'):
     grid = xr.open_dataset(f'../../data/CMIP5/{model_names[model]}/{file_names[model]}.nc')['areacella']
     params_raster = xr.zeros_like(grid).T
     params_raster = params_raster.where(params_raster!=0)
-    params_df = pd.read_csv(f'../../Persistence/CodeData/He/{model}/compartmentalParameters.txt',sep=' ')
+    params_df = pd.read_csv(f'data/he_2016/Persistence-master/CodeData/He/{model}/compartmentalParameters.txt',sep=' ')
     ds = []
     for par in params_df.columns[1:]:
         x = params_raster.values.flatten()
@@ -67,3 +68,5 @@ def get_RCM_A_u(params,model='CESM',tau_fac = {'CESM':3.7, 'IPSL':14, 'MRI':13},
     u = np.array([params[5],0.0,0.0])
 
     return A,u
+
+download_he_data()

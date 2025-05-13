@@ -1,0 +1,98 @@
+\documentclass[11pt]{bgcletter}
+\usepackage{hyperref}
+
+\name{Dr.\ Carlos A. Sierra}
+\signature{ \vspace{-2cm} Carlos A. Sierra, PhD}
+\email{csierra}
+\telephone{6133}
+\begin{document}
+\begin{letter}{Dr. Adrien Finzi\\
+ Editor \\ Global Biogeochemical Cycles}
+
+\opening{Dear Dr. Finzi}
+Thank you very much for your consideration of our manuscript and for the opportunity to submit a revised version. We made changes to the manuscript based on the reviewers' comments. More prominently,  we added calculations of the median ages and median transit times to show that they can be very different than the mean ages and mean transit times. We also added a section on global change implications of our analysis. Other minor changes were also incorporated in the new version of the manuscript. 
+
+ In the text below, we provide answers ({\color{blue} blue font}) to all reviewers' comments ({\it italics font}). 
+
+{\bf Reviewer 1} \\
+{\it In this manuscript, the authors redefined and calculated the distributions of ages and transit times in soil organic matter systems. The distributions of transit times and system ages were based on a stochastic approach derived from ten models from site level to global scale. They then analyzed and concluded that the age distribution would be a more appropriate metric to interpret persistence of soil organic matter. This work offers a new theoretical perspective to understand soil organic carbon dynamics, which is still a puzzle for the community, and the study fits the scope of GBC very well. In addition, except for some minor grammatical errors, the authors delivered their points very clearly. Therefore, I recommend it to be published in the journal.}
+
+{\color{blue} Thanks for recognizing the relevance of this contribution. The new revised version fixes grammatical errors and is much improved thanks to reviewers' comments.}
+
+{\it One major concern I have is that the scale of their models is different. Some models are at ecosystem level, while others are at global scale (use the global means). Therefore, their model results are not directly comparable. For example, the variance of mean ages across models is very large, from 22.5 years in CLM4cn-Needleleaf to 8942 years in IPSL. I would suggest that they focus more on the similar pattern (i.e., long tail) rather than compare the absolute values.}
+
+{\color{blue} We actually think that being able to compare models from different scales and applications is a strength of the analysis. The age and transit time distributions are metrics that can be computed for any model independently from its complexity and scale of application. In fact, the age and transit time distributions better reveal the temporal scale at which the model operates, therefore it is useful to compare these metrics for diverse models. We added this explanation to the text in section 5.4.}
+
+Specific comments:
+\begin{itemize}
+\item {\it Line 175. It would be helpful for audiences to understand this if the authors can give an example here.} \\
+	{\color{blue} We expanded the explanation for the type III systems and give examples. }
+\item {\it Line 199. Names of the three ESMs should be given here.} \\
+	{\color{blue} Done.}
+\item {\it Fig. 6. The authors should indicate in the figure caption that the dash line is 1:1 line.} \\
+	{\color{blue} Done.}
+\item{\it  Lines 289-290. ``These values'' need to be changed to what they actually refer to or at least one of them needs to be specific.} \\
+	{\color{blue} Changed ``these values'' to ``these ages and quantiles of the age distribution''.}
+\item {\it Lines 291-292. For CESM, how can 95\% quantile of transit time (26 yr) be lower than mean transit time (40 yr)?} \\
+	{\color{blue} In non-symmetric distributions with very long tails, the mean is very sensitive to the skewness of the distribution. For these cases, the median is actually a more robust measure of central tendency. We realized that this is actually a disadvantage of calculating mean ages and mean transit times for soils that have a very slow pool compared to the fast and intermediate pools (the case of the CESM model). In these cases, it is more informative to use the median age and median transit time. To address this issue, we report now median of the distributions, and included a discussion on this topic.}
+\item {\it Line 293. Add ``between...'' after ``difference'' to be clearer.} \\
+	{\color{blue} Done.}
+\item {\it Line 408. The word ``result'' here is not very clear. Please consider rewording it.} \\
+	{\color{blue} Reworded as suggested.}
+\end{itemize}
+
+
+Comments on supplementary:
+\begin{enumerate}
+\item {\it Fig. S8. The figure legend showed it is MRI, but the figure title said it is CESM.} \\
+	{\color{blue} Fixed.}
+\item {\it Why 95\% quantile of the age distribution calculated for the reduced complexity version
+of the IPSL model was not presented, but the CESM and MRI models were presented?} \\
+	{\color{blue} We forgot to add this figure in the previous version. It is now included in the revised version.}
+\item {\it Fig. S13. In the figure title, ``age distribution'' should be indicated.} \\
+	{\color{blue} Added. }
+\end{enumerate}
+
+{\bf Reviewer 2} \\
+{\it Carlos and coauthors propose the utilization of age distribution as a metric of persistence of soil organic matter and illustrate how a stochastic approach leads to the calculation of age distribution. Authors compare differences between age and transient time distributions of several soil carbon models and conclude that age distribution is a better metric. Turnover/transient time and age are important concepts in soil carbon studies as they link radiocarbon observations and reflect how long carbon stays in soil, the capacity of soil to store carbon etc. Overall, I think this manuscript is a timely contribution considering current confusions related to age and transient time in soil carbon studies. There are several points I think the authors should expand to strengthen their arguments and deepen applications of their studies. }
+
+Major points:
+\begin{enumerate}
+\item  {\it Can the authors be specific on which aspect of age distribution is appropriate for characterizing persistence of SOM? A distribution can be characterized by different parameters, such as its center, variability, scale and shape. Authors calculate mean and 95\% quantile of age. Are they the metrics authors refer to? Or can the distributions (PDFs) be mathematically described, for example, do these PDFs fit into any mathematical functions ? } \\
+	{\color{blue} In the manuscript we propose using the age distribution to characterize persistence as opposed to the transit time distribution. Then, any metric to characterize the age distribution would be appropriate to say something about SOM persistence. For instance, if one choses the mean of the age distribution, one can say something about the mean persistence of SOM; or if one choses a different metric  of the distribution, then one can say something about persistence in relation to that metric. Formulas for the computation of the probability density function and the first moment are provided in equations (3) and (4). We added now additional formulas for the computation of the quantiles of the distributions in section 2.4. }
+
+\item {\it Authors select 10 soil carbon models and calculate both age and turnover time of each model. Authors illustrate that there are differences between models for both age and transient time from different model groups. It would be better if authors can dig deeper into what makes models differ in their age distributions. Is the difference caused by model structure and/or parameterization? Analyses within the CLM4cn model group and the reduced complexity models (between models and among grid cells) tackle on how model parametrization affect age distributions, while comparisons between RothC, Century, Yasso07, ICBM and previous two model groups yield some information related to model structure. Can the authors conduct additional analyses or extend the discussion to help us understand causes of these differences? Following this question, it may also help us to understand whether there might be big difference in age distribution between the original earth system models and the reduced complexity models as they differ in both model structure and parametrization. } \\
+	{\color{blue} Both model structure and parameterization have an important effect on the age and transit time distributions. This can be clearly seen by comparing specific sets of models; e.g. the reduced complexity ESMs have the same structure but very different parameter values that yield very different ages and transit times. On the contrary, a two-pool model (ICBM) yields relatively similar ages and transit times as the 5-pool model (Yasso07). Equations 3-6 more clearly express the factors that contribute to differences in ages and transit time distributions. In all cases, the elements of the matrix $\mathbf{B}$ play an extremely important role; for the transit time the distribution of the carbon inputs is also of significant importance, and for the ages the distribution of carbon at steady-state. We added an explanation of the factors that contribute to differences in ages and transit times in section 2.3. We also added a few sentences discussing the impact on the results of model structure and parameterization to section 5.2.}
+\item {\it Since the authors focus on models and look into models which are designed for global applications, such as CLM and these reduced complexity earth system models, I am interested in the global implications of this study. For example, what might be the impact of global changes on the persistence/age distribution of SOM? What can we benefit from this study to improve the development of earth system models? I understand these may not be the main focus of this study, but it would be helpful to broaden the applications of this study. I am not looking into comprehensive answers, but would like to know how the authors think about these questions based on their study. } \\
+	{\color{blue} We added a new section towards the end of the manuscript discussing the implications of our approach for global change studies. }
+\end{enumerate}
+
+Minor points:
+\begin{enumerate}
+\item {\it Line 33-34, Alternatively, the ages of SOM can also be much older, suggesting that some C persists in soils for centuries to millennia''. Is this sentence necessary?} \\
+	{\color{blue} No, the sentence is not necessary. It was removed from the text.}
+\item {\it Line 45. Could you provide reference for the second point? } \\
+	{\color{blue} References added.}
+\item {\it Line 48-50. Could you provide reference for the it? } \\
+	{\color{blue} Reference added.}
+\item {\it Line 189. It might be better to merge this paragraph with the previous one } \\
+	{\color{blue} Done}
+\item {\it Line 199. It would be better to list the names of these three-reduced complexity earth system models. } \\
+	{\color{blue} Done}
+\item {\it Line 225. Do these models only differ in the input? Is it fair to say parameterization has little influence when other parameters are not assessed? It seems to me differences among the reduced complexity models, both within models and among different grid cells, are caused by parameterization if all these models use the same 3 pool structure. These differences can be large as you mentioned in section 4.4.} \\
+	{\color{blue} Good point. The three different versions of CLM4cn we used here, only depend on the parameterization of the input vector, but not on the matrix of cycling and transfer rates. We reworded this sentence to make more explicit that the difference obtained is due only to parameterization of the input vector. }
+\item {\it Table 1. I would prefer to choose name such as CESM-RC to reduce the confusion between the original model and the reduced complexity models as it remains unknown whether age and transient time from original Earth system model are the same as the reduced complexity models. } \\
+	{\color{blue} In section 3 we present now the full name of the models with their original abbreviations, which we abbreviate further in this manuscript. Therefore, from the text it is now clear that we are not using the same original model, but rather a reduced-complexity version.}
+\item {\it Lines 242-244. Are there quantitative ways to justify that differences in shapes are bigger from age distributions compared to transit time?} \\
+	{\color{blue} A quantitative way to compare the shape of the distributions is through the use of higher-order moments such as variance, skewness, and kurtosis. We do have the formulas to compute these moments, but from our point of view, this would add an unnecessary level of complexity to the current manuscript. If the reviewer and the editor have a different opinion, we can easily add a new section comparing the shape of the distributions using these higher order moment, at the expense of increasing the length of the manuscript. }
+\end{enumerate}
+
+\vspace{2em}
+We hope this new version adequately addresses reviewer's comments and it is now suitable for publication.
+
+\closing{Sincerely, \\
+ \includegraphics[scale=0.7]{../../../Documents/Personal/firma.jpg}
+ }
+ \end{letter}
+
+ \end{document}
