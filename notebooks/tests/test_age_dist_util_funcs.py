@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from .. import age_distribution_util_funcs as util
+from ..notebooks import age_distribution_util_funcs as util
 
 
 # Test the validity of the age distribution function by comparing the results of a specific model in 
