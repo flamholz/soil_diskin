@@ -21,4 +21,4 @@ RcI=matrix(nrow=4,ncol=1,c(In*(DR/(DR+1))+(FYM*FYMsplit[1]),In*(1/(DR+1))+(FYM*F
 tau=seq(1,1000)
 aRC=systemAge(A=ARC,u=RcI,a=tau )
 age_pdf = aRC$systemAgeDensity
-write.table(cbind(tau,age_pdf),file="sierra_2018_RothC.csv",sep=",",col.names=FALSE,row.names=FALSE)
+write.table(cbind(tau,age_pdf),file="sierra_2018_RothC.csv",sep=",",row.names=FALSE)

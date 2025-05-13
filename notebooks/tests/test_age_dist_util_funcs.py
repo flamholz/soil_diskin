@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from ..notebooks import age_distribution_util_funcs as util
+from .. import age_distribution_util_funcs as util
 
 
 # Test the validity of the age distribution function by comparing the results of a specific model in 
@@ -33,6 +33,6 @@ ages = np.arange(1,1001)
 
 pA = util.box_model_ss_age_dist(ARC,RcI,ages)
 
-sierra = pd.read_csv('notebooks/tests/sierra_2018_test.csv')
+sierra = pd.read_csv('notebooks/tests/sierra_2018_RothC.csv')
 
 np.testing.assert_almost_equal(pA.flatten(), sierra['age_pdf'].values)

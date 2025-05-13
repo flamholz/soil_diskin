@@ -2,6 +2,7 @@ import numpy as np
 from os import path
 import pandas as pd
 import xarray as xr
+import rioxarray as rio
 import requests
 import zipfile
 import os
@@ -36,7 +37,7 @@ def download_he_data():
 
 def parse_he_data(model='CESM'):
     
-    grid = xr.open_dataset(f'../../data/CMIP5/{model_names[model]}/{file_names[model]}.nc')['areacella']
+    grid = xr.open_dataset(f'data/CMIP5/{model_names[model]}/{file_names[model]}.nc')['areacella']
     params_raster = xr.zeros_like(grid).T
     params_raster = params_raster.where(params_raster!=0)
     params_df = pd.read_csv(f'data/he_2016/Persistence-master/CodeData/He/{model}/compartmentalParameters.txt',sep=' ')
@@ -70,3 +71,31 @@ def get_RCM_A_u(params,model='CESM',tau_fac = {'CESM':3.7, 'IPSL':14, 'MRI':13},
     return A,u
 
 download_he_data()
+
+def interpolate_ds(ds: xr.DataArray,p:str) -> xr.DataArray:
+    """
+    Interpolates the data to fill in missing values.
+
+    Parameters
+    ----------
+    ds : xr.DataArray
+        The data to be interpolated.
+    p : str
+        The parameter to be used for interpolation.
+
+    Returns
+    -------
+    xr.DataArray
+        The interpolated data.
+    """
+
+    return ds.sel(parameter=p)\
+            .rio.write_nodata(np.nan)\
+            .rio.set_spatial_dims('lon','lat')\
+            .rio.write_crs(4326)\
+            .rio.interpolate_na()
+
+for model in ['CESM','IPSL','MRI']:
+    mod = parse_he_data(model=model)
+    extrapolated = xr.concat([interpolate_ds(mod,p) for p in mod.parameter],dim='parameter')
+    extrapolated.to_netcdf(f'results/process_he_2016/{model}_params.nc')
