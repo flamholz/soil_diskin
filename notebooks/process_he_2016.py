@@ -14,6 +14,7 @@ def download_he_data():
     """
     Download the HE data from the given URL and save it to the specified file path.
     """
+
     url = "https://git.bgc-jena.mpg.de/csierra/Persistence/-/archive/master/Persistence-master.zip"
     
     if not path.exists('data/he_2016/'):
@@ -70,8 +71,6 @@ def get_RCM_A_u(params,model='CESM',tau_fac = {'CESM':3.7, 'IPSL':14, 'MRI':13},
 
     return A,u
 
-download_he_data()
-
 def interpolate_ds(ds: xr.DataArray,p:str) -> xr.DataArray:
     """
     Interpolates the data to fill in missing values.
@@ -95,7 +94,13 @@ def interpolate_ds(ds: xr.DataArray,p:str) -> xr.DataArray:
             .rio.write_crs(4326)\
             .rio.interpolate_na()
 
+
+download_he_data()
+
 for model in ['CESM','IPSL','MRI']:
-    mod = parse_he_data(model=model)
-    extrapolated = xr.concat([interpolate_ds(mod,p) for p in mod.parameter],dim='parameter')
-    extrapolated.to_netcdf(f'results/process_he_2016/{model}_params.nc')
+    if path.exists(f'results/process_he_2016/{model}_params.nc'):
+        print(f'{model} already processed')
+    else:
+        mod = parse_he_data(model=model)
+        extrapolated = xr.concat([interpolate_ds(mod,p) for p in mod.parameter],dim='parameter')
+        extrapolated.to_netcdf(f'results/process_he_2016/{model}_params.nc')
