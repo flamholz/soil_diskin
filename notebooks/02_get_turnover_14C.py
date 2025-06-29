@@ -146,21 +146,3 @@ merged_site_data['fm'] = merged_site_data['14C'] / 1e3 + 1; # fm is the fraction
 merged_site_data['turnover'] = merged_site_data['Ctotal_0-100estim'] * 1e3 / merged_site_data['NPP'] # turnover is SOC/NPP, so we convert NPP from kgC/m2/year to gC/m2/year
 
 merged_site_data.to_csv('../results/tropical_sites_14C_turnover.csv', index=False)
-
-#%%
-# plot coordinates of the tropical sites using cartopy
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
-import matplotlib.pyplot as plt
-fig = plt.figure(figsize=(10, 6), dpi=600)
-ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
-ax.set_extent([-180, 180, -60, 60], crs=ccrs.PlateCarree())
-# ax.add_feature(cfeature.LAND, zorder=100, edgecolor='black')
-# GPP.plot(ax=ax, transform=ccrs.PlateCarree(), cmap='viridis', add_colorbar=True, cbar_kwargs={'label': 'GPP (gC/m2/year)'})
-c14_data[0,:,:].plot(ax=ax, transform=ccrs.PlateCarree(), cmap='viridis', add_colorbar=True, cbar_kwargs={'label': '14C (‰)'})
-# ax.add_feature(cfeature.COASTLINE, zorder=101)
-ax.scatter(unique_tropical_coords['Longitude'], unique_tropical_coords['Latitude'], c='red', s=0.01, transform=ccrs.PlateCarree(), label='Tropical Sites',zorder=102)
-ax.set_title('Tropical Sites with 14C and GPP Data')
-ax.legend()
-
-# %%

@@ -12,6 +12,10 @@ CWD = os.getcwd()
 # Kinetic constant associated with radiocarbon decay
 LAMBDA_14C = 1/8267.0 # per year units
 
+# Seconds in a day and days in a year for time conversions
+SECS_PER_DAY = 86400
+DAYS_PER_YEAR = 365
+
 C14_DATA_PATH = path.join(CWD, '../data/14C_atm_annot.csv')
 C14_DATA = pd.read_csv(C14_DATA_PATH)
 

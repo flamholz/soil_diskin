@@ -66,7 +66,12 @@ for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
 # Convert the result list to a DataFrame
 result_df = pd.DataFrame(result,columns=['params','objective_value'],index=merged_site_data.index)
 
+# Unpack the parameters into separate columns
+result_df[['tau_0','tau_inf']] = result_df['params'].apply(lambda x: pd.Series(x,index = ['tau_0','tau_inf']))
+result_df.drop(columns ='params',inplace=True)
+
 print(f'the Maximum objective value is {result_df["objective_value"].max():.3f}')
 
 # Save the result to a CSV file
-result_df.to_csv('../results/powerlaw_model_optimization_results.csv')
+result_df.to_csv('../results/powerlaw_model_optimization_results.csv',index=False)
+# %%

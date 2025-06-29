@@ -46,10 +46,10 @@ def dynamic_age_dist(A_t,u,timestep,tmax):
     for i, t in enumerate(ts):    
         # Haven't added new material yet, can just multiply 
         # the whole matrix by the fractional decay
-        state += A_t(t) @ state*timestep
+        state += A_t(t) @ state * timestep
 
         # new input of biomass 
-        state[:,i] = u*timestep
+        state[:,i] = u(t) * timestep
     return state
 
 def nonlinear_age_dist(A_t,u,timestep,tmax):
