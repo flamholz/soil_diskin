@@ -3,11 +3,17 @@ import os
 import sys
 import tempfile
 import shutil
-from unittest.mock import patch, MagicMock, mock_open
 import pandas as pd
 import numpy as np
 import xarray as xr
 
+from unittest.mock import patch, MagicMock, mock_open
+from soil_diskin.geo_utils import find_nearest
+
+"""
+TODO: test should not require google earth engine credentials.
+Need to mock the Earth Engine API calls.
+"""
 
 class Test02GetTurnover14C(unittest.TestCase):
     
@@ -38,22 +44,8 @@ class Test02GetTurnover14C(unittest.TestCase):
         """Clean up after each test."""
         shutil.rmtree(self.temp_dir)
     
-    @patch('ee.Initialize')
-    @patch('ssl._create_default_https_context')
-    def test_imports_and_initialization(self, mock_ssl, mock_ee_init):
-        """Test that all required imports work and ee initializes."""
-        try:
-            find_nearest = __import__('02_get_turnover_14C.find_nearest',
-                                    fromlist=['find_nearest']).find_nearest
-            mock_ee_init.assert_called_once()
-        except ImportError:
-            self.fail("Failed to import required modules")
-    
     def test_find_nearest_with_numpy_array(self):
-        """Test find_nearest function with numpy array coordinates."""
-        find_nearest = __import__('02_get_turnover_14C.find_nearest',
-                                    fromlist=['find_nearest']).find_nearest
-        
+        """Test find_nearest function with numpy array coordinates."""        
         # Create test coordinates
         coords = np.array([[10.0, -50.0], [20.0, -60.0]])
         
@@ -64,10 +56,7 @@ class Test02GetTurnover14C(unittest.TestCase):
         self.assertTrue(isinstance(result, np.ndarray))
     
     def test_find_nearest_with_dataframe(self):
-        """Test find_nearest function with DataFrame coordinates."""
-        find_nearest = __import__('02_get_turnover_14C.find_nearest',
-                                  fromlist=['find_nearest']).find_nearest
-        
+        """Test find_nearest function with DataFrame coordinates."""        
         coords_df = pd.DataFrame({
             'lat': [10.0, 20.0],
             'lon': [-50.0, -60.0]
@@ -79,10 +68,7 @@ class Test02GetTurnover14C(unittest.TestCase):
         self.assertTrue(isinstance(result, np.ndarray))
     
     def test_find_nearest_with_strict_tolerance(self):
-        """Test find_nearest function with strict tolerance."""
-        find_nearest = __import__('02_get_turnover_14C.find_nearest',
-                                    fromlist=['find_nearest']).find_nearest
-        
+        """Test find_nearest function with strict tolerance."""        
         coords = np.array([[100.0, -200.0]])  # Far from data
         
         result = find_nearest(coords, self.mock_c14_data, tolerance=0.1)
@@ -119,26 +105,6 @@ class Test02GetTurnover14C(unittest.TestCase):
                 zip_ref.extractall(GPP_folder)
         
         mock_zip_instance.extractall.assert_called_once_with(GPP_folder)
-    
-    @patch('pd.read_csv')
-    @patch('rioxarray.open_rasterio')
-    def test_data_loading(self, mock_rio, mock_read_csv):
-        """Test data loading functionality.
-        
-        TODO: what is this test for? 
-        """
-        # Mock CSV reading
-        mock_read_csv.return_value = self.mock_tropical_sites
-        
-        # Mock rioxarray loading
-        mock_rio.return_value = self.mock_c14_data
-        
-        # Test that data can be loaded
-        tropical_sites = mock_read_csv('results/processed_balesdant_2018.csv')
-        c14_data = mock_rio('path/to/file.nc')
-        
-        self.assertIsInstance(tropical_sites, pd.DataFrame)
-        self.assertEqual(len(tropical_sites), 3)
     
     def test_extract_tropical_sites_function(self):
         """Test the extract_tropical_sites function logic."""
@@ -210,23 +176,14 @@ class Test02GetTurnover14C(unittest.TestCase):
         mock_to_csv.assert_called_once_with('../results/tropical_sites_14C_turnover.csv', index=False)
     
     def test_error_handling_empty_coordinates(self):
-        """Test error handling with empty coordinates.
-        
-        TODO: seems to require google earth engine credentials. Fix. 
-        """
-        find_nearest = __import__('02_get_turnover_14C.find_nearest',
-                                    fromlist=['find_nearest']).find_nearest
-    
+        """Test error handling with empty coordinates."""    
         empty_coords = np.array([]).reshape(0, 2)
         
         with self.assertRaises((IndexError, ValueError)):
             find_nearest(empty_coords, self.mock_c14_data)
     
     def test_error_handling_invalid_dataarray(self):
-        """Test error handling with invalid DataArray."""
-        find_nearest = __import__('02_get_turnover_14C.find_nearest',
-                                    fromlist=['find_nearest']).find_nearest
-        
+        """Test error handling with invalid DataArray."""        
         coords = np.array([[10.0, -50.0]])
         invalid_da = xr.DataArray([])  # Empty DataArray
         
