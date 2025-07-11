@@ -42,11 +42,13 @@ def process_balesdent_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     # Calculate mean fraction of new C across layers for each site by using the weights. We first take a rolling
     # mean of the fraction of new C across layers, because the fraction of new C is calculated in a depth point, 
     # and the C content is calculated for a depth interval. 
+    # TODO: FutureWarning: Support for axis=1 in DataFrame.rolling is deprecated and will be removed in a future version.
+    # Use obj.T.rolling(...) instead
     layer_f_data = f_data.rolling(2, axis=1).mean().values[:, 1:]
     tropical_sites.loc[:, 'total_fnew'] = np.nansum(layer_f_data * site_C_weights, axis=1)
 
     # fill NaN values for Ctotal with the mean Ctotal across all sites in the top 1 meter
-    tropical_sites['Ctotal_0-100estim'].fillna(tropical_sites['Ctotal_0-100estim'].mean(), inplace=True)
+    tropical_sites['Ctotal_0-100estim'] = tropical_sites['Ctotal_0-100estim'].fillna(tropical_sites['Ctotal_0-100estim'].mean())
     
     # Calculate data for unique sites
     final_data = tropical_sites.groupby(['Latitude','Longitude','Duration_labeling'])[['total_fnew']+weight_columns+['Ctotal_0-100estim']].mean().reset_index() 
