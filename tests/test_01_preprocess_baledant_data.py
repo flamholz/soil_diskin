@@ -4,10 +4,10 @@ import pytest
 from unittest.mock import patch
 
 import sys
-print(sys.path)
+print('\n'.join(sys.path))
 
-pbd = __import__('01_preprocess_balesdent_data',
-                 fromlist=['process_balesdent_data']).process_balesdent_data
+from soil_diskin.data_wrangling import process_balesdent_data
+pbd = process_balesdent_data
 
 @pytest.fixture
 def mock_raw_data():
