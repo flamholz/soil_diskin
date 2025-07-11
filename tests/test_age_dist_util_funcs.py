@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 from soil_diskin import age_dist_utils as util
 
 def test_age_dist():
@@ -30,5 +29,5 @@ def test_age_dist():
     ages = np.arange(1,1001)
     pA = util.box_model_ss_age_dist(ARC,RcI,ages)
 
-    sierra = pd.read_csv('notebooks/tests/sierra_2018_RothC.csv')
+    sierra = pd.read_csv('tests/test_data/sierra_2018_RothC.csv')
     np.testing.assert_almost_equal(pA.flatten(), sierra['age_pdf'].values)
