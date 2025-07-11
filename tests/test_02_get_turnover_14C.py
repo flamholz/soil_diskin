@@ -89,7 +89,7 @@ class Test02GetTurnover14C(unittest.TestCase):
         
         self.assertTrue(np.isnan(result[0]))
     
-    @patch('utils.download_file')
+    @patch('soil_diskin.utils.download_file')
     @patch('os.path.exists')
     def test_data_download_workflow(self, mock_exists, mock_download):
         """Test the data download workflow."""
