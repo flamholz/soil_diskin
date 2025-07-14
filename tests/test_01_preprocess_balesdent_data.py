@@ -2,7 +2,12 @@ import pandas as pd
 import numpy as np
 import pytest
 from unittest.mock import patch
-process_baledant_data = __import__('notebooks.01_preprocess_baledant_data', fromlist=['process_baledant_data']).process_baledant_data
+
+import sys
+print('\n'.join(sys.path))
+
+from soil_diskin.data_wrangling import process_balesdent_data
+pbd = process_balesdent_data
 
 @pytest.fixture
 def mock_raw_data():
@@ -34,7 +39,7 @@ def test_process_baledant_data(mock_raw_data):
     """
     Tests the process_baledant_data function with mock data.
     """
-    processed_data = process_baledant_data(mock_raw_data)
+    processed_data = pbd(mock_raw_data)
 
     # Assertions for the filtered data (site 3 should be removed)
     assert len(processed_data) == 4
@@ -113,7 +118,7 @@ def test_process_baledant_data(mock_raw_data):
         mock_data_with_nan_Ctotal[f'f_{i}'] = [np.random.rand() * 0.2 for _ in range(2)]
 
     mock_raw_data_with_nan_Ctotal_df = pd.DataFrame(mock_data_with_nan_Ctotal)
-    processed_data_nan_Ctotal = process_baledant_data(mock_raw_data_with_nan_Ctotal_df)
+    processed_data_nan_Ctotal = pbd(mock_raw_data_with_nan_Ctotal_df)
 
     # For the second site (index 1), C_dens will be all NaN.
     # So, site_C_weights for this site should be replaced by mean_C_weights.

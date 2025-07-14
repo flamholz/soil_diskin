@@ -2,69 +2,37 @@
 #%% load libraries
 import pandas as pd
 import numpy as np
-from sklearn.neighbors import KDTree
+import os
 import xarray as xr
 import rioxarray as rio
-from typing import Union
 import zipfile
 import geemap
 import ee
 ee.Initialize()
-from utils import *
+
+from soil_diskin.geo_utils import find_nearest
+from soil_diskin.utils import download_file
 
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
-#%% define functions
-def find_nearest(coords: Union[np.ndarray,pd.DataFrame], ds: xr.DataArray,tolerance: float = 1) -> np.ndarray:
-    '''
-    Find the nearest pixel in a dataset to a set of coordinates
 
-    Parameters
-    ----------
-    coords : Union[np.ndarray,pd.DataFrame]
-        Coordinates to find the nearest pixel to
-    ds : xr.DataArray
-        Dataset to find the nearest pixel in
-    tolerance : float, optional
-        Tolerance for the distance to be considered a match. The default is 1.
+"""
+All scripts to be run from project root directory.
 
-    Returns
-    -------
-    np.ndarray
-        Array of the nearest pixel values
+This script downloads and processes the 14C and NPP data for tropical sites,
+which is used to calculate soil carbon turnover times. The processed data is
+saved to a CSV file in the results folder.
+"""
 
-    '''
-
-    if type(coords) == pd.DataFrame:
-        coords = coords.values
-    
-    # Convert the DataArray to a DataFrame and drop NaN values
-    df = ds.to_dataframe().dropna()[ds.name]
-
-    # build a KDTree from the DataFrame index
-    kdt = KDTree(np.stack(df.index.to_numpy()),leaf_size=30, metric='euclidean')
-    
-    # query the KDTree for the nearest pixel
-    distance,ind = kdt.query(coords,k=1)
-    
-    # get the values of the nearest pixel
-    res = df.values[ind]
-
-    # set the values to NaN if the distance is greater than the tolerance
-    res[distance>tolerance] = np.nan
-
-    return res
-
-#%% get data if not already downloaded, otherwise load it
-
+# get data if not already downloaded, otherwise load it
 # get the 14C data from [Shi et al., 2020](https://zenodo.org/records/3823612)
-c14_folder = "../data/shi_2020/"
+c14_folder = "data/shi_2020/"
 c14_data_filename = "global_delta_14C.nc"
 c14_url = "https://zenodo.org/records/3823612/files/global_delta_14C.nc"
 download_file(c14_url, c14_folder, c14_data_filename)
 
 # get the GPP data from [Kang et al. 2023](https://zenodo.org/records/8212707)
-GPP_folder = "../data/kang_2023/"
+GPP_folder = "data/kang_2023/"
 GPP_data_filename = "ST_CFE-Hybrid_NT.zip"
 GPP_url = "https://zenodo.org/records/8212707/files/ST_CFE-Hybrid_NT.zip?download=1"
 download_file(GPP_url, GPP_folder, "ST_CFE-Hybrid_NT.zip")
@@ -98,7 +66,7 @@ c14_data_extrapolated = c14_data.rio.interpolate_na(method='nearest')
 #                 .rio.write_nodata(np.nan,inplace=True)
 
 # load the tropical sites data
-tropical_sites = pd.read_csv('../results/processed_balesdant_2018.csv')
+tropical_sites = pd.read_csv('results/processed_balesdant_2018.csv')
 unique_tropical_coords = tropical_sites.drop_duplicates(subset=['Longitude','Latitude'])
 site_C_weights = unique_tropical_coords.filter(regex='^weight_\d+').values
 
@@ -145,4 +113,4 @@ merged_site_data = merged_site_data[['Latitude','Longitude','14C','NPP','Ctotal_
 merged_site_data['fm'] = merged_site_data['14C'] / 1e3 + 1; # fm is the fraction of modern carbon, so we convert 14C from per mil to fraction
 merged_site_data['turnover'] = merged_site_data['Ctotal_0-100estim'] * 1e3 / merged_site_data['NPP'] # turnover is SOC/NPP, so we convert NPP from kgC/m2/year to gC/m2/year
 
-merged_site_data.to_csv('../results/tropical_sites_14C_turnover.csv', index=False)
+merged_site_data.to_csv('results/tropical_sites_14C_turnover.csv', index=False)

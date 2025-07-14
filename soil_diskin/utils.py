@@ -5,6 +5,7 @@ import xarray as xr
 import rioxarray as rio
 from typing import Union
 
+
 def download_file(url, folder, filename):
     """
     Download a file from a given URL and save it to a specified folder with a specified filename.
@@ -33,6 +34,7 @@ def download_file(url, folder, filename):
             f.write(response.content)
     else:
         print("Data already downloaded")
+
 
 # define function to calculate surface area of each pixel
 def calc_pixel_area(raster:xr.DataArray) -> xr.DataArray:

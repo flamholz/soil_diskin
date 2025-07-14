@@ -1,14 +1,10 @@
-#%% 00 - load libraries
-import os
 import pandas as pd
 import numpy as np
-import requests
-from .utils import download_file
-#%% 01 - Download raw data from [Baledant et al. 2018](https://www.nature.com/articles/s41586-018-0328-3) if not already downloaded
 
-def process_baledant_data(raw_data: pd.DataFrame) -> pd.DataFrame:
+
+def process_balesdent_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     """
-    Processes the raw Baledant et al. 2018 data.
+    Processes the raw Balesdent et al. 2018 data.
 
     Args:
         raw_data (pd.DataFrame): The raw data loaded from the Excel file.
@@ -46,29 +42,15 @@ def process_baledant_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     # Calculate mean fraction of new C across layers for each site by using the weights. We first take a rolling
     # mean of the fraction of new C across layers, because the fraction of new C is calculated in a depth point, 
     # and the C content is calculated for a depth interval. 
+    # TODO: FutureWarning: Support for axis=1 in DataFrame.rolling is deprecated and will be removed in a future version.
+    # Use obj.T.rolling(...) instead
     layer_f_data = f_data.rolling(2, axis=1).mean().values[:, 1:]
     tropical_sites.loc[:, 'total_fnew'] = np.nansum(layer_f_data * site_C_weights, axis=1)
 
     # fill NaN values for Ctotal with the mean Ctotal across all sites in the top 1 meter
-    tropical_sites['Ctotal_0-100estim'].fillna(tropical_sites['Ctotal_0-100estim'].mean(), inplace=True)
+    tropical_sites['Ctotal_0-100estim'] = tropical_sites['Ctotal_0-100estim'].fillna(tropical_sites['Ctotal_0-100estim'].mean())
     
     # Calculate data for unique sites
     final_data = tropical_sites.groupby(['Latitude','Longitude','Duration_labeling'])[['total_fnew']+weight_columns+['Ctotal_0-100estim']].mean().reset_index() 
     
     return final_data
-
-if __name__ == "__main__":
-    folder = "../data/balesdant_2018/"
-    raw_data_filename = "41586_2018_328_MOESM3_ESM.xlsx"
-    raw_data_url = "https://static-content.springer.com/esm/art%3A10.1038%2Fs41586-018-0328-3/MediaObjects/41586_2018_328_MOESM3_ESM.xlsx"
-    download_file(raw_data_url, folder, raw_data_filename)
-
-    raw_data = pd.read_excel(os.path.join(folder,raw_data_filename),skiprows=7)
-    final_data = process_baledant_data(raw_data)
-    final_data.to_csv(os.path.join('../results/processed_balesdant_2018.csv'), index=False)
-
-
-## TODO
-
-# 1. Test that the processing works as expected for a predefined set of data, including data with missing values in deeper layers
-# %%
