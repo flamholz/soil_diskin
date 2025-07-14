@@ -1,7 +1,9 @@
 import numpy as np
 import xarray as xr
-
-from scipy.integrate import quad, dblquad
+from jax import numpy as jnp
+from jax import scipy as jsp
+import jax
+from scipy.integrate import quad, dblquad, solve_ivp, cumulative_trapezoid
 from scipy.special import exp1
 from scipy.stats import lognorm, norm
 from constants import LAMBDA_14C, INTERP_R_14C, SECS_PER_DAY, DAYS_PER_YEAR
@@ -13,6 +15,70 @@ import warnings
 # TODO: write some simple unit tests checking internal consistency of models.
 # TODO: PowerLawDisKin is poorly named, the variant with t^{-alpha} is also power laws.
 
+
+# Data structures
+# Global configuration parameters
+ConfigParams = namedtuple('CP', ['decomp_depth_efolding', 'taus', 'Gamma_soil', 'F_soil',
+                                 'zsoi', 'zisoi', 'dz', 'dz_node', 'nlevels','npools'])
+# Data that are specific to a location
+LocDependentData = namedtuple('LDD', ['w', 't', 'o', 'n', 'sand', 'I','X0'])
+
+
+class GlobalData:
+    """Class for storing global data, factory for creating LocDependentData instances."""
+    def __init__(self, global_da):
+        """Construct an instance of the global dataset.
+
+        Puts the data into a usable format for the model.
+        """
+        self.global_da = global_da
+
+        # unpack the environmental variables
+        self.sand_da = global_da['CELLSAND'][0] # 0th axis is time - the value is constant in time so we are taking the first value
+        self.w_scalar_da = global_da['W_SCALAR']
+        self.t_scalar_da = global_da['T_SCALAR']
+        self.o_scalar_da = global_da['O_SCALAR']
+        self.n_scalar_da = global_da['FPI_VR']
+
+        # upack the initial values
+        CWD = global_da['CWDC_VR']
+        LITR1 = global_da['LITR1C_VR']
+        LITR2 = global_da['LITR2C_VR']
+        LITR3 = global_da['LITR3C_VR']
+        SOIL1 = global_da['SOIL1C_VR']
+        SOIL2 = global_da['SOIL2C_VR']
+        SOIL3 = global_da['SOIL3C_VR']
+        X = xr.concat([CWD, LITR1, LITR2, LITR3, SOIL1, SOIL2, SOIL3], dim='pools')
+        self.X0 = X[:,0,:,:].stack(pooldepth=['pools','LEVDCMP1_10'])
+        
+        # unpack the inputs
+        CWD_input = global_da['TOTC2CWDC_VR']
+        LITR1_input = global_da['TOTC2LITRMETC_VR']
+        LITR2_input = global_da['TOTC2LITRCELC_VR']
+        LITR3_input = global_da['TOTC2LITRLIGC_VR']
+        zero_da = xr.zeros_like(LITR1_input)
+        inputs = xr.concat([CWD_input, LITR1_input, LITR2_input, LITR3_input, zero_da, zero_da, zero_da], dim='pools')
+        self.inputs = inputs.stack(pooldepth=['pools','LEVDCMP1_10'])
+
+    def make_ldd(self, lat, lon):
+        w = self.w_scalar_da.sel(y=lat, x=lon, method='nearest')
+        t = self.t_scalar_da.sel(y=lat, x=lon, method='nearest')
+        o = self.o_scalar_da.sel(y=lat, x=lon, method='nearest')
+        n = self.n_scalar_da.sel(y=lat, x=lon, method='nearest')
+        sand = self.sand_da.sel(y=lat, x=lon, method='nearest')
+        I = self.inputs.sel(y=lat, x=lon, method='nearest')
+        X0 = self.X0.sel(y=lat, x=lon, method='nearest')
+        return LocDependentData(w=w, t=t, o=o, n=n, sand=sand, I=I, X0=X0)
+
+    def make_ldd_jax(self, lat, lon):
+        w = jnp.array(self.w_scalar_da.sel(y=lat, x=lon, method='nearest').values)
+        t = jnp.array(self.t_scalar_da.sel(y=lat, x=lon, method='nearest').values)
+        o = jnp.array(self.o_scalar_da.sel(y=lat, x=lon, method='nearest').values)
+        n = jnp.array(self.n_scalar_da.sel(y=lat, x=lon, method='nearest').values)
+        sand = jnp.array(self.sand_da.sel(y=lat, x=lon, method='nearest').values)
+        I = jnp.array(self.inputs.sel(y=lat, x=lon, method='nearest').values)
+        X0 = jnp.array(self.X0.sel(y=lat, x=lon, method='nearest').values)
+        return LocDependentData(w=w, t=t, o=o, n=n, sand=sand, I=I, X0=X0)
 
 class PowerLawDisKin:
     """A model where rates of decay are proportional to 1/t between two bounding timescales.
@@ -78,7 +144,6 @@ class PowerLawDisKin:
             A two-tuple of the mean age and an estimate of the absolute error.
         """
         return quad(self.mean_age_integrand, 0, np.inf)
-
 
 class LognormalDisKin:
 
@@ -267,11 +332,24 @@ class CLM5(CompartmentalModel):
         self.config = config
         self.env = env_params
 
-        self.I = env_params.I
+        self.I = env_params.I * SECS_PER_DAY * DAYS_PER_YEAR  # Convert from g/m^2/s to g/m^2/year
         self.A = self.make_A_matrix(env_params.sand, config.nlevels)
         self.V = self.make_V_matrix(config.Gamma_soil, config.F_soil,
                                config.npools, config.nlevels, config.dz, 
                                config.dz_node, config.zsoi, config.zisoi)
+        
+        self.K_ts = np.stack(
+            [self.make_K_matrix(
+                self.config.taus, 
+                np.array(self.config.zsoi),
+                self.env.w[t,:], 
+                self.env.t[t,:], 
+                self.env.o[t,:], 
+                self.env.n[t,:],
+                self.config.decomp_depth_efolding,
+                self.config.nlevels) for t in range(12)
+            ]
+        )
     
     def make_V_matrix(self,Gamma_soil, F_soil, npools, nlevels,
                     dz, dz_node, zsoi, zisoi):
@@ -363,7 +441,7 @@ class CLM5(CompartmentalModel):
 
         return tri_matrix
 
-    def make_A_matrix(sand_content, nlevels):
+    def make_A_matrix(self, sand_content, nlevels):
         """
         Create a A matrix for soil carbon pools for the CENTURY model with 7 pools. 
         The order of the pools is CWD, Litter1, Litter2, Litter3, SOM1, SOM2, SOM3
@@ -427,7 +505,7 @@ class CLM5(CompartmentalModel):
 
         return A_matrix
 
-    def make_K_matrix(taus, zsoi,
+    def make_K_matrix(self, taus, zsoi,
                     w_scalar, t_scalar, o_scalar, n_scalar,
                     decomp_depth_efolding, nlevels):
         """Makes the matrix of rate constants for each of the soil carbon pools.
@@ -462,7 +540,7 @@ class CLM5(CompartmentalModel):
         k_modifier = (t_scalar * w_scalar * o_scalar * depth_scalar)
         return block_diag(*[np.diag(k * k_modifier * n_scalar if i in [1,2,3] else k * k_modifier) for i,k in enumerate(ks)]) # only for the litter pools (pools 2,3,4) do we multiply by n_scalar
 
-    def _dX(self, X, t):
+    def _dX(self, t, X):
         """ODE to be integrated to calculate C pools via CLM style CENTURY type model. 
 
         K_t is time dependent, needs to be calculated at each step.
@@ -477,8 +555,10 @@ class CLM5(CompartmentalModel):
         Returns:
             dX: change in state matrix of C pools
         """
-        I_t = self.I[t,:].values
-
+        
+        t_ind = int((t % (1 / 12)) * 12 * 12) # t is in units of years, and the dt for the I, T and P is in months, so we multiply by 12 to get the index
+        I_t = self.I[t_ind,:].values
+        
         taus = self.config.taus
         zsoi = self.config.zsoi
         w_scalar = self.env.w
@@ -488,12 +568,13 @@ class CLM5(CompartmentalModel):
         decomp_depth_efolding = self.config.decomp_depth_efolding
         nlevels = self.config.nlevels
 
-        K_t = self.make_K_matrix(taus, zsoi,
-                            w_scalar[t,:], t_scalar[t,:], o_scalar[t,:], n_scalar[t,:],
-                            decomp_depth_efolding, nlevels)
+        # K_t = self.make_K_matrix(taus, zsoi,
+        #                     w_scalar[t_ind,:], t_scalar[t_ind,:], o_scalar[t_ind,:], n_scalar[t_ind,:],
+        #                     decomp_depth_efolding, nlevels)
+
         
-        
-        dX = I_t + (self.A @ K_t - self.V) @ X.values
+        # dX = I_t + (self.A @ K_t - self.V) @ X#.values
+        dX = I_t + (self.A @ self.K_ts[t_ind, :, :] - self.V) @ X#.values
         return dX
     
     def run(self, timesteps, dt):
@@ -511,6 +592,290 @@ class CLM5(CompartmentalModel):
             Xs.append(Xs[-1] + self._dX(Xs[-1], ts) * dt)
         
         return xr.concat(Xs, dim = 'TIME')
+
+
+class CLM5_jax(CompartmentalModel):
+    """A model based on the CLM5 with vertical diffusion and advection."""
+    
+    def __init__(self, config: namedtuple, env_params: namedtuple):
+        """Construct an instance for a single grid cell.
+
+        Args:
+            config: instance of ConfigParams.
+                Contains all the global configuration parameters.
+            env_params: instance of LocDependentData.
+                Contains all the data that are specific to a location.
+        """
+        self.config = config
+        self.env = env_params
+
+        self.I = env_params.I * SECS_PER_DAY * DAYS_PER_YEAR  # Convert from g/m^2/s to g/m^2/year
+        self.A = self.make_A_matrix(env_params.sand, config.nlevels)
+        self.V = self.make_V_matrix(config.Gamma_soil, config.F_soil,
+                               config.npools, config.nlevels, config.dz, 
+                               config.dz_node, config.zsoi, config.zisoi)
+        
+        # Create the K matrix for each month
+        self.K_ts = jnp.stack(
+            [self.make_K_matrix(
+                self.config.taus, 
+                jnp.array(self.config.zsoi),
+                self.env.w[t,:], 
+                self.env.t[t,:], 
+                self.env.o[t,:], 
+                self.env.n[t,:],
+                self.config.decomp_depth_efolding,
+                self.config.nlevels) for t in range(12)
+            ]
+        )
+                        
+
+    
+    def make_V_matrix(self,Gamma_soil, F_soil, npools, nlevels,
+                    dz, dz_node, zsoi, zisoi):
+        """
+        Create a tridiagonal matrix for soil carbon pools
+
+        Parameters
+        ----------
+        Gamma_soil : float
+            Diffusion coefficient
+        F_soil : float
+            Advection coefficient
+        npools : int
+            Number of soil carbon pools
+        nlevels : int
+            Number of soil layers
+        dz : np.array
+            Thickness of soil layers (m)
+        dz_node : np.array
+            Distance between layer interfaces (m)
+        zsoi : np.array
+            Depth of soil layers (m)
+        zisoi : np.array
+            Depth of soil layer interfaces (m)
+
+        Returns
+        -------
+        np.array
+            Tridiagonal matrix
+        """
+
+        # A function from Patankar, Table 5.2, pg 95
+        aaa = np.vectorize(lambda pe: np.max ([0, (1 - 0.1 * np.abs(pe))**5]))
+
+        Gamma_vec = np.ones(nlevels+1) * Gamma_soil
+        F_vec = np.ones(nlevels+1) * F_soil
+
+        # Calculate the weighting between lfactors for the diffusion and advection terms
+        w_e = np.zeros(nlevels+1)
+        w_e[1:] = (zisoi[:nlevels] - zsoi[:nlevels]) / dz_node[1:nlevels+1]
+        Gamma_e = np.zeros(nlevels+1)
+        Gamma_e[1:] = 1 / ((1 - w_e[1:nlevels+1]) / Gamma_vec[1:nlevels+1] + w_e[1:nlevels+1] / Gamma_vec[nlevels]); # Harmonic mean of diffus
+
+        # Calculate the weighting between lfactors for the diffusion and advection terms
+        w_p = np.zeros(nlevels+1)
+        w_p[:nlevels] = (zsoi[1:nlevels+1] - zisoi[:nlevels]) / dz_node[1:nlevels+1]
+        Gamma_p = np.zeros(nlevels+1)
+        Gamma_p[:nlevels] = 1 / ((1 - w_p[:nlevels]) / Gamma_vec[:nlevels] + w_p[:nlevels] / Gamma_vec[1:nlevels+1]); # Harmonic mean of diffus
+
+        ## TODO - pop the above code into a separate function and compare againt the output from the matlab code
+
+        # Define the D and F values for each layer the according to Eq. 5.9 in Patankar, pg. 82
+        D_e = Gamma_e / dz_node[:nlevels+1]
+        D_p = np.zeros(nlevels+1)
+        D_p[:nlevels] = Gamma_p[:nlevels] / dz_node[1:nlevels+1]
+        D_p[-1] = D_e[-1]
+        F_e = F_vec
+        F_p = F_vec
+        F_p[-1] = 0
+
+
+        # Define the Peclet number - ignore the warning 
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            Pe_e = F_e / D_e
+        Pe_e[0] = 0;
+        Pe_p = F_p / D_p
+
+        # Define the vectors for the tridiagonal matrix
+        a_tri_e =  -( D_e * aaa(Pe_e) + np.max([F_e, np.zeros(nlevels+1)],axis=0))
+        c_tri_e =  - (D_p * aaa(Pe_p) + np.max([-F_p, np.zeros(nlevels+1)],axis=0))
+        b_tri_e = - a_tri_e - c_tri_e
+
+        # Define the upper and lower bounaries
+        b_tri_e[0] = - c_tri_e[0]
+        b_tri_e[-2] = - a_tri_e[-2]
+
+        # Define the tridiagonal matrix
+        tri_matrix = np.diag(a_tri_e[:-1],k=-1)[1:,1:] + np.diag(b_tri_e[:-1],k=0) + np.diag(c_tri_e[:-1],k=1)[:-1,:-1]
+
+        # Define the block diagonal matrix
+        tri_matrix = block_diag(*[tri_matrix]*npools)
+        
+        # Set the first pool to zero
+        tri_matrix[:nlevels,:nlevels] = 0
+
+        # Divide the matrix by dz
+        tri_matrix = (tri_matrix.T/np.tile(dz[:nlevels],npools)).T
+
+        return jnp.array(tri_matrix)
+
+    def make_A_matrix(self, sand_content, nlevels):
+        """
+        Create a A matrix for soil carbon pools for the CENTURY model with 7 pools. 
+        The order of the pools is CWD, Litter1, Litter2, Litter3, SOM1, SOM2, SOM3
+        #TODO - change when we change the order of the pools
+
+        Parameters
+        ----------
+        sand_content : np.array (nlevels)
+            sand content
+        nlevels : int
+            Number of soil layers
+
+        Returns
+        -------
+        np.array
+            The A matrix
+        """
+
+        assert len(sand_content) == nlevels
+
+        # The functional parameterization of the transfer coefficients is based on # this is based on the
+        # original CENTURY model parameterization in Parton et al. 1998 (https://link.springer.com/article/10.1007/BF02180320) in Figure 1
+
+        # t is a number dependent on the sand content that determines the transfer coefficient fraction of carbon that is lost to respiration
+        t = 0.85 - 0.68 * 0.01 * (100 - sand_content)
+
+        # f is the fraction of carbon from a specific pool that is transferred to another pool
+        f_s1s2 = 1 - 0.004 / (1 - t)
+        f_s1s3 = 0.004 / (1 - t)
+        f_s2s1 = 0.42 / 0.45 * jnp.ones(nlevels)
+        f_s2s3 = 0.03 / 0.45 * jnp.ones(nlevels)
+
+        # rf is the fractio of carbon in a specific flux between pools that is lost to respiration (1-CUE)
+        rf_s1s2 = t
+        rf_s1s3 = t
+
+        # Using the formalism a_i,j = (1-rf_i,j) * f_i,j, where a_i,j are the coefficients in the A matrix 
+        # Implementation accroding to Eq. 3 in Huang et al. 2017 (https://onlinelibrary.wiley.com/doi/10.1111/gcb.13948)
+        Adiag = -np.eye(nlevels) #A11-A77
+        A_zero = np.zeros((nlevels,nlevels))
+        A31 = 0.76 * np.eye(nlevels) # CWD -> Litter2
+        A41 = 0.24 * np.eye(nlevels) # CWD -> Litter3
+        A52 = (1-0.55) * np.eye(nlevels) # Litter1 -> SOM2
+        A53 = (1-0.5) * np.eye(nlevels) # Litter2 -> SOM1
+        A56 = np.diag((1-0.55) * f_s2s1) # SOM1 -> SOM3
+        A57 = (1-0.55) * np.eye(nlevels) # SOM3 -> SOM1
+        A64 = (1-0.5) * np.eye(nlevels) # Litter3 -> SOM2
+        A65 = np.diag((1 - rf_s1s2) * f_s1s2) # SOM1 -> SOM2
+        A75 = np.diag((1 - rf_s1s3) * f_s1s3) # SOM1 -> SOM3
+        A76 = np.diag((1-0.55) * f_s2s3) # SOM2 -> SOM3
+
+        A_matrix = np.block([
+            [Adiag     , A_zero    , A_zero    , A_zero    , A_zero    , A_zero    , A_zero    ],
+            [A_zero    , Adiag     , A_zero    , A_zero    , A_zero    , A_zero    , A_zero    ],
+            [A31       , A_zero    , Adiag     , A_zero    , A_zero    , A_zero    , A_zero    ],
+            [A41       , A_zero    , A_zero    , Adiag     , A_zero    , A_zero    , A_zero    ],
+            [A_zero    , A52       , A53       , A_zero    , Adiag     , A56       , A57       ],
+            [A_zero    , A_zero    , A_zero    , A64       , A65       , Adiag     , A_zero    ],
+            [A_zero    , A_zero    , A_zero    , A_zero    , A75       , A76       , Adiag     ]
+                ])
+
+        return jnp.array(A_matrix)
+
+    def make_K_matrix(self, taus, zsoi,
+                    w_scalar, t_scalar, o_scalar, n_scalar,
+                    decomp_depth_efolding, nlevels):
+        """Makes the matrix of rate constants for each of the soil carbon pools.
+
+        Parameters
+        ----------
+        taus : np.array
+            Turnover times for each soil carbon pool in units of seconds
+        zsoi : np.array
+            Depth of soil layers (m)
+        w_scalar : float
+            Water scalar (0-1)
+        t_scalar : float 
+            Temperature scalar (0-1)
+        o_scalar : float
+            Oxygen scalar (0-1)
+        n_scalar : float
+            Nitrogen scalar (0-1)
+        decomp_depth_efolding : float
+            Depth of the decomposition efolding (units of 1/m)
+        nlevels : int
+            Number of soil layers -- 10 in practice
+
+        Returns
+        -------
+        np.array
+            The K matrix
+        """
+        # calculate k's from tau's
+        ks = 1 / (taus)
+        depth_scalar = jnp.exp(-zsoi[:nlevels]/decomp_depth_efolding)
+        k_modifier = (t_scalar * w_scalar * o_scalar * depth_scalar)
+        return jsp.linalg.block_diag(*[jnp.diag(k * k_modifier * n_scalar if i in [1,2,3] else k * k_modifier) for i,k in enumerate(ks)]) # only for the litter pools (pools 2,3,4) do we multiply by n_scalar
+
+    @jax.jit
+    def _dX(self, t, X):
+        """ODE to be integrated to calculate C pools via CLM style CENTURY type model. 
+
+        K_t is time dependent, needs to be calculated at each step.
+        Other matrices are constant.
+        
+        dX = I_t - (AK_t - V) * X
+
+        Args:
+            X: state matrix of C pools
+            t: time
+
+        Returns:
+            dX: change in state matrix of C pools
+        """
+
+        # t_ind = int((t % (1 / 12)) * 12 * 12)  # t is in units of years, and the dt for the I, T and P is in months, so we multiply by 12 to get the index
+        t_ind = jnp.array((t % (1 / 12)) * 12 * 12, int)  # t is in units of years, and the dt for the I, T and P is in months, so we multiply by 12 to get the index
+        I_t = self.I[t_ind,:].values
+        
+        # taus = self.config.taus
+        # zsoi = self.config.zsoi
+        # w_scalar = self.env.w
+        # t_scalar = self.env.t
+        # o_scalar = self.env.o
+        # n_scalar = self.env.n
+        # decomp_depth_efolding = self.config.decomp_depth_efolding
+        # nlevels = self.config.nlevels
+
+        # K_t = self.make_K_matrix(taus, zsoi,
+                            # w_scalar[t_ind,:], t_scalar[t_ind,:], o_scalar[t_ind,:], n_scalar[t_ind,:],
+                            # decomp_depth_efolding, nlevels)
+        
+        A_t = jnp.subtract(jnp.dot(self.A, self.K_ts[t_ind,:,:]), self.V)
+        dX = jnp.add(I_t, jnp.dot(A_t , X))
+        # dX = I_t + (self.A @ K_t[t_ind,:,:] - self.V) @ X#.values
+        return dX
+    
+    def run(self, timesteps, dt):
+        """
+        Run the model for a series of timesteps.
+
+        Args:
+            timesteps: list of timesteps to run the model for
+            dt: timestep size
+        """
+        Xs = [self.env.X0]
+        for i,ts in enumerate(timesteps):
+            # print("Running timestep ", i,ts)
+            # print(self._CLM_vertical(Xs[-1], ts))
+            Xs.append(Xs[-1] + self._dX(Xs[-1], ts) * dt)
+        
+        return xr.concat(Xs, dim = 'TIME')
+
+
 
 class JULES(CompartmentalModel):
     """ 
@@ -705,14 +1070,16 @@ class JSBACH(CompartmentalModel):
                 Contains all the global configuration parameters.
             env_params: instance of LocDependentData.
                 Contains all the data that are specific to a location.
+                For JSBACH, this includes the d of the CWD diameter, 
+                the temperature, the precipitation time series.
         """
         super().__init__(config, env_params)
         self.I = env_params.I
-        self.A = self.make_A_matrix(env_params.sand, config.nlevels)
-        self.V = self.make_V_matrix(config.Gamma_soil, config.F_soil,
-                               config.npools, config.nlevels, config.dz, 
-                               config.dz_node, config.zsoi, config.zisoi)
-    def make_A_matrix():
+        self.A = self.make_A_matrix()
+        self.K = np.stack([self.make_K_matrix(env_params.T[i], env_params.P[i], env_params.d) for i in range(12)]) # calculate K for each month
+        self.u = self.make_B()
+        
+    def make_A_matrix(self):
         """Make the A matrix for the JSBACH model.
         """
         # Define the transfer coefficients based on the JSBACH model
@@ -729,14 +1096,15 @@ class JSBACH(CompartmentalModel):
         A_pool = np.array([[-1, W_A, E_A, N_A],
                              [A_W, -1, E_W, N_W],
                              [A_E, W_E, -1, N_E],
-                             [A_N, W_N, E_N, 0]])
+                             [A_N, W_N, E_N, -1]])
         
         # Create a block diagonal matrix for the pools for aboveground and belowground litter
         A_total = np.diag(-np.ones(9))
         A_total[:8,:8]= block_diag(A_pool,A_pool)
         
         # Add the humus pool
-        A_total[:8,8] = mu_H  # transfer from all pools to humus
+        # A_total[:8,8] = mu_H  # transfer from all pools to humus
+        A_total[8,:8] = mu_H  # transfer from all pools to humus
         
         # Build a matrix for woody and non-woody litter pools
 
@@ -776,7 +1144,7 @@ class JSBACH(CompartmentalModel):
 
         return np.diag(K_pools)
     
-    def make_B(NPP, LAI, specific_leaf_area_C):
+    def make_B(self):
         """Make the B matrix for the JSBACH model.
         """
         
@@ -784,10 +1152,10 @@ class JSBACH(CompartmentalModel):
         fract_npp_2_woodPool = 0.3 # fraction of NPP that goes to wood pool
         fract_npp_2_reservePool = 0.05 # fraction of NPP that goes to reserve pool
         fract_npp_2_exudates = 0.05 # fraction of NPP that goes to root exudates
-        NPP_2_woodPool    = fract_npp_2_woodPool * NPP # NPP mol(C)/m2/yr
-        NPP_2_reservePool = fract_npp_2_reservePool * NPP
-        NPP_2_rootExudates= fract_npp_2_exudates * NPP
-        NPP_2_greenPool = (1 - fract_npp_2_woodPool - fract_npp_2_reservePool - fract_npp_2_exudates) * NPP
+        # NPP_2_woodPool    = fract_npp_2_woodPool * NPP # NPP mol(C)/m2/yr
+        # NPP_2_reservePool = fract_npp_2_reservePool * NPP
+        # NPP_2_rootExudates= fract_npp_2_exudates * NPP
+        # NPP_2_greenPool = (1 - fract_npp_2_woodPool - fract_npp_2_reservePool - fract_npp_2_exudates) * NPP
 
     
         LeafLit_coef = np.array([0.4651, 0.304, 0.0942, 0.1367, 0.]) #coefficient to distribute leaf litter into 5 classes of chemical composition
@@ -798,28 +1166,28 @@ class JSBACH(CompartmentalModel):
 
 
 
-        greenC2leafC = 4 # ratio of carbon green pool (leaves, fine roots, starches, sugars) to leaf carbon
-        leaf_shedding = 0.000342 # Time in which leaves are constantly shedded [days-1] 
-        specific_leaf_area_C = 0.264 # Carbon content per leaf area in [m2(leaf)/mol(Carbon)] 
-        C_2_litter_greenPool = greenC2leafC * leaf_shedding / specific_leaf_area_C
+        # greenC2leafC = 4 # ratio of carbon green pool (leaves, fine roots, starches, sugars) to leaf carbon
+        # leaf_shedding = 0.000342 # Time in which leaves are constantly shedded [days-1] 
+        # specific_leaf_area_C = 0.264 # Carbon content per leaf area in [m2(leaf)/mol(Carbon)] 
+        # C_2_litter_greenPool = greenC2leafC * leaf_shedding / specific_leaf_area_C
         
         
-        C_2_litter_woodPool = c_woods / tau_c_woods
-        cflux_c_greenwood_2_litter = cflux_c_greenwood_2_litter + C_2_litter_woodPool
+        # C_2_litter_woodPool = c_woods / tau_c_woods
+        # cflux_c_greenwood_2_litter = cflux_c_greenwood_2_litter + C_2_litter_woodPool
 
-        # Trace back leafLitter
+        # # Trace back leafLitter
         
         
-        C_2_litter_greenPool =  MIN(greenC2leafC * leaf_shedding / specific_leaf_area_C, c_green)
-        cflux_c_greenwood_2_litter = C_2_litter_greenPool
+        # C_2_litter_greenPool =  MIN(greenC2leafC * leaf_shedding / specific_leaf_area_C, c_green)
+        # cflux_c_greenwood_2_litter = C_2_litter_greenPool
 
-        C_2_litter_woodPool = c_woods / tau_c_woods
-        cflux_c_greenwood_2_litter = cflux_c_greenwood_2_litter + C_2_litter_woodPool
+        # C_2_litter_woodPool = c_woods / tau_c_woods
+        # cflux_c_greenwood_2_litter = cflux_c_greenwood_2_litter + C_2_litter_woodPool
         
-        C_2_litter_greenPool = c_reserve / tau_c_reserve
-        cflux_c_greenwood_2_litter = cflux_c_greenwood_2_litter + C_2_litter_greenPool
+        # C_2_litter_greenPool = c_reserve / tau_c_reserve
+        # cflux_c_greenwood_2_litter = cflux_c_greenwood_2_litter + C_2_litter_greenPool
 
-        leafLitter    = cflux_c_greenwood_2_litter - C_2_litter_woodPool + Cflx_faeces_2_LG - Cflx_2_crop_harvest
+        # leafLitter    = cflux_c_greenwood_2_litter - C_2_litter_woodPool + Cflx_faeces_2_LG - Cflx_2_crop_harvest
 
 
         # Summary
@@ -849,23 +1217,73 @@ class JSBACH(CompartmentalModel):
         NPP_pools_above_below = np.stack([NPP_to_litter_pools,NPP_to_litter_pools],axis=2) * above_below # size 4,3,2
         veg_to_litter = np.array([[1, 0, 1], [0, 1, 0]]) # the vegetation pools that contribute to the non-woody and woody litter pools
         B_temp = (NPP_pools_above_below.transpose(0,2,1) @ veg_to_litter.T) # size 4,2,2
-        # I want to multiply a (which is size 4,3) with above_below (which is size 3,2) to get a size 4,3,2 tensor
+        B = np.concatenate([B_temp.transpose(1,0,2).reshape(8,2),  np.zeros((1,2))]).T.flatten() # size 18,
+        
+        return B
         
 
         # The output vector should be size 18, composed of:
         # 4 pools of non-woody litter for aboveground, 4 pools of non-woody litter for belowground, and one pool of non-woody humus
         # 4 pools of woody litter for aboveground, 4 pools of woody litter for belowground, and one pool of woody humus
 
+    def _dX(self, t, X):
+        
+        t_ind = int((t % (1 / 12)) * 12 * 12) # t is in units of years, and the dt for the I, T and P is in months, so we multiply by 12 to get the index
+        I_t = self.I[t_ind]
+        
+        dX = I_t * self.u + (self.A @ self.K[t_ind,:]) @ X
+        return dX
+    
+    def _impulse(self, t, X):
+        """Define the impulse response for the JSBACH model.
 
+        Args:
+            t: time in years
+            t_ind: index of the time in the input data
+        """
+        # Define the impulse input as a function of time
+        # This is a placeholder, you can define your own impulse input function
+        t_ind = int((t % (1 / 12)) * 12 * 12) # t is in units of years, and the dt for the I, T and P is in months, so we multiply by 12 to get the index
+        
+        dX = (self.A @ self.K[t_ind,:]) @ X
+        return dX
 
-distribute_yasso_litter(c_acid_ag, c_water_ag, c_ethanol_ag, c_nonsoluble_ag, c_humus, &
-      &                          litter, fract_aboveground, Lit_coefV)
+    def pA(self, tmax: np.ndarray) -> np.ndarray:
+        """Calculate the age distribution for the model.
 
-      
+        Args:
+            tmax: maximum time in years to calculate the age distribution for
 
-yasso (, Weather, litter, Lit_coefV,WoodLitterSize, Yasso_out, fract_aboveground, &
-                         NPP_2_rootExudates, redFact_Nlimit)
+        Returns:
+            np.ndarray: age distribution for the model
+        """
+        
+        ts = np.logspace(-2,np.log10(tmax),1000)
+        solution = solve_ivp(self._impulse, t_span=(0,tmax*1.01), y0 = self.u, method="LSODA", t_eval=ts)
+        ys = solution.y.sum(axis=0)
 
+        t_inds = ((ts % (1 / 12)) * 12 * 12).astype(int) # t is in units of years, and the dt for the I, T and P is in months, so we multiply by 12 to get the index
+        pA = ys * self.I[t_inds]
+        return pA
+    
+
+    
+    def run(self, timesteps, dt):
+        """
+        Run the model for a series of timesteps.
+
+        Args:
+            timesteps: list of timesteps to run the model for
+            dt: timestep size
+        """
+        Xs = [self.env.X0]
+        for i,ts in enumerate(timesteps):
+            # print("Running timestep ", i,ts)
+            # print(self._CLM_vertical(Xs[-1], ts))
+            Xs.append(Xs[-1] + self._dX(Xs[-1], ts) * dt)
+        
+        return xr.concat(Xs, dim = 'TIME')
+    
 # class ReducedComplexModel(CompartmentalModel):
 
 class old_LognormalDisKin:
