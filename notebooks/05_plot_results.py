@@ -1,3 +1,7 @@
+#%%
+import os
+if os.getcwd().endswith('notebooks'):
+    os.chdir('..')
 
 # %% Import libraries
 import pickle
@@ -6,11 +10,59 @@ import numpy as np
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, root_mean_squared_error
 from scipy.stats import pearsonr, spearmanr
-from models import PowerLawDisKin
-from constants import INTERP_R_14C, C14_DATA
+from notebooks.models import PowerLawDisKin
+from notebooks.constants import INTERP_R_14C, C14_DATA
 import matplotlib.pyplot as plt
+from permetrics.regression import RegressionMetric
+
+
+#%% Load the site data
+tropical_sites = pd.read_csv('results/processed_balesdant_2018.csv')
+
+#%% Load the predictions
+powerlaw_predictions = pd.read_csv('results/04_model_predictions/power_law_16-07-2025.csv',header=None, names=['prediction'])
+lognormal_predictions = pd.read_csv('results/04_model_predictions/lognormal_16-07-2025.csv',header=None, names=['prediction'])
+CLM45_predictions = pd.read_csv('results/04_model_predictions/CLM45_fnew_17-07-2025.csv', header=None, names=['prediction'])
+JSBACH_predictions = pd.read_csv('results/04_model_predictions/JSBACH_fnew_17-07-2025.csv', header=None, names=['prediction'])
+RCM_predictions = pd.read_csv('results/04_model_predictions/RCM_17-07-2025.csv')
+# %% Define function to plot model predictions
+def plot_model_predictions(ax, predictions, model_name):
+    ax.plot([0, 1], [0, 1], color='k', linestyle='-', label='y=x')
+    ax.scatter(tropical_sites['total_fnew'], predictions, label=model_name)
+
+    evaluator = RegressionMetric(y_true=tropical_sites['total_fnew'].values, y_pred=predictions.values)
+    rmse = root_mean_squared_error(tropical_sites['total_fnew'], predictions)
+    ax.text(0.05, 0.95, f'KGE: {evaluator.kling_gupta_efficiency():.3f}', transform=ax.transAxes, fontsize=10, verticalalignment='top')
+    ax.text(0.05, 0.90, f'RMSE: {rmse:.3f}', transform=ax.transAxes, fontsize=10, verticalalignment='top')
+    ax.set(xlabel='observed', ylabel='predicted')
+    ax.set_title(model_name) 
+
+# %% Plot the predictions predictions
+
+fig, axs = plt.subplots(2,4,figsize=(15, 8), dpi=600,constrained_layout=True)
+axs = axs.flatten()
+
+# power-law model predictions
+plot_model_predictions(axs[0], powerlaw_predictions['prediction'], 'Power Law DisKin Model')
+
+# lognormal model predictions
+plot_model_predictions(axs[1], lognormal_predictions['prediction'], 'Lognormal Model')
+
+# CLM4.5 predictions
+plot_model_predictions(axs[2], CLM45_predictions['prediction'], 'CLM4.5 Model')
+
+# JSBACH predictions
+plot_model_predictions(axs[3], JSBACH_predictions['prediction'], 'JSBACH Model')
+
+# Reduced complexity model predictions
+for i, col in enumerate(RCM_predictions.columns):
+    plot_model_predictions(axs[4 + i], RCM_predictions[col], col)
+
+# remove empty subplots
+for i in range(4 + len(RCM_predictions.columns), 8):
+    fig.delaxes(axs[i])
 
 #%% Load data
 tropical_sites = pd.read_csv('../results/processed_balesdant_2018.csv')
@@ -33,7 +85,7 @@ ts_CLM5, cum_CLM5_site_age_dist = pickle.load(open(f'../results/analyze_balesden
 
 #%% Plot the model predictions for each model
 
-fig, axs = plt.subplots(2,3,figsize=(12, 8), dpi=600,constrained_layout=True)
+fig, axs = plt.subplots(2,3,figsize=(16, 8), dpi=600,constrained_layout=True)
 axs = axs.flatten()
 
 predictions = []
@@ -59,6 +111,10 @@ axs[0].set_title('Power Law DisKin Model\nper site')
 
 model = PowerLawDisKin(*np.stack(powerlaw_params.dropna()[['tau_0','tau_inf']].values).mean(axis=0))
 predictions = []
+
+# parallilize the predictions on multiple cores
+
+
 for i, row in tropical_sites.iterrows():
     if np.isnan(powerlaw_params.loc[i,['tau_0','tau_inf']]).sum() != 0:
         predictions.append(np.nan)

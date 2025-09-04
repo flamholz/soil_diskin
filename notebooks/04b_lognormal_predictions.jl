@@ -1,0 +1,24 @@
+#impot the utils.jl file
+include("soil_diskin/utils.jl")
+
+
+params = CSV.read("results/03b_lognormal_predictions_calcurve.csv",DataFrame); 
+tmax = 100_000; # maximum time for the ODE solution
+ts_size = 1000; # size of the time series
+# create a matrix the size of the number of rows in params and with 100_000 columns
+results = Matrix{Float64}(undef, size(params, 1), ts_size);
+
+using ProgressBars
+for i in ProgressBar(1:size(params, 1))
+        # run the diskin model for each row in params
+        # results[i,:] = run_diskin(params[i,:turnover], params[i,:pred], 1, true, tmax, ts_size);
+    result = run_diskin(params[i,:turnover], params[i,:pred],1, true, tmax, ts_size);
+    results[i,:] = reduce(vcat, result);
+    
+end
+ts = 10 .^ range(-1,log10(tmax),ts_size);
+CSV.write("results/04_model_predictions/04b_lognormal_cdfs.csv",  Tables.table(results, header = ts));
+
+# @btime cont = run_diskin(17,1000,0.25,true,false);
+# @btime noncont = run_diskin(17,1000,0.25,true,true);
+# cont'./noncont
