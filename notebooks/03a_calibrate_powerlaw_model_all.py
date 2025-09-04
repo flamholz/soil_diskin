@@ -1,7 +1,3 @@
-#%% 
-import os
-if os.getcwd().endswith('notebooks'):
-    os.chdir('..')
 
 #%% Load libraries
 
@@ -39,18 +35,18 @@ def objective_function(params, merged_site_data):
     model = PowerLawDisKin(a, b)
     
     # Calculate the predicted 14C ratio and turnover
-    predicted_14C_ratio = quad(model.radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0]
-
+    predicted_14C_ratio = quad(model.radiocarbon_age_integrand, 0, np.inf)[0]
+    
     # Calculate the difference between the predicted and observed data
     diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm'])**2)
-    diff_turnover = np.nansum((model.T - merged_site_data['turnover'])**2)
+    diff_turnover = np.nansum((model.T - merged_site_data['turnover']*2)**2)
     
     # Return the sum of squared differences
     return diff_14C + diff_turnover
 
 #%% Load the data
 
-merged_site_data = pd.read_csv('results/tropical_sites_14C_turnover.csv')
+merged_site_data = pd.read_csv('results/tropical_sites_14C_turnover_all.csv')
 
 # initial guess for the parameters
 initial_guess = [0.5, 10000]
@@ -74,13 +70,8 @@ result_df = pd.DataFrame(result,columns=['params','objective_value'],index=merge
 result_df[['tau_0','tau_inf']] = result_df['params'].apply(lambda x: pd.Series(x,index = ['tau_0','tau_inf']))
 result_df.drop(columns ='params',inplace=True)
 
-result_df['modeled_tau'] = result_df.apply(lambda x: PowerLawDisKin(x['tau_0'], x['tau_inf']).T, axis=1)
-result_df['modeled_14C'] = result_df.apply(lambda x: quad(PowerLawDisKin(x['tau_0'], x['tau_inf']).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
-
-merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
-
 print(f'the Maximum objective value is {result_df["objective_value"].max():.3f}')
 
 # Save the result to a CSV file
-merged_result_df.to_csv('results/03_calibrate_models/powerlaw_model_optimization_results.csv',index=False)
+result_df.to_csv('results/powerlaw_model_optimization_results_all2.csv',index=False)
 # %%

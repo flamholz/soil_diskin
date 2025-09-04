@@ -4,13 +4,18 @@ from jax import numpy as jnp
 from jax import scipy as jsp
 import jax
 from scipy.integrate import quad, dblquad, solve_ivp, cumulative_trapezoid
-from scipy.special import exp1
+from scipy.special import exp1, gammaincc, gamma
 from scipy.stats import lognorm, norm
-from constants import LAMBDA_14C, INTERP_R_14C, SECS_PER_DAY, DAYS_PER_YEAR
+from notebooks.constants import LAMBDA_14C, INTERP_R_14C, SECS_PER_DAY, DAYS_PER_YEAR, GAMMA
 from collections import namedtuple
 from scipy.linalg import block_diag
-from age_distribution_util_funcs import box_model_ss_age_dist, dynamic_age_dist
+from soil_diskin.age_dist_utils import box_model_ss_age_dist, dynamic_age_dist, calc_age_dist_cdf
 import warnings
+import unittest
+import itertools
+import sympy
+
+
 # TODO: make a parent class for all of the models.
 # TODO: write some simple unit tests checking internal consistency of models.
 # TODO: PowerLawDisKin is poorly named, the variant with t^{-alpha} is also power laws.
@@ -61,13 +66,31 @@ class GlobalData:
         self.inputs = inputs.stack(pooldepth=['pools','LEVDCMP1_10'])
 
     def make_ldd(self, lat, lon):
-        w = self.w_scalar_da.sel(y=lat, x=lon, method='nearest')
-        t = self.t_scalar_da.sel(y=lat, x=lon, method='nearest')
-        o = self.o_scalar_da.sel(y=lat, x=lon, method='nearest')
-        n = self.n_scalar_da.sel(y=lat, x=lon, method='nearest')
-        sand = self.sand_da.sel(y=lat, x=lon, method='nearest')
-        I = self.inputs.sel(y=lat, x=lon, method='nearest')
-        X0 = self.X0.sel(y=lat, x=lon, method='nearest')
+        test_point = self.w_scalar_da.sel(y=lat, x=lon, method='nearest')
+        if test_point.notnull().all() == False:
+            w = self.w_scalar_da.coarsen(x=4, y=4).mean()
+            t = self.t_scalar_da.coarsen(x=4, y=4).mean()
+            o = self.o_scalar_da.coarsen(x=4, y=4).mean()
+            n = self.n_scalar_da.coarsen(x=4, y=4).mean()
+            sand = self.sand_da.coarsen(x=4, y=4).mean()
+            I = self.inputs.coarsen(x=4, y=4).mean()
+            X0 = self.X0.coarsen(x=4, y=4).mean()
+        else:
+            w = self.w_scalar_da.sel(LAT=lat, LON=lon)
+            t = self.t_scalar_da.sel(LAT=lat, LON=lon)
+            o = self.o_scalar_da.sel(LAT=lat, LON=lon)
+            n = self.n_scalar_da.sel(LAT=lat, LON=lon)
+            sand = self.sand_da.sel(LAT=lat, LON=lon)
+            I = self.inputs.sel(LAT=lat, LON=lon)
+            X0 = self.X0.sel(LAT=lat, LON=lon)
+
+        w = w.sel(y=lat, x=lon, method='nearest')
+        t = t.sel(y=lat, x=lon, method='nearest')
+        o = o.sel(y=lat, x=lon, method='nearest')
+        n = n.sel(y=lat, x=lon, method='nearest')
+        sand = sand.sel(y=lat, x=lon, method='nearest')
+        I = I.sel(y=lat, x=lon, method='nearest')
+        X0 = X0.sel(y=lat, x=lon, method='nearest')
         return LocDependentData(w=w, t=t, o=o, n=n, sand=sand, I=I, X0=X0)
 
     def make_ldd_jax(self, lat, lon):
@@ -80,12 +103,71 @@ class GlobalData:
         X0 = jnp.array(self.X0.sel(y=lat, x=lon, method='nearest').values)
         return LocDependentData(w=w, t=t, o=o, n=n, sand=sand, I=I, X0=X0)
 
-class PowerLawDisKin:
+
+class GammaDisKin:
+    """A model where the rate distribution is gamma.
+    """
+    def __init__(self, a, b, beta = np.exp(-GAMMA), interp_r_14c=None, I=None):
+        """
+        Args:
+        a: float
+            The shape parameter of the gamma distribution
+        b: float
+            The scale parameter of the gamma distribution
+            The long time scale
+        interp_r_14c: callable
+            An interpolator for the estimated historical radiocarbon concentration.
+            Takes a single argument, the number of years before a reference time (e.g. 2000).
+            If None uses the default interpolator from constants.
+        I: np.ndarray, optional
+            An array of inputs to the model, representing the carbon input to the system.
+        """
+        self.a = a  # shape parameter
+        self.b = b  # scale parameter
+        self.I = I
+        self.interp_14c = interp_r_14c
+        if interp_r_14c is None:
+            self.interp_14c = INTERP_R_14C
+
+        self.T = 1 / ((-1 + a) * b)
+
+        # mean age at steady-state
+        # self.A = (tau_inf * np.exp(-self.tratio)/e1_term) - tau_0
+
+    def radiocarbon_age_integrand(self, a):
+        # Interpolation was done with x as years before present,
+        # so a is the correct input here
+        initial_r = self.interp_14c(a) 
+        radiocarbon_decay = np.exp(-LAMBDA_14C * a)
+
+        return initial_r * self.pA(a) * radiocarbon_decay
+
+    def s(self, t):
+        """ the term for the amount of carbon in the system at age t"""
+        
+        return (1 + self.b * t) ** (-self.a)
+
+    def pA(self, a):
+        """Calculate the probability density function of the age distribution."""
+        return self.s(a) / self.T
+
+    def mean_age(self):
+        return 1/((-2 + self.a) * (-1 + self.a) * self.b**2) / self.T
+
+    def cdfA(self, t):
+        """Calculate the cumulative distribution function of the age distribution."""
+        # The CDF is the integral of the PDF from 0 to a
+        cdf = (-1 + (1 + self.b * t) ** (1 - self.a)) / (self.b * (1 - self.a)) / self.T
+        return cdf
+
+
+
+class GeneralPowerLawDisKin:
     """A model where rates of decay are proportional to 1/t between two bounding timescales.
 
     We call these bounding timescales tau_0 and tau_inf as in the notes. 
     """
-    def __init__(self, tau_0, tau_inf, interp_r_14c=None):
+    def __init__(self, tau_0, tau_inf, beta = np.exp(-GAMMA), interp_r_14c=None, I=None):
         """
         Args:
         tau_0: float
@@ -96,10 +178,116 @@ class PowerLawDisKin:
             An interpolator for the estimated historical radiocarbon concentration.
             Takes a single argument, the number of years before a reference time (e.g. 2000).
             If None uses the default interpolator from constants.
+        I: np.ndarray, optional
+            An array of inputs to the model, representing the carbon input to the system.
+        """
+        self.t0 = tau_0  # short time scale
+        self.tinf = tau_inf  # long time scale
+        self.tratio = tau_0 * beta / tau_inf
+        self.product = tau_0 * beta
+        self.I = I
+
+        assert beta > 0 and beta <= 1, "Beta must be between 0 and 1."
+
+        self.beta = beta
+
+        self.En = lambda n, x: x ** (n-1) * gammaincc(1 - n, x) * gamma(1 - n) if n < 1 else exp1(x)
+        
+        self.interp_14c = interp_r_14c
+        if interp_r_14c is None:
+            self.interp_14c = INTERP_R_14C
+
+        # steady-state transit time
+        en_term = self.En(beta, self.tratio)
+        self.en_term = en_term
+        self.T = self.product * np.exp(self.tratio) * en_term
+
+        # mean age at steady-state
+        # self.A = (tau_inf * np.exp(-self.tratio)/e1_term) - tau_0
+
+    def radiocarbon_age_integrand(self, a):
+        # Interpolation was done with x as years before present,
+        # so a is the correct input here
+        initial_r = self.interp_14c(a) 
+        radiocarbon_decay = np.exp(-LAMBDA_14C*a)
+
+        return initial_r * self.pA(a) * radiocarbon_decay
+
+    def mean_transit_time_integrand(self, a):
+        return self.t0 * np.exp(-a/self.tinf) / (self.t0 + a)
+    
+    def calc_mean_transit_time(self):
+        """Calculate the mean by integrating the transit time distribution."""
+        return quad(self.mean_transit_time_integrand, 0, np.inf)
+
+    def s(self, t):
+        """ the term for the amount of carbon in the system at age t"""
+        s = self.product ** self.beta * np.exp(-t / self.tinf) / (self.product + t) ** self.beta
+        return s
+
+    def pA(self, a):
+        """Calculate the probability density function of the age distribution."""
+        return self.s(a) / self.T
+
+    def mean_age_integrand(self, a):
+        return a*self.pA(a)
+    
+    def calc_mean_age(self):
+        """Calculate the mean by integrating the age distribution.
+        
+        Returns:
+            A two-tuple of the mean age and an estimate of the absolute error.
+        """
+        return quad(self.mean_age_integrand, 0, np.inf)
+    
+    def impulse(self, t, X):
+        """Calculate the change in state of the system at time t.
+
+        Args:
+            t: float
+                The time at which to calculate the change in state.
+            X: np.ndarray
+                The current state of the system, an array of carbon pools.
+        Returns:
+            np.ndarray
+                The change in state of the system at time t.
+        """
+        # The rate of change is proportional to the inverse of the time scale
+        # and the current state of the system.
+        # The decay rate is 1/tau_0 for the short time scale and 1/tau_inf for the long time scale.
+        dX = - ( 1 / (self.t0 + t) + 1 / (self.tinf + t)) * X
+
+        return dX
+    
+    def cdfA(self, a):
+        """Calculate the cumulative distribution function of the age distribution."""
+        # The CDF is the integral of the PDF from 0 to a
+        cdf = 1 - (self.product / (self.product + a)) ** (self.beta - 1) * self.En(self.beta, (self.product + a) / self.tinf) / self.En(self.beta, self.tratio)
+        return cdf
+
+class PowerLawDisKin:
+    """A model where rates of decay are proportional to 1/t between two bounding timescales.
+
+    We call these bounding timescales tau_0 and tau_inf as in the notes. 
+    """
+    def __init__(self, tau_0, tau_inf, interp_r_14c=None, I=None):
+        """
+        Args:
+        tau_0: float
+            The short time scale
+        tau_inf: float
+            The long time scale
+        interp_r_14c: callable
+            An interpolator for the estimated historical radiocarbon concentration.
+            Takes a single argument, the number of years before a reference time (e.g. 2000).
+            If None uses the default interpolator from constants.
+        I: np.ndarray, optional
+            An array of inputs to the model, representing the carbon input to the system.
         """
         self.t0 = tau_0  # short time scale
         self.tinf = tau_inf  # long time scale
         self.tratio = tau_0/ tau_inf
+        self.I = I
 
         self.interp_14c = interp_r_14c
         if interp_r_14c is None:
@@ -144,10 +332,34 @@ class PowerLawDisKin:
             A two-tuple of the mean age and an estimate of the absolute error.
         """
         return quad(self.mean_age_integrand, 0, np.inf)
+    
+    def impulse(self, t, X):
+        """Calculate the change in state of the system at time t.
+
+        Args:
+            t: float
+                The time at which to calculate the change in state.
+            X: np.ndarray
+                The current state of the system, an array of carbon pools.
+        Returns:
+            np.ndarray
+                The change in state of the system at time t.
+        """
+        # The rate of change is proportional to the inverse of the time scale
+        # and the current state of the system.
+        # The decay rate is 1/tau_0 for the short time scale and 1/tau_inf for the long time scale.
+        dX = - ( 1 / (self.t0 + t) + 1 / (self.tinf + t)) * X
+
+        return dX
+    
+    def cdfA(self, a):
+        """Calculate the cumulative distribution function of the age distribution."""
+        # The CDF is the integral of the PDF from 0 to a
+        return (1 - exp1((self.t0 + a) / self.tinf) / exp1(self.tratio))
 
 class LognormalDisKin:
 
-    def __init__(self, mu, sigma, k_min=None, k_max=None, interp_r_14c=None):
+    def __init__(self, mu, sigma, k_min=None, k_max=None, interp_r_14c=None, N=1000, ppf_lim=1e-5):
         """
         Args:
         mu: float
@@ -162,12 +374,16 @@ class LognormalDisKin:
             An interpolator for the estimated historical radiocarbon concentration.
             Takes a single argument, the number of years before a reference time (e.g. 2000).
             If None uses the default interpolator from constants.
+        N: int
+            The number of elements to discretize p(k) into.
+        ppf_lim: float
+            The percent point function limit for the lognormal distribution.
         """
         self.mu = mu
         self.k_star = np.exp(mu)
         self.sigma = sigma
-        self.k_min = k_min or lognorm.ppf(1e-10, s=sigma, scale=np.exp(mu))
-        self.k_max = k_max or lognorm.ppf(1.0-1e-10, s=sigma, scale=np.exp(mu))
+        self.k_min = k_min or lognorm.ppf(ppf_lim, s=sigma, scale=np.exp(mu))
+        self.k_max = k_max or lognorm.ppf(1.0-ppf_lim, s=sigma, scale=np.exp(mu))
 
         # rescale ks by the median
         self.kappa_min = self.k_min / self.k_star
@@ -184,9 +400,11 @@ class LognormalDisKin:
         # steady-state transit time
         self.T = np.exp((-self.mu + self.sigma**2)/2)
         self.a = self.T * np.exp(self.sigma**2)
+        self.ks = np.logspace(self.q_min, self.q_max, N, base=np.e)
+        self.I = lognorm.pdf(self.ks, s=self.sigma, scale=np.exp(self.mu))
 
     @classmethod
-    def from_age_and_transit_time(cls, a, T):
+    def from_age_and_transit_time(cls, a, T, N=1000, ppf_lim=1e-5):
         """Construct a LognormalDisKin object from the mean age and transit time.
         
         Note: a/T >= 1 is required. a/T < 1 implies a negative lognormal standard deviation.
@@ -196,6 +414,8 @@ class LognormalDisKin:
                 The mean age
             T: float
                 The transit time
+            N: int
+                The number of elements to discretize p(k) into.
 
         Returns:
             LognormalDisKin
@@ -206,10 +426,10 @@ class LognormalDisKin:
         mu = sigma_squared/2 - np.log(T)
 
         # choose the min and max ks to be tails of the lognormal distribution
-        lognorm_min = lognorm.ppf(1e-10, s=sigma, scale=np.exp(mu))
-        lognorm_max = lognorm.ppf(1.0-1e-10, s=sigma, scale=np.exp(mu))     
-        return cls(mu, sigma, k_min=lognorm_min, k_max=lognorm_max)
-    
+        lognorm_min = lognorm.ppf(ppf_lim, s=sigma, scale=np.exp(mu))
+        lognorm_max = lognorm.ppf(1.0-ppf_lim, s=sigma, scale=np.exp(mu))     
+        return cls(mu, sigma, k_min=lognorm_min, k_max=lognorm_max, N=N)
+
     def _pA_alpha_logscale_integrand(self, alpha, q):
         """Integrand for the age distribution in log scale."""
         p_q = norm.pdf(q, loc=0, scale=self.sigma)
@@ -242,9 +462,25 @@ class LognormalDisKin:
         res = dblquad(self._radiocarbon_age_integrand, self.q_min, self.q_max, 0, np.inf)
         return res
     
+    def _dX(self, t, X):
+        """Calculate the change in state of the system at time t.
 
-import unittest
-import itertools
+        Args:
+            t: float
+                The time at which to calculate the change in state.
+            X: np.ndarray
+                The current state of the system.
+
+        Returns:
+            np.ndarray
+                The change in state of the system.
+        """
+        # Unpack the state vector
+        # Implement the model equations to calculate dX
+        dX = self.I - self.ks * X
+        
+        return dX
+
 
 class TestLognormalDisKin(unittest.TestCase):
     
@@ -350,6 +586,8 @@ class CLM5(CompartmentalModel):
                 self.config.nlevels) for t in range(12)
             ]
         )
+
+        self.X_size = self.X0.shape
     
     def make_V_matrix(self,Gamma_soil, F_soil, npools, nlevels,
                     dz, dz_node, zsoi, zisoi):
@@ -875,8 +1113,6 @@ class CLM5_jax(CompartmentalModel):
         
         return xr.concat(Xs, dim = 'TIME')
 
-
-
 class JULES(CompartmentalModel):
     """ 
     Implementation of the JULES soil carbon model. 
@@ -1078,6 +1314,8 @@ class JSBACH(CompartmentalModel):
         self.A = self.make_A_matrix()
         self.K = np.stack([self.make_K_matrix(env_params.T[i], env_params.P[i], env_params.d) for i in range(12)]) # calculate K for each month
         self.u = self.make_B()
+
+        self.X_size = self.u.shape
         
     def make_A_matrix(self):
         """Make the A matrix for the JSBACH model.
@@ -1284,8 +1522,44 @@ class JSBACH(CompartmentalModel):
         
         return xr.concat(Xs, dim = 'TIME')
     
-# class ReducedComplexModel(CompartmentalModel):
+class ReducedComplexModel(CompartmentalModel):
+    def __init__(self, config, params):
+        super().__init__(config, params)
 
+        self.A = self.make_A_matrix()
+        self.u = self.make_u()
+
+
+    def make_A_matrix(self):
+
+        model = self.config.model
+        params = self.env.params
+        rs_fac = self.config.rs_fac[model]
+        tau_fac = self.config.tau_fac[model]
+
+        A = np.diag(-1 / params[:3])
+        if self.config.correct:
+            A[1,0] = params[3] / params[0] if model !='MRI' else 0.46 * params[3] / params[0]
+            A[2,2] = -1 / (params[2] * tau_fac)
+            A[2,1] = rs_fac * params[4] / params[1]
+        else:
+            A[1,0] = params[3] / params[0]
+            A[2,1] = params[4] / params[1]
+        
+        return A
+    
+    def make_u(self):
+        """Make the u vector for the ReducedComplexModel."""
+        # The u vector is the fraction of NPP that goes to each pool
+
+        return np.array([self.env.params[5],0.0,0.0])
+
+        return A,u
+    
+    def cdf(self, t):
+        """Calculate the cumulative distribution function for the model."""
+        # This is a placeholder, you can define your own CDF function
+        return calc_age_dist_cdf(self.A, self.u, t)
 class old_LognormalDisKin:
     """Not ready for use."""
     
