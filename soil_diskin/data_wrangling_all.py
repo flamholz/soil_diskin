@@ -41,7 +41,7 @@ def process_balesdent_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     # selected a homogeneous subset of sites, namely a group of forests and grasslands under warm 
     # and moist climates (with MATs higher than 17 °C, annual precipitation of more than 1,000 mm,
     # and precipitation/evapotranspiration ratios greater than 0.8)."
-    tropical_sites = raw_data.query('MAT_C>17.0 & PANN_mm>1000.0 & `P to PET ratio` >0.8')
+    tropical_sites = raw_data#.query('MAT_C>17.0 & PANN_mm>1000.0 & `P to PET ratio` >0.8')
 
     # Take only the columns with Ctotal_ and end with a digit but can have other characters in between, 
     # and calculate the difference between the columns as an estimate of the density of C in each layer

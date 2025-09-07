@@ -1,5 +1,6 @@
 import numpy as np
 import scipy as sp
+from scipy.integrate import solve_ivp
 
 def box_model_ss_age_dist(A:np.array, u: np.array, ages: np.array) -> np.array:
     '''
@@ -69,3 +70,37 @@ def nonlinear_age_dist(A_t,u,timestep,tmax):
         # new input of biomass 
         state[:,i] = u*timestep
     return state
+
+
+def predict_fnew(model, config, env_params, tmax = 10_000):
+    """
+    Predict the fraction of new carbon in a specific site using a specific model.
+
+    Args:
+        model: The model to use for prediction.
+        config: Configuration parameters for the model.
+        env_params: Environmental parameters for the model.
+
+    Returns:
+        age_CDF: The cumulative distribution function of the age of carbon.
+    """
+    
+    model = model(config, env_params)
+    ts = np.logspace(-1, np.log10(tmax), 1000)  # time in years
+    labeled = solve_ivp(model._dX, (0, tmax * 1.1), np.zeros(model.X_size), t_eval=ts, method='LSODA')
+    age_CDF = labeled.y.sum(axis=0) / labeled.y.sum(axis=0)[-1]
+
+    return age_CDF
+
+
+# age distribution calculation based on Sierra et al. 2018
+def calc_age_dist_cdf(A,u,ages):
+    d = A.shape[0]
+    one = np.ones((d,1))
+    beta = u/u.sum()
+    zT = one.T
+    xss = (-1 * np.linalg.inv(A)) @ u
+    X = np.diag(xss)
+    eta = xss/xss.sum()
+    age_dens = 1 - np.array([zT @ sp.linalg.expm(A * a) @ eta for a in ages])
+    return age_dens
