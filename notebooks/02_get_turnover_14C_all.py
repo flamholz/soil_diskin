@@ -5,13 +5,12 @@ import numpy as np
 import os
 import xarray as xr
 import rioxarray as rio
-import zipfile
 import geemap
 import ee
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 ee.Authenticate()  # Authenticate Earth Engine
-ee.Initialize()
+ee.Initialize(project='diskin')
 
 from soil_diskin.geo_utils import find_nearest
 from soil_diskin.utils import download_file
@@ -27,32 +26,29 @@ which is used to calculate soil carbon turnover times. The processed data is
 saved to a CSV file in the results folder.
 """
 
-# get data if not already downloaded, otherwise load it
-# get the 14C data from [Shi et al., 2020](https://zenodo.org/records/3823612)
 c14_folder = "data/shi_2020/"
 c14_data_filename = "global_delta_14C.nc"
-c14_url = "https://zenodo.org/records/3823612/files/global_delta_14C.nc"
-download_file(c14_url, c14_folder, c14_data_filename)
 
-# get the GPP data from [Kang et al. 2023](https://zenodo.org/records/8212707)
-GPP_folder = "data/kang_2023/"
-GPP_data_filename = "ST_CFE-Hybrid_NT.zip"
-GPP_url = "https://zenodo.org/records/8212707/files/ST_CFE-Hybrid_NT.zip?download=1"
-download_file(GPP_url, GPP_folder, "ST_CFE-Hybrid_NT.zip")
+# # get the GPP data from [Kang et al. 2023](https://zenodo.org/records/8212707)
+# 
+# GPP_data_filename = "ST_CFE-Hybrid_NT.zip"
+# GPP_url = "https://zenodo.org/records/8212707/files/ST_CFE-Hybrid_NT.zip?download=1"
+# download_file(GPP_url, GPP_folder, "ST_CFE-Hybrid_NT.zip")
 
-# unzip the GPP data
-if not os.path.exists(os.path.join(GPP_folder, "ST_CFE-Hybrid_NT")):
-    with zipfile.ZipFile(os.path.join(GPP_folder, "ST_CFE-Hybrid_NT.zip"), 'r') as zip_ref:
-        zip_ref.extractall(GPP_folder)
-else:
-    print("GPP data already unzipped")
+# # unzip the GPP data
+# if not os.path.exists(os.path.join(GPP_folder, "ST_CFE-Hybrid_NT")):
+#     with zipfile.ZipFile(os.path.join(GPP_folder, "ST_CFE-Hybrid_NT.zip"), 'r') as zip_ref:
+#         zip_ref.extractall(GPP_folder)
+# else:
+#     print("GPP data already unzipped")
 
 #%% Load relevant data
 
 # load the 14C data, add a CRS, and set the nodata value
-c14_data = rio.open_rasterio(os.path.join(c14_folder,c14_data_filename),masked=True)\
-                .rio.write_crs("EPSG:4326", inplace=True)\
-                .rio.write_nodata(np.nan)
+c14_data = rio.open_rasterio(
+    os.path.join(
+            c14_folder, c14_data_filename), masked=True).rio.write_crs(
+                "EPSG:4326", inplace=True).rio.write_nodata(np.nan)
 
 # extrapolate the 14C data to fill in NaN values
 c14_data_extrapolated = c14_data.rio.interpolate_na(method='nearest')
@@ -69,7 +65,7 @@ c14_data_extrapolated = c14_data.rio.interpolate_na(method='nearest')
 #                 .rio.write_nodata(np.nan,inplace=True)
 
 # load the tropical sites data
-tropical_sites = pd.read_csv('results/processed_balesdant_2018_all.csv')
+tropical_sites = pd.read_csv('results/processed_balesdent_2018_all.csv')
 unique_tropical_coords = tropical_sites.drop_duplicates(subset=['Longitude','Latitude'])
 site_C_weights = unique_tropical_coords.filter(regex='^weight_\d+').values
 
