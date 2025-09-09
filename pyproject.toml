@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "cartopy>=0.24.1",
+    "cbc>=0.0.7",
     "dask>=2025.5.1",
     "geemap>=0.35.3",
     "h5netcdf>=1.6.1",
@@ -22,9 +23,10 @@ dependencies = [
     "scikit-learn>=1.6.1",
     "scipy>=1.15.3",
     "seaborn>=0.13.2",
-    "snakemake>=9.11.0",
+    "snakemake==9.1.9",
     "split>=0.4",
     "statsmodels>=0.14.4",
+    "sympy>=1.14.0",
     "tqdm>=4.67.1",
     "xarray>=2025.4.0",
 ]
