@@ -1,6 +1,10 @@
 # Snakefile for soil carbon modeling workflow
 # This workflow processes soil data, calibrates models, and generates results
 
+import pandas as pd
+
+current_date = pd.Timestamp.now().date().strftime("%d-%m-%Y")
+
 # Define the final target files
 rule all:
     input:
@@ -12,10 +16,12 @@ rule all:
 
         # # Calibration outputs
         "results/powerlaw_model_optimization_results_all2.csv",
-        "results/powerlaw_model_optimization_results.csv",
-        "results/03b_lognormal_predictions_calcurve.csv",
-        # "results/generalized_powerlaw_params.csv",
-        # "results/gamma_model_params.csv",
+        "results/03b_lognormal_site_parameters.csv",
+        "results/03b_lognormal_model_predictions_14C.csv",
+        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/gamma_model_optimization_results.csv",
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
         
         # # Prediction outputs
         # "results/model_predictions.csv",
@@ -117,9 +123,9 @@ rule calibrate_powerlaw_all:
 rule calibrate_powerlaw:
     input:
         "results/tropical_sites_14C_turnover.csv",
-        "data/14C_atm_annot.csv"
+        "data/14C_atm_annot.csv",
     output:
-        "results/powerlaw_model_optimization_results.csv"
+        "results/03_calibrate_models/powerlaw_model_optimization_results.csv"
     script:
         "notebooks/03a_calibrate_powerlaw_model.py"
 
@@ -135,89 +141,106 @@ rule calibrate_lognormal_mathematica:
         wolframscript --file notebooks/03b_calibrate_lognormal_model.wls
         """
 
+rule lognormal_age_scan_mathematica:
+    input:
+        "data/14C_atm_annot.csv"
+    output:
+        "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
+    shell:
+        """
+        wolframscript --file notebooks/03b_lognormal_age_scan.wls
+        """
+
 rule calibrate_lognomal_python:
     input:
         "results/tropical_sites_14C_turnover.csv",
         "results/03b_lognormal_site_parameters.csv",
         "results/03b_lognormal_model_predictions_14C.csv",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
         "data/14C_atm_annot.csv"
     output:
-        "results/03b_lognormal_predictions_calcurve.csv",
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
     script:
         "notebooks/03b_calibrate_lognormal_model.py"
 
-# # Step 03b: Calibrate lognormal models (Python)
-# rule calibrate_lognormal:
-#     input:
-#         "results/turnover_14C_data.csv"
-#     output:
-#         "results/lognormal_model_params.csv"
-#     script:
-#         "notebooks/03b_calibrate_lognormal_model.py"
+rule calibrate_generalized_powerlaw:
+    input:
+        "results/tropical_sites_14C_turnover.csv",
+    output:
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv"
+    script:
+        "notebooks/03c_calibrate_generalized_powerlaw_model.py"
 
-# # Step 03b: Calibrate lognormal models (Mathematica notebooks)
-# rule calibrate_lognormal_nb:
-#     input:
-#         "results/turnover_14C_data.csv"
-#     output:
-#         "results/lognormal_nb_results.csv"
-#     shell:
-#         """
-#         # Note: Mathematica notebooks (.nb files) need to be run in Mathematica
-#         # This is a placeholder - actual execution depends on your Mathematica setup
-#         echo "Mathematica notebook execution for lognormal calibration"
-#         touch {output}
-#         """
+# Step 03d: Calibrate gamma model
+rule calibrate_gamma:
+    input:
+        "results/tropical_sites_14C_turnover.csv"
+    output:
+        "results/03_calibrate_models/gamma_model_optimization_results.csv"
+    script:
+        "notebooks/03d_calibrate_gamma_model.py"
 
-# # Step 03c: Calibrate generalized power law model
-# rule calibrate_generalized_powerlaw:
-#     input:
-#         "results/turnover_14C_data.csv"
-#     output:
-#         "results/generalized_powerlaw_params.csv"
-#     script:
-#         "notebooks/03c_calibrate_generalized_powerlaw_model.py"
+# Step 04: Generate and collect model predictions for analysis and figures
+# Step 04b: Lognormal predictions (Julia)
+rule lognormal_predictions_julia:
+    input:
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
+    output:
+        "results/04_model_predictions/04b_lognormal_cdfs.csv"
+    shell:
+        """
+        julia --project=./ notebooks/04b_lognormal_predictions.jl
+        """
 
-# # Step 03d: Calibrate gamma model
-# rule calibrate_gamma:
-#     input:
-#         "results/turnover_14C_data.csv"
-#     output:
-#         "results/gamma_model_params.csv"
-#     script:
-#         "notebooks/03d_calibrate_gamma_model.py"
+# Download JSBACH files for parameterization of other models
+rule download_jsbach_data:
+    output:
+        "data/model_params/JSBACH/JSBACH_S3_tas.nc",
+        "data/model_params/JSBACH/JSBACH_S3_pr.nc",
+        "data/model_params/JSBACH/JSBACH_S3_npp.nc"
+    shell:
+        """
+        mkdir -p data/model_params/JSBACH
+        curl -L -o data/model_params/JSBACH/JSBACH_S3_tas.nc https://gcbo-opendata.s3.eu-west-2.amazonaws.com/trendyv12-gcb2023/JSBACH/S3/JSBACH_S3_tas.nc
+        curl -L -o data/model_params/JSBACH/JSBACH_S3_pr.nc https://gcbo-opendata.s3.eu-west-2.amazonaws.com/trendyv12-gcb2023/JSBACH/S3/JSBACH_S3_pr.nc
+        curl -L -o data/model_params/JSBACH/JSBACH_S3_npp.nc https://gcbo-opendata.s3.eu-west-2.amazonaws.com/trendyv12-gcb2023/JSBACH/S3/JSBACH_S3_npp.nc
+        """
 
-# # Step 04: Model predictions
-# rule model_predictions_all:
-#     input:
-#         "results/powerlaw_model_params.csv",
-#         "results/lognormal_model_params.csv",
-#         "results/generalized_powerlaw_params.csv",
-#         "results/gamma_model_params.csv"
-#     output:
-#         "results/model_predictions.csv"
-#     script:
-#         "notebooks/04_model_predictions_all.py"
+# Collects results for the disordered models generated
+# by the above rules, and generates predictions from
+# our implementation of the box models e.g., CABLE. 
+rule collect_model_predictions_all:
+    input:
+        "results/processed_balesdent_2018_all.csv",
+        "results/tropical_sites_14C_turnover_all.csv",
+        "results/powerlaw_model_optimization_results_all2.csv",
+        "results/04_model_predictions/04b_lognormal_cdfs.csv",
+        "data/model_params/JSBACH/JSBACH_S3_tas.nc",
+        "data/model_params/JSBACH/JSBACH_S3_pr.nc",
+        "data/model_params/JSBACH/JSBACH_S3_npp.nc"
+    output:
+        # TODO: add the rest
+        f"results/04_model_predictions/power_law_{current_date}_all2.csv",
+        f"results/04_model_predictions/lognormal_{current_date}.csv",
+        f"results/04_model_predictions/CABLE_{current_date}.pkl",
+        f"results/04_model_predictions/CLM45_{current_date}.csv"
+    script:
+        "notebooks/04_model_predictions_all.py"
 
-# rule model_predictions:
-#     input:
-#         "results/powerlaw_model_params_subset.csv",
-#         "results/lognormal_model_params.csv"
-#     output:
-#         "results/model_predictions_subset.csv"
-#     script:
-#         "notebooks/04_model_predictions.py"
-
-# # Step 04b: Lognormal predictions (Julia)
-# rule lognormal_predictions_julia:
-#     input:
-#         "results/lognormal_model_params.csv"
-#     output:
-#         "results/lognormal_predictions.csv"
-#     shell:
-#         """
-#         julia notebooks/04b_lognormal_predictions.jl
-#         """
+rule collect_model_predictions:
+    input:
+        "results/processed_balesdent_2018_all.csv",
+        "results/tropical_sites_14C_turnover_all.csv",
+        "results/powerlaw_model_optimization_results_all2.csv",
+        "results/04_model_predictions/04b_lognormal_cdfs.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
+        "data/model_params/JSBACH/JSBACH_S3_tas.nc",
+        "data/model_params/JSBACH/JSBACH_S3_pr.nc",
+        "data/model_params/JSBACH/JSBACH_S3_npp.nc"
+    output:
+        "results/model_predictions.csv"
+    script:
+        "notebooks/04_model_predictions.py"
 
 # # Step 05: Plot results
 # rule plot_results_v2_all:
