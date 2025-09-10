@@ -1,26 +1,18 @@
-#%%
-import os
-if os.getcwd().endswith('notebooks'):
-    os.chdir('..')
-
-#%% import libraries
 import numpy as np
 import pandas as pd
 import xarray as xr
 from notebooks.models import * 
 from collections import namedtuple
 import pickle
-from soil_diskin.utils import download_file
 from soil_diskin.age_dist_utils import predict_fnew
 from soil_diskin.data_wrangling import parse_he_data
 from notebooks.constants import *
 from scipy.integrate import solve_ivp
 from  scipy.io import loadmat
 from joblib import Parallel, delayed, parallel_backend
-from tqdm import tqdm
 
-#%% Load the site data
-site_data = pd.read_csv('results/processed_balesdant_2018.csv')
+# Load the site data
+site_data = pd.read_csv('results/processed_balesdent_2018.csv')
 turnover_14C = pd.read_csv('results/tropical_sites_14C_turnover.csv')
 
 
@@ -223,11 +215,6 @@ a_h = 0.0016 # Eq. 6.34
 b1 = 9.5e-2; b2 = -1.4e-3; gamma = -1.21; # Eq. 6.30 - T in C and P in m/yr
 phi1 = -1.71; phi2 = 0.86; r = -0.306; # Eq. 6.31
 
-# Download temperature and precipitation data from the JSBACH model
-download_file("https://gcbo-opendata.s3.eu-west-2.amazonaws.com/trendyv12-gcb2023/JSBACH/S3/JSBACH_S3_tas.nc", "data/model_params/JSBACH", "JSBACH_S3_tas.nc")
-download_file("https://gcbo-opendata.s3.eu-west-2.amazonaws.com/trendyv12-gcb2023/JSBACH/S3/JSBACH_S3_pr.nc", "data/model_params/JSBACH", "JSBACH_S3_pr.nc")
-download_file("https://gcbo-opendata.s3.eu-west-2.amazonaws.com/trendyv12-gcb2023/JSBACH/S3/JSBACH_S3_npp.nc", "data/model_params/JSBACH", "JSBACH_S3_npp.nc")
-
 # Load the JSBACH forcing data and calculate the monthly means
 JSBACH_tas = xr.open_dataarray('data/model_params/JSBACH/JSBACH_S3_tas.nc').groupby("time.month").mean()
 JSBACH_pr = xr.open_dataarray('data/model_params/JSBACH/JSBACH_S3_pr.nc').groupby("time.month").mean()
@@ -363,23 +350,3 @@ JSBACH_model = JSBACH(config=JSBACH_config,
                  env_params=JSBACH_env_params)
 
 JSBACH_output = JSBACH_model._dX(t = 0, X = np.ones(18))[:9]
-fortran_output = pd.read_csv('../../jsbach/yasso_output.csv')
-
-assert np.allclose(fortran_output['Value'].values[:9],JSBACH_output[:9] * (1/DAYS_PER_YEAR) + np.ones(9), rtol=1e-3, atol=1e-3), "JSBACH model output does not match Fortran implementation output"
-#%%
-
-
-    # sole the ode
-    term = ODETerm(ode)
-    solver = Dopri5()
-    t_max = 30_000
-    # ts = jnp.concatenate([jnp.arange(0,1.01,0.01),jnp.arange(2,t_max,1)])
-    CLM5_ts = jnp.logspace(-2,jnp.log10(t_max),1000)
-    solution = diffeqsolve(term, solver, t0=0, t1=t_max, dt0=0.1, y0=u,max_steps=1000000,saveat=SaveAt(ts = CLM5_ts))
-
-    ys = solution.ys.sum(axis=1)
-    CLM5_site_cum_age_dist.append(cumtrapz(ys,x=CLM5_ts)/trapz(ys,x=CLM5_ts))
-
-CLM5_site_cum_age_dist = np.stack(CLM5_site_cum_age_dist)
-
-# %%

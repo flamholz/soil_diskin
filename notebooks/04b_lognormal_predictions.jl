@@ -1,8 +1,6 @@
-#impot the utils.jl file
-include("soil_diskin/utils.jl")
+include("diskin_utils.jl")
 
-
-params = CSV.read("results/03b_lognormal_predictions_calcurve.csv",DataFrame); 
+params = CSV.read("results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv", DataFrame); 
 tmax = 100_000; # maximum time for the ODE solution
 ts_size = 1000; # size of the time series
 # create a matrix the size of the number of rows in params and with 100_000 columns
