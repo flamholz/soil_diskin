@@ -11,3 +11,8 @@ pip install -e .
 * set up your google earth engine account for API access 
 
 * install wolframscript to run mathematica from the command line
+
+* install julia -- describe version
+** install julia deps in Project.toml
+
+* run snakemake (give command)
