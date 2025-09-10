@@ -1,19 +1,13 @@
-#%%
-import os
-if os.getcwd().endswith('notebooks'):
-    os.chdir('..')
-
-#%% Load libraries
-
 import pandas as pd
 import numpy as np
 from notebooks.models import GammaDisKin
 from notebooks.constants import INTERP_R_14C, C14_DATA, GAMMA
+from os import path
 from scipy.integrate import quad
 from scipy.optimize import minimize
 from tqdm import tqdm
 
-#%% Define the objective function for optimization
+# Define the objective function for optimization
 # optimize the two parameters of the model to match the turnover and 14C data
 def objective_function(params, merged_site_data):
     """
@@ -48,8 +42,7 @@ def objective_function(params, merged_site_data):
     # Return the sum of squared differences
     return 300 * diff_14C + diff_turnover
 
-#%% Load the data
-
+# Load the data
 merged_site_data = pd.read_csv('results/tropical_sites_14C_turnover.csv')
 
 # initial guess for the parameters
@@ -82,5 +75,7 @@ merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], 
 print(f'the Maximum objective value is {result_df["objective_value"].max():.3f}')
 
 # Save the result to a CSV file
-merged_result_df.to_csv('results/03_calibrate_models/gamma_model_optimization_results.csv',index=False)
-# %%
+output_dir = 'results/03_calibrate_models'
+output_fname = 'gamma_model_optimization_results.csv'
+output_path = path.join(output_dir, output_fname)
+merged_result_df.to_csv(output_path, index=False)
