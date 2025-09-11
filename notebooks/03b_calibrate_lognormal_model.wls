@@ -65,7 +65,7 @@ ProcessRow[{tau_, rtrue_}, defaultInitialAge_] :=
   ]
 
 (*5. Main script*)
-csvFilePath = "results/tropical_sites_14C_turnover.csv"
+csvFilePath = "results/all_sites_14C_turnover.csv"
 Print["Importing data from: ", csvFilePath];
 data = Import[csvFilePath, "CSV", HeaderLines -> 1];
 (*data=data[{1},{"turnover","fm"}];*)
