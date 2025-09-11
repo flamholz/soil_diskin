@@ -13,6 +13,8 @@ from joblib import Parallel, delayed, parallel_backend
 
 """
 Collects model predictions and saves them. 
+
+TODO: lots of commented out code that should be removed.
 """
 
 current_date = pd.Timestamp.now().date().strftime("%d-%m-%Y")
@@ -24,7 +26,7 @@ turnover_14C = pd.read_csv('results/tropical_sites_14C_turnover_all.csv')
 # Power-law model
 # Load the power-law parameters
 power_law_params = pd.read_csv('results/powerlaw_model_optimization_results_all2.csv')
-
+print("Generating power-law model predictions...")
 predictions = []
 for i, row in power_law_params.iterrows():
     model = PowerLawDisKin(tau_0=row['tau_0'], tau_inf=row['tau_inf'])
@@ -40,6 +42,7 @@ np.savetxt(f'results/04_model_predictions/power_law_{current_date}_all2.csv', pr
 lognormal_cdfs = pd.read_csv('results/04_model_predictions/04b_lognormal_cdfs.csv')
 ts = lognormal_cdfs.columns.astype(float).values
 predictions = []
+print("Generating lognormal model predictions...")
 for i, row in site_data.iterrows():
     site_cdf = interp1d(ts, lognormal_cdfs.loc[i, :].values / turnover_14C.loc[i, 'turnover'])
     predictions.append(site_cdf(row['Duration_labeling']))
@@ -72,7 +75,7 @@ ages_cable = np.arange(0,100_000,0.1)
 pA_cable = cable_model.pA_ss(ages_cable)
 
 # Save the model predictions
-with open(f'results/model_predictions/CABLE_{current_date}.pkl','wb') as f:
+with open(f'results/04_model_predictions/CABLE_{current_date}.pkl','wb') as f:
     pickle.dump([ages_cable, pA_cable.squeeze()],f)
 
 # Run the CLM4.5 model

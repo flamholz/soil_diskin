@@ -13,13 +13,10 @@ from soil_diskin.age_dist_utils import box_model_ss_age_dist, dynamic_age_dist, 
 import warnings
 import unittest
 import itertools
-import sympy
-
 
 # TODO: make a parent class for all of the models.
 # TODO: write some simple unit tests checking internal consistency of models.
 # TODO: PowerLawDisKin is poorly named, the variant with t^{-alpha} is also power laws.
-
 
 # Data structures
 # Global configuration parameters

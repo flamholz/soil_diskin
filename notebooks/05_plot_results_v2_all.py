@@ -1,9 +1,3 @@
-#%%
-import os
-if os.getcwd().endswith('notebooks'):
-    os.chdir('..')
-
-# %% Import libraries
 import pickle
 import pandas as pd
 import numpy as np
@@ -17,17 +11,19 @@ from notebooks.constants import INTERP_R_14C, C14_DATA
 import matplotlib.pyplot as plt
 from permetrics.regression import RegressionMetric
 
-
 #%% Load the site data
 tropical_sites = pd.read_csv('results/processed_balesdant_2018_all.csv')
 
+# Assumes the predictions we generated today... should make this configurable.
+current_date = pd.Timestamp.now().date().strftime("%d-%m-%Y")
+
 #%% Load the predictions
 # powerlaw_predictions = pd.read_csv('results/04_model_predictions/power_law_16-07-2025.csv',header=None, names=['prediction'])
-powerlaw_predictions = pd.read_csv('results/04_model_predictions/power_law_19-07-2025_all.csv',header=None, names=['prediction'])
-lognormal_predictions = pd.read_csv('results/04_model_predictions/lognormal_16-07-2025.csv',header=None, names=['prediction'])
-CLM45_predictions = pd.read_csv('results/04_model_predictions/CLM45_fnew_17-07-2025.csv', header=None, names=['prediction'])
-JSBACH_predictions = pd.read_csv('results/04_model_predictions/JSBACH_fnew_17-07-2025.csv', header=None, names=['prediction'])
-RCM_predictions = pd.read_csv('results/04_model_predictions/RCM_17-07-2025.csv')
+powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/power_law_{current_date}.csv',header=None, names=['prediction'])
+lognormal_predictions = pd.read_csv(f'results/04_model_predictions/lognormal_{current_date}.csv',header=None, names=['prediction'])
+CLM45_predictions = pd.read_csv(f'results/04_model_predictions/CLM45_fnew_{current_date}.csv', header=None, names=['prediction'])
+JSBACH_predictions = pd.read_csv(f'results/04_model_predictions/JSBACH_fnew_{current_date}.csv', header=None, names=['prediction'])
+RCM_predictions = pd.read_csv(f'results/04_model_predictions/RCM_{current_date}.csv')
 # %% Define function to plot model predictions
 def plot_model_predictions(ax, predictions, model_name):
     ax.plot([0, 1], [0, 1], color='k', linestyle='-', label='y=x')
@@ -67,6 +63,6 @@ for i, col in enumerate(RCM_predictions.columns):
 for i in range(4 + len(RCM_predictions.columns), 8):
     fig.delaxes(axs[i])
 
-
 # %% Save the figure
-plt.savefig(f'figures/model_predictions_{pd.Timestamp.now().date().strftime("%d-%m-%Y")}.png', dpi=600, bbox_inches='tight')
+out_fname = f'figures/model_predictions_{current_date}.png'
+plt.savefig(out_fname, dpi=600, bbox_inches='tight')
