@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from notebooks.models import PowerLawDisKin
-from notebooks.constants import INTERP_R_14C, C14_DATA
 from os import path
 from scipy.integrate import quad
 from scipy.optimize import minimize
@@ -33,18 +32,22 @@ def objective_function(params, merged_site_data):
     model = PowerLawDisKin(a, b)
     
     # Calculate the predicted 14C ratio and turnover
-    predicted_14C_ratio = quad(model.radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0]
+    predicted_14C_ratio = quad(model.radiocarbon_age_integrand,
+                               0, np.inf, limit=1500, epsabs=1e-3)[0]
 
     # Calculate the difference between the predicted and observed data
     diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm'])**2)
     diff_turnover = np.nansum((model.T - merged_site_data['turnover'])**2)
+    # For the above line, _all.py has 
+    # diff_turnover = np.nansum((model.T - merged_site_data['turnover']*2)**2)
+    # why the factor of 2???
     
     # Return the sum of squared differences
     return diff_14C + diff_turnover
 
 #%% Load the data
 
-merged_site_data = pd.read_csv('results/tropical_sites_14C_turnover.csv')
+merged_site_data = pd.read_csv('results/all_sites_14C_turnover.csv')
 
 # initial guess for the parameters
 initial_guess = [0.5, 10000]
