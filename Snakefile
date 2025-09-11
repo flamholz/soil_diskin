@@ -93,21 +93,12 @@ rule preprocess_14C_data:
         "notebooks/01_preprocess_14C_data.py"
 
 # Step 02: Get 14C turnover data for the Balesdent sites
-rule turnover_14C_all:
-    input:
-        "results/processed_balesdent_2018_all.csv",
-        "data/shi_2020/global_delta_14C.nc",
-    output:
-        "results/tropical_sites_14C_turnover_all.csv"
-    script:
-        "notebooks/02_get_turnover_14C_all.py"
-
 rule turnover_14C:
     input:
         "results/processed_balesdent_2018.csv",
         "data/shi_2020/global_delta_14C.nc",
     output:
-        "results/tropical_sites_14C_turnover.csv"
+        "results/all_sites_14C_turnover.csv"
     script:
         "notebooks/02_get_turnover_14C.py"
 
