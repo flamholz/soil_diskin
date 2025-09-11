@@ -27,9 +27,9 @@ rule all:
         # "results/model_predictions.csv",
         # "results/lognormal_predictions.csv",
         
-        # # Plotting outputs
-        # "results/figures/results_plots.png",
-        
+        # Plotting outputs
+        f"figures/model_predictions_{current_date}.png",
+
         # # Sensitivity analysis outputs
         # "results/sensitivity_powerlaw.csv",
         # "results/sensitivity_lognormal.csv"
@@ -223,7 +223,9 @@ rule collect_model_predictions_all:
         f"results/04_model_predictions/power_law_{current_date}_all2.csv",
         f"results/04_model_predictions/lognormal_{current_date}.csv",
         f"results/04_model_predictions/CABLE_{current_date}.pkl",
-        f"results/04_model_predictions/CLM45_{current_date}.csv"
+        f"results/04_model_predictions/CLM45_fnew_{current_date}.csv",
+        f"results/04_model_predictions/JSBACH_fnew_{current_date}.csv",
+        f"results/04_model_predictions/RCM_{current_date}.csv",
     script:
         "notebooks/04_model_predictions_all.py"
 
@@ -238,18 +240,22 @@ rule collect_model_predictions:
         "data/model_params/JSBACH/JSBACH_S3_pr.nc",
         "data/model_params/JSBACH/JSBACH_S3_npp.nc"
     output:
-        "results/model_predictions.csv"
+        f"results/results/04_model_predictions/CABLE_{current_date}.pkl",
     script:
         "notebooks/04_model_predictions.py"
 
-# # Step 05: Plot results
-# rule plot_results_v2_all:
-#     input:
-#         "results/model_predictions.csv"
-#     output:
-#         "results/figures/results_plots.png"
-#     script:
-#         "notebooks/05_plot_results_v2_all.py"
+# Step 05: Plot results
+rule plot_results_v2_all:
+    input:
+        f'results/04_model_predictions/power_law_{current_date}.csv',
+        f'results/04_model_predictions/lognormal_{current_date}.csv',
+        f'results/04_model_predictions/CLM45_fnew_{current_date}.csv',
+        f'results/04_model_predictions/JSBACH_fnew_{current_date}.csv',
+        f'results/04_model_predictions/RCM_{current_date}.csv',
+    output:
+        f"figures/model_predictions_{current_date}.png"
+    script:
+        "notebooks/05_plot_results_v2_all.py"
 
 # rule plot_results_v2:
 #     input:
