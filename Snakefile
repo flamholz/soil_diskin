@@ -46,6 +46,16 @@ rule download_balesdent_data:
         curl -L -o {output} https://static-content.springer.com/esm/art%3A10.1038%2Fs41586-018-0328-3/MediaObjects/41586_2018_328_MOESM3_ESM.xlsx
         """
 
+rule download_CLM45_conf:
+    output:        
+        "data/CLM5_global_simulation/gcb_matrix_supp_data.zip"
+    shell:
+        """
+        mkdir -p data/CLM5_global_simulation/
+        curl -L -o {output} https://hs.pangaea.de/model/Huang-etal_2017/gcb_matrix_supp_data.zip
+        gunzip -k -o {output} data/CLM5_global_simulation/
+        """
+
 # 14C data
 rule download_shi_data:
     output:
@@ -68,15 +78,6 @@ rule download_kang_data:
         """
 
 # Step 01: Preprocess Balesdent data
-rule preprocess_balesdent_all:
-    input:
-        "data/balesdent_2018/balesdent_2018_raw.xlsx",
-    output:
-        "results/processed_balesdent_2018_all.csv"
-    script:
-        "notebooks/01_preprocess_balesdent_data_all.py"
-
-# Merge this and above into one script? 
 rule preprocess_balesdent:
     input:
         "data/balesdent_2018/balesdent_2018_raw.xlsx"

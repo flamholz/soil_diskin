@@ -7,7 +7,7 @@ All scripts to be run from project root directory.
 
 This script downloads and processes the raw data from Balesdent et al. 2018,
 which is used to calculate soil carbon turnover times. The processed data is
-saved to a CSV file in the results folder.
+saved to a CSV file in the results folder. 
 """
 
 if __name__ == "__main__":
@@ -19,5 +19,3 @@ if __name__ == "__main__":
 
     final_data = process_balesdent_data(raw_data)
     final_data.to_csv(os.path.join('results/processed_balesdent_2018.csv'), index=False)
-
-## TODO merge with 01_preprocess_balesdent_data_all.py
