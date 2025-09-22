@@ -7,6 +7,10 @@ import requests
 import zipfile
 import os
 
+"""
+TODO: move to snakefile?
+"""
+
 model_names = {'CESM':'CESM1','IPSL':'IPSL-CM5A-LR','MRI':'MRI-ESM1'}
 file_names = {'CESM':'areacella_fx_CESM1-BGC_1pctCO2_r0i0p0','IPSL':'areacella_fx_IPSL-CM5A-LR_historicalNat_r0i0p0','MRI':'areacella_fx_MRI-ESM1_esmControl_r0i0p0'}
 
