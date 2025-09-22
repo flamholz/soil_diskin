@@ -17,9 +17,13 @@ from notebooks.constants import INTERP_R_14C, C14_DATA
 import matplotlib.pyplot as plt
 from permetrics.regression import RegressionMetric
 
+"""
+This is the authoritative version. We will load the all_sites results here 
+and blow away the other files. 
+"""
 
 #%% Load the site data
-tropical_sites = pd.read_csv('results/processed_balesdant_2018.csv')
+tropical_sites = pd.read_csv('results/processed_balesdent_2018.csv')
 
 #%% Load the predictions
 gamma_predictions = pd.read_csv('results/04_model_predictions/gamma_28-07-2025.csv', header=None, names=['prediction'])
