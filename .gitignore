@@ -171,3 +171,6 @@ data/processed/
 
 # Snakemake
 .snakemake/
+
+# macOS
+.DS_Store
