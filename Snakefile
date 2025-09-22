@@ -10,12 +10,11 @@ rule all:
     input:
         # Preprocessing outputs
         "results/processed_balesdent_2018.csv",
-        "results/processed_balesdent_2018_all.csv",
-        "results/tropical_sites_14C_turnover_all.csv",
-        "results/tropical_sites_14C_turnover.csv",
+        "results/processed_balesdent_2018.csv",
+        "results/all_sites_14C_turnover.csv",
 
         # # Calibration outputs
-        "results/powerlaw_model_optimization_results_all2.csv",
+        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
         "results/03b_lognormal_site_parameters.csv",
         "results/03b_lognormal_model_predictions_14C.csv",
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
@@ -46,6 +45,18 @@ rule download_balesdent_data:
         curl -L -o {output} https://static-content.springer.com/esm/art%3A10.1038%2Fs41586-018-0328-3/MediaObjects/41586_2018_328_MOESM3_ESM.xlsx
         """
 
+rule download_he_2016:
+    output:
+        "data/he_2016/Persistence-master.zip"
+    shell:
+        """
+        mkdir -p data/he_2016
+        curl -L -o {output} https://git.bgc-jena.mpg.de/csierra/Persistence/-/archive/master/Persistence-master.zip
+        pushd data/he_2016
+        unzip -j Persistence-master.zip
+        popd
+        """
+
 rule download_CLM45_conf:
     output:        
         "data/CLM5_global_simulation/gcb_matrix_supp_data.zip"
@@ -53,7 +64,9 @@ rule download_CLM45_conf:
         """
         mkdir -p data/CLM5_global_simulation/
         curl -L -o {output} https://hs.pangaea.de/model/Huang-etal_2017/gcb_matrix_supp_data.zip
-        gunzip -k -o {output} data/CLM5_global_simulation/
+        pushd data/CLM5_global_simulation/ 
+        unzip -j gcb_matrix_supp_data.zip
+        popd
         """
 
 # 14C data
@@ -74,7 +87,8 @@ rule download_kang_data:
         """
         mkdir -p data/kang_2023/
         curl -L -o {output} https://zenodo.org/records/8212707/files/ST_CFE-Hybrid_NT.zip?download=1
-        gunzip -k -o {output} data/kang_2023/
+        pushd data/kang_2023/ && gunzip -k ST_CFE-Hybrid_NT.zip
+        popd
         """
 
 # Step 01: Preprocess Balesdent data
@@ -103,18 +117,9 @@ rule turnover_14C:
         "notebooks/02_get_turnover_14C.py"
 
 # Step 03a: Calibrate power law models
-rule calibrate_powerlaw_all:
-    input:
-        "results/tropical_sites_14C_turnover_all.csv"
-        "data/14C_atm_annot.csv"
-    output:
-        "results/powerlaw_model_optimization_results_all2.csv"
-    script:
-        "notebooks/03a_calibrate_powerlaw_model_all.py"
-
 rule calibrate_powerlaw:
     input:
-        "results/tropical_sites_14C_turnover.csv",
+        "results/all_sites_14C_turnover.csv",
         "data/14C_atm_annot.csv",
     output:
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv"
@@ -123,7 +128,7 @@ rule calibrate_powerlaw:
 
 rule calibrate_lognormal_mathematica:
     input:
-        "results/tropical_sites_14C_turnover.csv",
+        "results/all_sites_14C_turnover.csv",
         "data/14C_atm_annot.csv"
     output:
         "results/03b_lognormal_site_parameters.csv",
@@ -143,9 +148,9 @@ rule lognormal_age_scan_mathematica:
         wolframscript --file notebooks/03b_lognormal_age_scan.wls
         """
 
-rule calibrate_lognomal_python:
+rule calibrate_lognormal_python:
     input:
-        "results/tropical_sites_14C_turnover.csv",
+        "results/all_sites_14C_turnover.csv",
         "results/03b_lognormal_site_parameters.csv",
         "results/03b_lognormal_model_predictions_14C.csv",
         "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
@@ -157,7 +162,7 @@ rule calibrate_lognomal_python:
 
 rule calibrate_generalized_powerlaw:
     input:
-        "results/tropical_sites_14C_turnover.csv",
+        "results/all_sites_14C_turnover.csv",
     output:
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv"
     script:
@@ -166,7 +171,7 @@ rule calibrate_generalized_powerlaw:
 # Step 03d: Calibrate gamma model
 rule calibrate_gamma:
     input:
-        "results/tropical_sites_14C_turnover.csv"
+        "results/all_sites_14C_turnover.csv"
     output:
         "results/03_calibrate_models/gamma_model_optimization_results.csv"
     script:
@@ -203,9 +208,10 @@ rule download_jsbach_data:
 # our implementation of the box models e.g., CABLE. 
 rule collect_model_predictions_all:
     input:
-        "results/processed_balesdent_2018_all.csv",
-        "results/tropical_sites_14C_turnover_all.csv",
-        "results/powerlaw_model_optimization_results_all2.csv",
+        "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
+        "results/processed_balesdent_2018.csv",
+        "results/all_sites_14C_turnover.csv",
+        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
         "results/04_model_predictions/04b_lognormal_cdfs.csv",
         "data/model_params/JSBACH/JSBACH_S3_tas.nc",
         "data/model_params/JSBACH/JSBACH_S3_pr.nc",
@@ -223,16 +229,17 @@ rule collect_model_predictions_all:
 
 rule collect_model_predictions:
     input:
-        "results/processed_balesdent_2018_all.csv",
-        "results/tropical_sites_14C_turnover_all.csv",
-        "results/powerlaw_model_optimization_results_all2.csv",
+        "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
+        "results/processed_balesdent_2018.csv",
+        "results/all_sites_14C_turnover.csv",
+        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
         "results/04_model_predictions/04b_lognormal_cdfs.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
         "data/model_params/JSBACH/JSBACH_S3_tas.nc",
         "data/model_params/JSBACH/JSBACH_S3_pr.nc",
         "data/model_params/JSBACH/JSBACH_S3_npp.nc"
     output:
-        f"results/results/04_model_predictions/CABLE_{current_date}.pkl",
+        f"results/04_model_predictions/CABLE_{current_date}.pkl",
     script:
         "notebooks/04_model_predictions.py"
 
@@ -321,9 +328,18 @@ rule clean:
     shell:
         """
         rm -rf results/*.csv
-        rm -rf results/figures/*
+        rm -rf figures/*
         rm -rf results/*.html
-        rm -rf data/shi_2020/*
-        rm -rf data/kang_2023/*
         rm -rf data/balesdent_2018/*
+        rm -rf data/CLM5_global_simulation/*
+        rm -rf data/kang_2023/*
+        rm -rf data/shi_2020/*
+        """
+
+rule clean_results:
+    shell:
+        """
+        rm -rf results/*.csv
+        rm -rf figures/*
+        rm -rf results/*.html
         """

@@ -2,7 +2,13 @@
 disordered kinetics for soil carbon
 
 steps
-* use UV to setup your environment
+* Use UV to setup your Python environment
+
+Install UV [] 
+
+`>uv sync`
+
+from the terminal. 
 
 * install the diskin package locally
 
@@ -15,4 +21,8 @@ pip install -e .
 * install julia -- describe version
 ** install julia deps in Project.toml
 
-* run snakemake (give command)
+* run snakemake to run the entire pipeline
+
+`uv run snakemake --cores 3`
+
+this will download all relevant data 
