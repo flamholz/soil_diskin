@@ -50,7 +50,7 @@ def objective_function(params, merged_site_data):
 
 # Load the data
 
-merged_site_data = pd.read_csv('results/tropical_sites_14C_turnover.csv')
+merged_site_data = pd.read_csv('results/all_sites_14C_turnover.csv')
 
 # initial guess for the parameters
 initial_guess = [0.0005, 1000]
