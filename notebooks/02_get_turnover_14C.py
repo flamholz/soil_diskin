@@ -81,10 +81,21 @@ merged_site_data = unique_coords[['Latitude','Longitude']].reset_index()\
                             .merge(site_npp_data, left_index=True, right_index=True, how='left')\
                             .merge(pd.DataFrame(site_1m_14C, columns=['14C']), left_index=True, right_index=True, how='left')
 
-merged_site_data = unique_coords.merge(merged_site_data, on=['Latitude','Longitude'], how='left')
-merged_site_data = merged_site_data[['Latitude','Longitude','14C','NPP','Ctotal_0-100estim']]
+# Merge with the original all_sites dataframe and retain only the
+# relevant columns for output. Need to make sure we retain all sites 
+# so that our output corresponds to the Balesdent et al. (2018) data
+# for downstream analysis. 
+merged_site_data = all_sites.merge(merged_site_data,
+                                   on=['Latitude','Longitude'],
+                                   how='left')
+cols2keep = ['Latitude','Longitude','14C','NPP','Ctotal_0-100estim']
+merged_site_data = merged_site_data[cols2keep]
 
-merged_site_data['fm'] = merged_site_data['14C'] / 1e3 + 1; # fm is the fraction of modern carbon, so we convert 14C from per mil to fraction
-merged_site_data['turnover'] = merged_site_data['Ctotal_0-100estim'] * 1e3 / merged_site_data['NPP'] # turnover is SOC/NPP, so we convert NPP from kgC/m2/year to gC/m2/year
+# fm is the fraction of modern carbon. to get this value we convert
+# 14C from per mil to fraction.
+merged_site_data['fm'] = merged_site_data['14C'] / 1e3 + 1; 
+
+# turnover is SOC/NPP, so we convert NPP from kgC/m2/year to gC/m2/year
+merged_site_data['turnover'] = merged_site_data['Ctotal_0-100estim'] * 1e3 / merged_site_data['NPP'] 
 
 merged_site_data.to_csv('results/all_sites_14C_turnover.csv', index=False)
