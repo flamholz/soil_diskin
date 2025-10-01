@@ -227,6 +227,21 @@ rule collect_model_predictions_all:
     script:
         "notebooks/04_model_predictions_all.py"
 
+rule continuum_model_predictions:
+    input:
+        "results/processed_balesdent_2018.csv",
+        "results/all_sites_14C_turnover.csv",
+        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
+        "results/04_model_predictions/04b_lognormal_cdfs.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
+    output:
+        f'results/04_model_predictions/gamma_{current_date}.csv',
+        f'results/04_model_predictions/power_law_{current_date}.csv',
+        f'results/04_model_predictions/lognormal_{current_date}.csv',
+        f'results/04_model_predictions/general_power_law_{current_date}.csv',
+    script:
+        "notebooks/04_collect_continuum_model_predictions.py"
+
 rule collect_model_predictions:
     input:
         "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
