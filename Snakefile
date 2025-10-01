@@ -60,6 +60,8 @@ rule download_he_2016:
 rule download_CLM45_conf:
     output:        
         "data/CLM5_global_simulation/gcb_matrix_supp_data.zip"
+        "data/CLM5_global_simulation/global_demo_in.nc",
+        "data/CLM5_global_simulation/clm5_params.c171117.nc"
     shell:
         """
         mkdir -p data/CLM5_global_simulation/
@@ -241,6 +243,27 @@ rule continuum_model_predictions:
         f'results/04_model_predictions/general_power_law_{current_date}.csv',
     script:
         "notebooks/04_collect_continuum_model_predictions.py"
+
+rule cable_model_predictions:
+    input:
+        "results/processed_balesdent_2018.csv",
+        "results/all_sites_14C_turnover.csv",
+    output:
+        f"results/04_model_predictions/CABLE_{current_date}.pkl",
+    script:
+        "notebooks/04_CABLE_model_predictions.py"
+
+rule CLM45_model_predictions:
+    input:
+        "data/CLM5_global_simulation/soildepth.mat",
+        "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
+        "data/CLM5_global_simulation/global_demo_in.nc",
+        "results/processed_balesdent_2018.csv",
+        "results/all_sites_14C_turnover.csv",
+    output:
+        f"results/04_model_predictions/CLM45_{current_date}.csv",
+    script:
+        "notebooks/04_CLM45_model_predictions.py"
 
 rule collect_model_predictions:
     input:
