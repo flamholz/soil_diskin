@@ -8,6 +8,7 @@ from notebooks.models import *
 Collects the continuum model predictions for all sites and saves them to CSV files.
 """
 
+# Timestamp for saving files
 current_date = pd.Timestamp.now().date().strftime("%d-%m-%Y")
 
 # Load the site data
