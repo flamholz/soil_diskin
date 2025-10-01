@@ -265,6 +265,27 @@ rule CLM45_model_predictions:
     script:
         "notebooks/04_CLM45_model_predictions.py"
 
+rule JSBACH_model_predictions:
+    input:
+        "data/model_params/JSBACH/JSBACH_S3_tas.nc",
+        "data/model_params/JSBACH/JSBACH_S3_pr.nc",
+        "data/model_params/JSBACH/JSBACH_S3_npp.nc",
+        "results/processed_balesdent_2018.csv",
+        "results/all_sites_14C_turnover.csv",
+    output:
+        f"results/04_model_predictions/JSBACH_{current_date}.csv",
+    script:
+        "notebooks/04_JSBACH_model_predictions.py"
+
+rule RC_model_predictions:
+    input:
+        "results/processed_balesdent_2018.csv",
+        "results/all_sites_14C_turnover.csv",
+    output:
+        f"results/04_model_predictions/RCM_{current_date}.csv",
+    script:
+        "notebooks/04_RC_model_predictions.py"
+
 rule collect_model_predictions:
     input:
         "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
