@@ -8,13 +8,14 @@ from soil_diskin.age_dist_utils import predict_fnew
 from soil_diskin.data_wrangling import parse_he_data
 from notebooks.constants import *
 from scipy.integrate import solve_ivp
-from  scipy.io import loadmat
+from scipy.io import loadmat
 from joblib import Parallel, delayed, parallel_backend
 
 """
 TODO: lots of commented code that should be removed.
 """
 
+# Timestamp for saving files
 current_date = pd.Timestamp.now().date().strftime("%d-%m-%Y")
 
 # Load the site data
