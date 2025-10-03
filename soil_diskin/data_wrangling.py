@@ -3,14 +3,22 @@ import numpy as np
 import xarray as xr
 
 
+model_names = {'CESM':'CESM1','IPSL':'IPSL-CM5A-LR','MRI':'MRI-ESM1'}
+file_names = {'CESM':'areacella_fx_CESM1-BGC_1pctCO2_r0i0p0',
+              'IPSL':'areacella_fx_IPSL-CM5A-LR_historicalNat_r0i0p0',
+              'MRI':'areacella_fx_MRI-ESM1_esmControl_r0i0p0'}
+
+
 def parse_he_data(model='CESM', file_names=None) -> xr.DataArray:
     """
     Reads the He et al. 2016 parameter values into an xarray DataArray.
     """
-    grid = xr.open_dataset(f'data/he_2016/{file_names[model]}.nc')['areacella']
+    grid = xr.open_dataset(f'data/CMIP5/{model_names[model]}/{file_names[model]}.nc')['areacella']
     params_raster = xr.zeros_like(grid).T
     params_raster = params_raster.where(params_raster!=0)
-    params_df = pd.read_csv(f'data/he_2016/Persistence-master/CodeData/He/{model}/compartmentalParameters.txt',sep=' ')
+    
+    params_fname = f'data/he_2016/Persistence-master/CodeData/He/{model}/compartmentalParameters.txt'
+    params_df = pd.read_csv(params_fname, sep=' ')
     ds = []
     for par in params_df.columns[1:]:
         x = params_raster.values.flatten()
