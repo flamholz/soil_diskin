@@ -2,8 +2,14 @@
 # This workflow processes soil data, calibrates models, and generates results
 
 import pandas as pd
+import zipfile
+import os
+import requests
+from os import path
 
 current_date = pd.Timestamp.now().date().strftime("%d-%m-%Y")
+
+HE_2016_URL = "https://git.bgc-jena.mpg.de/csierra/Persistence/-/archive/master/Persistence-master.zip"
 
 # Define the final target files
 rule all:
@@ -47,21 +53,22 @@ rule download_balesdent_data:
 
 rule download_he_2016:
     output:
-        "data/he_2016/Persistence-master.zip"
-    shell:
+        # just a sentinel that the data has been downloaded
+        "data/he_2016/Persistence-master/CodeData/14C_Respiration.csv"
+    shell: # do the above in shell
         """
-        mkdir -p data/he_2016
-        curl -L -o {output} https://git.bgc-jena.mpg.de/csierra/Persistence/-/archive/master/Persistence-master.zip
-        pushd data/he_2016
-        unzip -j Persistence-master.zip
-        popd
+        curl -L -o he_2016.zip {HE_2016_URL}
+        unzip he_2016.zip -d data/he_2016
+        rm he_2016.zip
+        rm -rf data/he_2016/Persistence-master/CodeData/WorldGrids/
         """
 
 rule download_CLM45_conf:
     output:        
         "data/CLM5_global_simulation/gcb_matrix_supp_data.zip"
         "data/CLM5_global_simulation/global_demo_in.nc",
-        "data/CLM5_global_simulation/clm5_params.c171117.nc"
+        "data/CLM5_global_simulation/clm5_params.c171117.nc",
+        ""
     shell:
         """
         mkdir -p data/CLM5_global_simulation/
@@ -208,26 +215,42 @@ rule download_jsbach_data:
 # Collects results for the disordered models generated
 # by the above rules, and generates predictions from
 # our implementation of the box models e.g., CABLE. 
-rule collect_model_predictions_all:
-    input:
-        "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
-        "results/processed_balesdent_2018.csv",
-        "results/all_sites_14C_turnover.csv",
-        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
-        "results/04_model_predictions/04b_lognormal_cdfs.csv",
-        "data/model_params/JSBACH/JSBACH_S3_tas.nc",
-        "data/model_params/JSBACH/JSBACH_S3_pr.nc",
-        "data/model_params/JSBACH/JSBACH_S3_npp.nc"
-    output:
-        # TODO: add the rest
-        f"results/04_model_predictions/power_law_{current_date}_all2.csv",
-        f"results/04_model_predictions/lognormal_{current_date}.csv",
-        f"results/04_model_predictions/CABLE_{current_date}.pkl",
-        f"results/04_model_predictions/CLM45_fnew_{current_date}.csv",
-        f"results/04_model_predictions/JSBACH_fnew_{current_date}.csv",
-        f"results/04_model_predictions/RCM_{current_date}.csv",
-    script:
-        "notebooks/04_model_predictions_all.py"
+# rule collect_model_predictions_all:
+#     input:
+#         "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
+#         "results/processed_balesdent_2018.csv",
+#         "results/all_sites_14C_turnover.csv",
+#         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
+#         "results/04_model_predictions/04b_lognormal_cdfs.csv",
+#         "data/model_params/JSBACH/JSBACH_S3_tas.nc",
+#         "data/model_params/JSBACH/JSBACH_S3_pr.nc",
+#         "data/model_params/JSBACH/JSBACH_S3_npp.nc"
+#     output:
+#         # TODO: add the rest
+#         f"results/04_model_predictions/power_law_{current_date}_all2.csv",
+#         f"results/04_model_predictions/lognormal_{current_date}.csv",
+#         f"results/04_model_predictions/CABLE_{current_date}.pkl",
+#         f"results/04_model_predictions/CLM45_fnew_{current_date}.csv",
+#         f"results/04_model_predictions/JSBACH_fnew_{current_date}.csv",
+#         f"results/04_model_predictions/RCM_{current_date}.csv",
+#     script:
+#         "notebooks/04_model_predictions_all.py"
+
+# rule collect_model_predictions:
+#     input:
+#         "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
+#         "results/processed_balesdent_2018.csv",
+#         "results/all_sites_14C_turnover.csv",
+#         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
+#         "results/04_model_predictions/04b_lognormal_cdfs.csv",
+#         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
+#         "data/model_params/JSBACH/JSBACH_S3_tas.nc",
+#         "data/model_params/JSBACH/JSBACH_S3_pr.nc",
+#         "data/model_params/JSBACH/JSBACH_S3_npp.nc"
+#     output:
+#         f"results/04_model_predictions/CABLE_{current_date}.pkl",
+#     script:
+#         "notebooks/04_model_predictions.py"
 
 rule continuum_model_predictions:
     input:
@@ -262,6 +285,7 @@ rule CLM45_model_predictions:
         "results/all_sites_14C_turnover.csv",
     output:
         f"results/04_model_predictions/CLM45_{current_date}.csv",
+        f"results/04_model_predictions/CLM45_fnew_{current_date}.csv"
     script:
         "notebooks/04_CLM45_model_predictions.py"
 
@@ -274,6 +298,7 @@ rule JSBACH_model_predictions:
         "results/all_sites_14C_turnover.csv",
     output:
         f"results/04_model_predictions/JSBACH_{current_date}.csv",
+        f"results/04_model_predictions/JSBACH_fnew_{current_date}.csv"
     script:
         "notebooks/04_JSBACH_model_predictions.py"
 
@@ -281,26 +306,11 @@ rule RC_model_predictions:
     input:
         "results/processed_balesdent_2018.csv",
         "results/all_sites_14C_turnover.csv",
+        "data/he_2016/Persistence-master/CodeData/14C_Respiration.csv"
     output:
         f"results/04_model_predictions/RCM_{current_date}.csv",
     script:
         "notebooks/04_RC_model_predictions.py"
-
-rule collect_model_predictions:
-    input:
-        "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
-        "results/processed_balesdent_2018.csv",
-        "results/all_sites_14C_turnover.csv",
-        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
-        "results/04_model_predictions/04b_lognormal_cdfs.csv",
-        "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
-        "data/model_params/JSBACH/JSBACH_S3_tas.nc",
-        "data/model_params/JSBACH/JSBACH_S3_pr.nc",
-        "data/model_params/JSBACH/JSBACH_S3_npp.nc"
-    output:
-        f"results/04_model_predictions/CABLE_{current_date}.pkl",
-    script:
-        "notebooks/04_model_predictions.py"
 
 # Step 05: Plot results
 rule plot_results_v2_all:
