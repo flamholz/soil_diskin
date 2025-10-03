@@ -13,10 +13,13 @@ from soil_diskin.age_dist_utils import box_model_ss_age_dist, dynamic_age_dist, 
 import warnings
 import unittest
 import itertools
+import sympy
+
 
 # TODO: make a parent class for all of the models.
 # TODO: write some simple unit tests checking internal consistency of models.
 # TODO: PowerLawDisKin is poorly named, the variant with t^{-alpha} is also power laws.
+
 
 # Data structures
 # Global configuration parameters
@@ -72,22 +75,23 @@ class GlobalData:
             sand = self.sand_da.coarsen(x=4, y=4).mean()
             I = self.inputs.coarsen(x=4, y=4).mean()
             X0 = self.X0.coarsen(x=4, y=4).mean()
+            w = w.sel(y=lat, x=lon, method='nearest')
+            t = t.sel(y=lat, x=lon, method='nearest')
+            o = o.sel(y=lat, x=lon, method='nearest')
+            n = n.sel(y=lat, x=lon, method='nearest')
+            sand = sand.sel(y=lat, x=lon, method='nearest')
+            I = I.sel(y=lat, x=lon, method='nearest')
+            X0 = X0.sel(y=lat, x=lon, method='nearest')
         else:
-            w = self.w_scalar_da.sel(LAT=lat, LON=lon)
-            t = self.t_scalar_da.sel(LAT=lat, LON=lon)
-            o = self.o_scalar_da.sel(LAT=lat, LON=lon)
-            n = self.n_scalar_da.sel(LAT=lat, LON=lon)
-            sand = self.sand_da.sel(LAT=lat, LON=lon)
-            I = self.inputs.sel(LAT=lat, LON=lon)
-            X0 = self.X0.sel(LAT=lat, LON=lon)
+            w = self.w_scalar_da.sel(y=lat, x=lon, method='nearest')
+            t = self.t_scalar_da.sel(y=lat, x=lon, method='nearest')
+            o = self.o_scalar_da.sel(y=lat, x=lon, method='nearest')
+            n = self.n_scalar_da.sel(y=lat, x=lon, method='nearest')
+            sand = self.sand_da.sel(y=lat, x=lon, method='nearest')
+            I = self.inputs.sel(y=lat, x=lon, method='nearest')
+            X0 = self.X0.sel(y=lat, x=lon, method='nearest')
 
-        w = w.sel(y=lat, x=lon, method='nearest')
-        t = t.sel(y=lat, x=lon, method='nearest')
-        o = o.sel(y=lat, x=lon, method='nearest')
-        n = n.sel(y=lat, x=lon, method='nearest')
-        sand = sand.sel(y=lat, x=lon, method='nearest')
-        I = I.sel(y=lat, x=lon, method='nearest')
-        X0 = X0.sel(y=lat, x=lon, method='nearest')
+        
         return LocDependentData(w=w, t=t, o=o, n=n, sand=sand, I=I, X0=X0)
 
     def make_ldd_jax(self, lat, lon):
@@ -584,7 +588,7 @@ class CLM5(CompartmentalModel):
             ]
         )
 
-        self.X_size = self.X0.shape
+        self.X_size = self.I.shape[1]
     
     def make_V_matrix(self,Gamma_soil, F_soil, npools, nlevels,
                     dz, dz_node, zsoi, zisoi):
