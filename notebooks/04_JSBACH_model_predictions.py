@@ -9,9 +9,6 @@ from scipy.interpolate import interp1d
 from joblib import Parallel, delayed, parallel_backend
 
 
-# Timestamp for saving files
-current_date = pd.Timestamp.now().date().strftime("%d-%m-%Y")
-
 # Load the site data
 site_data = pd.read_csv('results/processed_balesdent_2018.csv')
 turnover_14C = pd.read_csv('results/all_sites_14C_turnover.csv')
@@ -76,10 +73,10 @@ JSBACH_predictions.columns = np.logspace(-1, np.log10(tmax), 1000)  # time in ye
 JSBACH_fnew_predictions = np.array([interp1d(JSBACH_predictions.columns, JSBACH_predictions.iloc[1])(site_data.iloc[i]['Duration_labeling']) for i in range(len(site_data))])
 
 # Save the model predictions
-out_fname = f'results/04_model_predictions/JSBACH_{current_date}.csv'
+out_fname = f'results/04_model_predictions/JSBACH.csv'
 print(f"Saving JSBACH predictions to {out_fname} ...")
 JSBACH_predictions.to_csv(out_fname, index=False)
 
-new_format_fname = f'results/04_model_predictions/JSBACH_fnew_{current_date}.csv'
+new_format_fname = f'results/04_model_predictions/JSBACH_fnew.csv'
 print(f"Saving JSBACH fnew predictions to {new_format_fname} ...")
 np.savetxt(new_format_fname, JSBACH_fnew_predictions)

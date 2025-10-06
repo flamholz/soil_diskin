@@ -8,9 +8,6 @@ from notebooks.models import *
 Collects the continuum model predictions for all sites and saves them to CSV files.
 """
 
-# Timestamp for saving files
-current_date = pd.Timestamp.now().date().strftime("%d-%m-%Y")
-
 # Load the site data
 site_data = pd.read_csv('results/processed_balesdent_2018.csv')
 turnover_14C = pd.read_csv('results/all_sites_14C_turnover.csv')
@@ -27,7 +24,7 @@ for i, row in gamma_params.iterrows():
     predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
 predictions = np.array(predictions)
 # Save the model predictions
-np.savetxt(f'results/04_model_predictions/gamma_{current_date}.csv', predictions)
+np.savetxt(f'results/04_model_predictions/gamma.csv', predictions)
 
 #%% Power-law model
 
@@ -41,7 +38,7 @@ for i, row in power_law_params.iterrows():
     predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
 predictions = np.array(predictions)
 # Save the model predictions
-np.savetxt(f'results/04_model_predictions/power_law_{current_date}.csv', predictions)
+np.savetxt(f'results/04_model_predictions/power_law.csv', predictions)
 
 #%% Generalized Power-law model
 
@@ -55,7 +52,7 @@ for i, row in general_power_law_params.iterrows():
     predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
 predictions = np.array(predictions)
 # Save the model predictions
-np.savetxt(f'results/04_model_predictions/general_power_law_{current_date}.csv', predictions)
+np.savetxt(f'results/04_model_predictions/general_power_law.csv', predictions)
 
 
 #%% Lognormal model
@@ -70,4 +67,4 @@ for i, row in site_data.iterrows():
     predictions.append(site_cdf(row['Duration_labeling']))
 predictions = np.array(predictions)
 # Save the model predictions
-np.savetxt(f'results/04_model_predictions/lognormal_{current_date}.csv', predictions)
+np.savetxt(f'results/04_model_predictions/lognormal.csv', predictions)

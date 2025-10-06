@@ -9,9 +9,6 @@ from notebooks.constants import *
 Runs the CABLE model for the sites in the Balesdent dataset and saves the predictions to a pickle file.
 """
 
-# Timestamp for saving files
-current_date = pd.Timestamp.now().date().strftime("%d-%m-%Y")
-
 # Load the site data
 site_data = pd.read_csv('results/processed_balesdent_2018.csv')
 turnover_14C = pd.read_csv('results/all_sites_14C_turnover.csv')
@@ -42,7 +39,7 @@ cable_model = CABLE(CABLE_config)
 ages_cable = np.arange(0,100_000,0.1)
 pA_cable = cable_model.pA_ss(ages_cable)
 
-out_fname = f'results/04_model_predictions/CABLE_{current_date}.pkl'
+out_fname = f'results/04_model_predictions/CABLE.pkl'
 print(f"Saving CABLE model predictions to {out_fname}")
 
 # Save the model predictions
