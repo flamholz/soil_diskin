@@ -7,33 +7,13 @@ import os
 import requests
 from os import path
 
-current_date = pd.Timestamp.now().date().strftime("%d-%m-%Y")
-
 HE_2016_URL = "https://git.bgc-jena.mpg.de/csierra/Persistence/-/archive/master/Persistence-master.zip"
 
 # Define the final target files
 rule all:
     input:
-        # Preprocessing outputs
-        "results/processed_balesdent_2018.csv",
-        "results/processed_balesdent_2018.csv",
-        "results/all_sites_14C_turnover.csv",
-
-        # # Calibration outputs
-        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
-        "results/03b_lognormal_site_parameters.csv",
-        "results/03b_lognormal_model_predictions_14C.csv",
-        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
-        "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
-        "results/03_calibrate_models/gamma_model_optimization_results.csv",
-        "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
-        
-        # # Prediction outputs
-        # "results/model_predictions.csv",
-        # "results/lognormal_predictions.csv",
-        
-        # Plotting outputs
-        f"figures/model_predictions_{current_date}.png",
+        # Plotting outputs -- should force all the models to be run
+        "figures/model_predictions.png",
 
         # # Sensitivity analysis outputs
         # "results/sensitivity_powerlaw.csv",
@@ -212,46 +192,7 @@ rule download_jsbach_data:
         curl -L -o data/model_params/JSBACH/JSBACH_S3_npp.nc https://gcbo-opendata.s3.eu-west-2.amazonaws.com/trendyv12-gcb2023/JSBACH/S3/JSBACH_S3_npp.nc
         """
 
-# Collects results for the disordered models generated
-# by the above rules, and generates predictions from
-# our implementation of the box models e.g., CABLE. 
-# rule collect_model_predictions_all:
-#     input:
-#         "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
-#         "results/processed_balesdent_2018.csv",
-#         "results/all_sites_14C_turnover.csv",
-#         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
-#         "results/04_model_predictions/04b_lognormal_cdfs.csv",
-#         "data/model_params/JSBACH/JSBACH_S3_tas.nc",
-#         "data/model_params/JSBACH/JSBACH_S3_pr.nc",
-#         "data/model_params/JSBACH/JSBACH_S3_npp.nc"
-#     output:
-#         # TODO: add the rest
-#         f"results/04_model_predictions/power_law_{current_date}_all2.csv",
-#         f"results/04_model_predictions/lognormal_{current_date}.csv",
-#         f"results/04_model_predictions/CABLE_{current_date}.pkl",
-#         f"results/04_model_predictions/CLM45_fnew_{current_date}.csv",
-#         f"results/04_model_predictions/JSBACH_fnew_{current_date}.csv",
-#         f"results/04_model_predictions/RCM_{current_date}.csv",
-#     script:
-#         "notebooks/04_model_predictions_all.py"
-
-# rule collect_model_predictions:
-#     input:
-#         "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
-#         "results/processed_balesdent_2018.csv",
-#         "results/all_sites_14C_turnover.csv",
-#         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
-#         "results/04_model_predictions/04b_lognormal_cdfs.csv",
-#         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
-#         "data/model_params/JSBACH/JSBACH_S3_tas.nc",
-#         "data/model_params/JSBACH/JSBACH_S3_pr.nc",
-#         "data/model_params/JSBACH/JSBACH_S3_npp.nc"
-#     output:
-#         f"results/04_model_predictions/CABLE_{current_date}.pkl",
-#     script:
-#         "notebooks/04_model_predictions.py"
-
+# Collect continuum model predictions
 rule continuum_model_predictions:
     input:
         "results/processed_balesdent_2018.csv",
@@ -260,22 +201,24 @@ rule continuum_model_predictions:
         "results/04_model_predictions/04b_lognormal_cdfs.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
     output:
-        f'results/04_model_predictions/gamma_{current_date}.csv',
-        f'results/04_model_predictions/power_law_{current_date}.csv',
-        f'results/04_model_predictions/lognormal_{current_date}.csv',
-        f'results/04_model_predictions/general_power_law_{current_date}.csv',
+        "results/04_model_predictions/gamma.csv",
+        "results/04_model_predictions/power_law.csv",
+        "results/04_model_predictions/lognormal.csv",
+        "results/04_model_predictions/general_power_law.csv",
     script:
         "notebooks/04_collect_continuum_model_predictions.py"
 
+# Run the cable model
 rule cable_model_predictions:
     input:
         "results/processed_balesdent_2018.csv",
         "results/all_sites_14C_turnover.csv",
     output:
-        f"results/04_model_predictions/CABLE_{current_date}.pkl",
+        "results/04_model_predictions/CABLE.pkl",
     script:
         "notebooks/04_CABLE_model_predictions.py"
 
+# Run CLM4.5
 rule CLM45_model_predictions:
     input:
         "data/CLM5_global_simulation/soildepth.mat",
@@ -284,11 +227,12 @@ rule CLM45_model_predictions:
         "results/processed_balesdent_2018.csv",
         "results/all_sites_14C_turnover.csv",
     output:
-        f"results/04_model_predictions/CLM45_{current_date}.csv",
-        f"results/04_model_predictions/CLM45_fnew_{current_date}.csv"
+        "results/04_model_predictions/CLM45.csv",
+        "results/04_model_predictions/CLM45_fnew.csv"
     script:
         "notebooks/04_CLM45_model_predictions.py"
 
+# Run JSBACH
 rule JSBACH_model_predictions:
     input:
         "data/model_params/JSBACH/JSBACH_S3_tas.nc",
@@ -297,49 +241,36 @@ rule JSBACH_model_predictions:
         "results/processed_balesdent_2018.csv",
         "results/all_sites_14C_turnover.csv",
     output:
-        f"results/04_model_predictions/JSBACH_{current_date}.csv",
-        f"results/04_model_predictions/JSBACH_fnew_{current_date}.csv"
+        "results/04_model_predictions/JSBACH.csv",
+        "results/04_model_predictions/JSBACH_fnew.csv"
     script:
         "notebooks/04_JSBACH_model_predictions.py"
 
+# Run the reduced complexity models from He et al. 2016
 rule RC_model_predictions:
     input:
         "results/processed_balesdent_2018.csv",
         "results/all_sites_14C_turnover.csv",
+        # Sentinel that the He et al. 2016 data has been downloaded
         "data/he_2016/Persistence-master/CodeData/14C_Respiration.csv"
     output:
-        f"results/04_model_predictions/RCM_{current_date}.csv",
+        f"results/04_model_predictions/RCM.csv",
     script:
         "notebooks/04_RC_model_predictions.py"
 
 # Step 05: Plot results
 rule plot_results_v2_all:
     input:
-        f'results/04_model_predictions/power_law_{current_date}.csv',
-        f'results/04_model_predictions/lognormal_{current_date}.csv',
-        f'results/04_model_predictions/CLM45_fnew_{current_date}.csv',
-        f'results/04_model_predictions/JSBACH_fnew_{current_date}.csv',
-        f'results/04_model_predictions/RCM_{current_date}.csv',
+        'results/04_model_predictions/power_law.csv',
+        'results/04_model_predictions/lognormal.csv',
+        'results/04_model_predictions/CLM45_fnew.csv',
+        'results/04_model_predictions/JSBACH_fnew.csv',
+        'results/04_model_predictions/RCM.csv',
     output:
-        f"figures/model_predictions_{current_date}.png"
+        "figures/model_predictions.png"
     script:
         "notebooks/05_plot_results_v2_all.py"
 
-# rule plot_results_v2:
-#     input:
-#         "results/model_predictions_subset.csv"
-#     output:
-#         "results/figures/results_plots_subset.png"
-#     script:
-#         "notebooks/05_plot_results_v2.py"
-
-# rule plot_results:
-#     input:
-#         "results/model_predictions.csv"
-#     output:
-#         "results/figures/basic_plots.png"
-#     script:
-#         "notebooks/05_plot_results.py"
 
 # # Step 06: Sensitivity analysis
 # rule sensitivity_analysis_old:
@@ -385,12 +316,6 @@ rule plot_results_v2_all:
 #         julia notebooks/06b_sensitivity_analysis_lognormal.jl
 #         """
 
-# # Create results directories
-# rule create_dirs:
-#     output:
-#         directory("results/figures")
-#     shell:
-#         "mkdir -p results/figures"
 
 # Clean up rule
 rule clean:
