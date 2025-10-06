@@ -12,18 +12,15 @@ import matplotlib.pyplot as plt
 from permetrics.regression import RegressionMetric
 
 #%% Load the site data
-tropical_sites = pd.read_csv('results/processed_balesdant_2018_all.csv')
-
-# Assumes the predictions we generated today... should make this configurable.
-current_date = pd.Timestamp.now().date().strftime("%d-%m-%Y")
+tropical_sites = pd.read_csv('results/processed_balesdent_2018.csv')
 
 #%% Load the predictions
 # powerlaw_predictions = pd.read_csv('results/04_model_predictions/power_law_16-07-2025.csv',header=None, names=['prediction'])
-powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/power_law_{current_date}.csv',header=None, names=['prediction'])
-lognormal_predictions = pd.read_csv(f'results/04_model_predictions/lognormal_{current_date}.csv',header=None, names=['prediction'])
-CLM45_predictions = pd.read_csv(f'results/04_model_predictions/CLM45_fnew_{current_date}.csv', header=None, names=['prediction'])
-JSBACH_predictions = pd.read_csv(f'results/04_model_predictions/JSBACH_fnew_{current_date}.csv', header=None, names=['prediction'])
-RCM_predictions = pd.read_csv(f'results/04_model_predictions/RCM_{current_date}.csv')
+powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/power_law.csv',header=None, names=['prediction'])
+lognormal_predictions = pd.read_csv(f'results/04_model_predictions/lognormal.csv',header=None, names=['prediction'])
+CLM45_predictions = pd.read_csv(f'results/04_model_predictions/CLM45_fnew.csv', header=None, names=['prediction'])
+JSBACH_predictions = pd.read_csv(f'results/04_model_predictions/JSBACH_fnew.csv', header=None, names=['prediction'])
+RCM_predictions = pd.read_csv(f'results/04_model_predictions/RCM.csv')
 # %% Define function to plot model predictions
 def plot_model_predictions(ax, predictions, model_name):
     ax.plot([0, 1], [0, 1], color='k', linestyle='-', label='y=x')
@@ -64,5 +61,5 @@ for i in range(4 + len(RCM_predictions.columns), 8):
     fig.delaxes(axs[i])
 
 # %% Save the figure
-out_fname = f'figures/model_predictions_{current_date}.png'
+out_fname = f'figures/model_predictions.png'
 plt.savefig(out_fname, dpi=600, bbox_inches='tight')
