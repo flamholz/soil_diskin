@@ -2732,6 +2732,19 @@ wheels = [
 ]
 
 [[package]]
+name = "permetrics"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c3/2d/3e572d9a08bb79023a56bea7575edba8abbafad73509437c1ffebceabd8f/permetrics-2.0.0.tar.gz", hash = "sha256:c7d79d654fa54aa31b293b10bfd22c34c50cd80f0d05b7ca38e295c99b10d53e", size = 56903, upload-time = "2024-02-24T07:58:00.563Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/26/03/113d55caacf415f9fb29ed3af940592a54b725b62d1f4c3d5297ddf14c10/permetrics-2.0.0-py3-none-any.whl", hash = "sha256:2b7252fff81e2e2dec67ca7db3826f4d6ec65072cfa76b8e41bc534ab53f331e", size = 52621, upload-time = "2024-02-24T07:57:57.948Z" },
+]
+
+[[package]]
 name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3893,6 +3906,7 @@ dependencies = [
     { name = "numpy" },
     { name = "openpyxl" },
     { name = "pandas" },
+    { name = "permetrics" },
     { name = "pytest" },
     { name = "rioxarray" },
     { name = "scikit-learn" },
@@ -3926,6 +3940,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.2.5" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=2.2.3" },
+    { name = "permetrics", specifier = ">=2.0.0" },
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "rioxarray", specifier = ">=0.19.0" },
     { name = "scikit-learn", specifier = ">=1.6.1" },
