@@ -18,7 +18,7 @@ pip install -e .
 
 * install wolframscript to run mathematica from the command line
 
-* install julia -- describe version
+* install julia -- describe version - version 1.11.6
 ** install julia deps in Project.toml
 
 * run snakemake to run the entire pipeline

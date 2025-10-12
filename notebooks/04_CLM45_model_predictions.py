@@ -1,3 +1,4 @@
+#%% 
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -65,9 +66,9 @@ with parallel_backend('loky', n_jobs=-1):
 
 predictions = np.array(predictions)
 predictions = pd.DataFrame(predictions)
-predictions.columns = np.logspace(-1, tmax, 1000)  # time in years
+predictions.columns = np.logspace(-1, np.log10(tmax), 1000)  # time in years
 
-fnew_predictions = np.array([interp1d(predictions.columns, predictions.iloc[1])(site_data.iloc[i]['Duration_labeling']) for i in range(len(site_data))])
+fnew_predictions = np.array([interp1d(predictions.columns, predictions.iloc[i])(site_data.iloc[i]['Duration_labeling']) for i in range(len(site_data))])
 
 # Save the model predictions
 out_fname = f'results/04_model_predictions/CLM45.csv'

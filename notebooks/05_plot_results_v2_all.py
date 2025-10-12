@@ -18,6 +18,7 @@ tropical_sites = pd.read_csv('results/processed_balesdent_2018.csv')
 # powerlaw_predictions = pd.read_csv('results/04_model_predictions/power_law_16-07-2025.csv',header=None, names=['prediction'])
 powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/power_law.csv',header=None, names=['prediction'])
 lognormal_predictions = pd.read_csv(f'results/04_model_predictions/lognormal.csv',header=None, names=['prediction'])
+gamma_predictions = pd.read_csv(f'results/04_model_predictions/gamma.csv',header=None, names=['prediction'])    
 CLM45_predictions = pd.read_csv(f'results/04_model_predictions/CLM45_fnew.csv', header=None, names=['prediction'])
 JSBACH_predictions = pd.read_csv(f'results/04_model_predictions/JSBACH_fnew.csv', header=None, names=['prediction'])
 RCM_predictions = pd.read_csv(f'results/04_model_predictions/RCM.csv')
@@ -41,24 +42,27 @@ fig, axs = plt.subplots(2,4,figsize=(15, 8), dpi=600,constrained_layout=True)
 axs = axs.flatten()
 
 # power-law model predictions
-plot_model_predictions(axs[0], powerlaw_predictions['prediction'], 'Power Law DisKin Model')
+plot_model_predictions(axs[0], powerlaw_predictions['prediction'], 'Power Law Model')
 
 # lognormal model predictions
 plot_model_predictions(axs[1], lognormal_predictions['prediction'], 'Lognormal Model')
 
+# gamma model predictions
+plot_model_predictions(axs[2], gamma_predictions['prediction'], 'Gamma Model')
+
 # CLM4.5 predictions
-plot_model_predictions(axs[2], CLM45_predictions['prediction'], 'CLM4.5 Model')
+plot_model_predictions(axs[3], CLM45_predictions['prediction'], 'CLM4.5 Model')
 
 # JSBACH predictions
-plot_model_predictions(axs[3], JSBACH_predictions['prediction'], 'JSBACH Model')
+plot_model_predictions(axs[4], JSBACH_predictions['prediction'], 'JSBACH Model')
 
 # Reduced complexity model predictions
 for i, col in enumerate(RCM_predictions.columns):
-    plot_model_predictions(axs[4 + i], RCM_predictions[col], col)
+    plot_model_predictions(axs[5 + i], RCM_predictions[col], col)
 
-# remove empty subplots
-for i in range(4 + len(RCM_predictions.columns), 8):
-    fig.delaxes(axs[i])
+# # remove empty subplots
+# for i in range(4 + len(RCM_predictions.columns), 8):
+#     fig.delaxes(axs[i])
 
 # %% Save the figure
 out_fname = f'figures/model_predictions.png'

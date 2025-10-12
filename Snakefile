@@ -200,6 +200,7 @@ rule continuum_model_predictions:
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
         "results/04_model_predictions/04b_lognormal_cdfs.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/gamma_model_optimization_results.csv"
     output:
         "results/04_model_predictions/gamma.csv",
         "results/04_model_predictions/power_law.csv",

@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "cartopy>=0.24.1",
-    "cbc>=0.0.7",
     "dask>=2025.5.1",
     "geemap>=0.35.3",
     "h5netcdf>=1.6.1",
