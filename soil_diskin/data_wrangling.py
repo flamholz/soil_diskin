@@ -99,3 +99,83 @@ def process_balesdent_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     final_data = all_sites.groupby(group_cols)[output_cols].mean().reset_index()
 
     return final_data
+
+
+def point_in_polygon(x, y, polygon_coords):
+    """Check if point (x,y) is inside polygon using ray casting algorithm"""
+    n = len(polygon_coords)
+    inside = False
+    
+    p1x, p1y = polygon_coords[0]
+    for i in range(1, n + 1):
+        p2x, p2y = polygon_coords[i % n]
+        if y > min(p1y, p2y):
+            if y <= max(p1y, p2y):
+                if x <= max(p1x, p2x):
+                    if p1y != p2y:
+                        xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                    if p1x == p2x or x <= xinters:
+                        inside = not inside
+        p1x, p1y = p2x, p2y
+    
+    return inside
+
+def distance_to_polygon(x, y, polygon_coords):
+    """Calculate minimum distance from point to polygon boundary"""
+    min_dist = float('inf')
+    
+    for i in range(len(polygon_coords)):
+        p1 = polygon_coords[i]
+        p2 = polygon_coords[(i + 1) % len(polygon_coords)]
+        
+        # Distance from point to line segment
+        A = x - p1[0]
+        B = y - p1[1]
+        C = p2[0] - p1[0]
+        D = p2[1] - p1[1]
+        
+        dot = A * C + B * D
+        len_sq = C * C + D * D
+        
+        if len_sq != 0:
+            param = dot / len_sq
+        else:
+            param = -1
+        
+        if param < 0:
+            xx, yy = p1[0], p1[1]
+        elif param > 1:
+            xx, yy = p2[0], p2[1]
+        else:
+            xx = p1[0] + param * C
+            yy = p1[1] + param * D
+        
+        dx = x - xx
+        dy = y - yy
+        dist = np.sqrt(dx * dx + dy * dy)
+        min_dist = min(min_dist, dist)
+    
+    return min_dist
+
+def assign_biome_numpy(row, biome_data):
+    """Assign biome using numpy-only approach"""
+    x, y = row['MAT_C'], row['PANN_mm']/10  # Convert precipitation to cm
+    
+    # Check if point is inside any polygon
+    for biome, group in biome_data.groupby('biome'):
+        coords = group[['x', 'y']].values
+        if point_in_polygon(x, y, coords):
+            return biome
+    
+    # If not inside any polygon, find closest
+    min_distance = float('inf')
+    closest_biome = None
+    
+    for biome, group in biome_data.groupby('biome'):
+        coords = group[['x', 'y']].values
+        distance = distance_to_polygon(x, y, coords)
+        if distance < min_distance:
+            min_distance = distance
+            closest_biome = biome
+    
+    return closest_biome

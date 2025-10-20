@@ -259,18 +259,147 @@ rule RC_model_predictions:
     script:
         "notebooks/04_RC_model_predictions.py"
 
+# Step 06a: Turnover Sensitivity analysis
+rule turnover_sensitivity_analysis_powerlaw_gamma:
+    input:
+        "results/processed_balesdent_2018.csv",
+        "results/all_sites_14C_turnover.csv",
+    output:
+        "results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results.csv",
+        "results/06_sensitivity_analysis/gamma_turnover_sensitivity_results.csv",
+    script:
+        "notebooks/06a_turnover_sensitivity.py"
+
+rule turnover_sensitivity_analysis_lognormal_mathematica:
+    input:
+        'data/14C_atm_annot.csv',
+        'results/all_sites_14C_turnover.csv',
+    output:
+        "results/06_sensitivity_analysis/06a_lognormal_age_scan0.50.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_age_scan0.67.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_age_scan1.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_age_scan1.50.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_age_scan2.csv",
+    shell:
+        """
+        wolframscript --file notebooks/06a_lognormal_turnover_sensitivity.wls
+        """
+
+rule turnover_sensitivity_analysis_lognormal_python:
+    input:
+        "results/06_sensitivity_analysis/06a_lognormal_age_scan0.50.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_age_scan0.67.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_age_scan1.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_age_scan1.50.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_age_scan2.csv",
+    output:
+        "results/06_sensitivity_analysis/lognormal_age_predictions.csv",
+    script:
+        "notebooks/06a_lognormal_turnover_sensitivity.py"
+
+rule turnover_sensitivity_analysis_lognormal_julia:
+    input:
+        "results/06_sensitivity_analysis/lognormal_age_predictions.csv",
+        "results/all_sites_14C_turnover.csv"
+    output:
+        "results/06_sensitivity_analysis/06a_lognormal_cdfs_0.50.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_cdfs_0.67.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_cdfs_1.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_cdfs_1.50.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_cdfs_2.csv",
+    shell:
+        """
+        julia --project=./ notebooks/06a_lognormal_turnover_sensitivity.jl
+        """
+
+# Step 06b: Steady-state sensitivity analysis
+rule steady_state_sensitivity_analysis_lognormal:
+    input:
+        "results/raw_balesdant_2018.csv",
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
+    output:
+        "results/06_sensitivity_analysis/lognormal_input_data.csv",
+        "results/06_sensitivity_analysis/lognormal_tau_data.csv",
+        "results/06_sensitivity_analysis/lognormal_age_data.csv",
+    shell:
+        """
+        julia --project=./ notebooks/06b_lognormal_steady_state_sensitivity.jl
+        """
+# Step 06c: Vegetation effects sensitivity analysis
+rule vegetation_effects_sensitivity_analysis:
+    input:
+        'data/balesdent_2018/balesdent_2018_raw.xlsx',
+        'results/processed_balesdent_2018.csv',
+        'results/03_calibrate_models/powerlaw_model_optimization_results.csv',
+        'results/03_calibrate_models/gamma_model_optimization_results.csv',
+        'results/06_sensitivity_analysis/06b_lognormal_cdfs_1.csv', 
+    output:
+        'results/06_sensitivity_analysis/06c_model_predictions_veg_effects.csv',
+    script:
+        "notebooks/06c_veg_effects_sensitivity.py"
 # Step 05: Plot results
-rule plot_results_v2_all:
+
+rule plot_fig1:
+    input:
+    output:
+        "figures/fig1.png"
+    script:
+        "notebooks/fig1.py"
+
+rule plot_fig2:
     input:
         'results/04_model_predictions/power_law.csv',
         'results/04_model_predictions/lognormal.csv',
+        'results/04_model_predictions/gamma.csv',
         'results/04_model_predictions/CLM45_fnew.csv',
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
     output:
-        "figures/model_predictions.png"
+        "figures/fig2.png"
     script:
-        "notebooks/05_plot_results_v2_all.py"
+        "notebooks/fig2.py"
+
+rule plot_figS1:
+    input:
+        'data/balesdent_2018/balesdent_2018_raw.xlsx',
+    output:
+        'figures/figS1.png',
+    script:
+        "notebooks/figS1.py"
+
+rule plot_figS3:
+    input:
+        'results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results.csv',
+        'results/06_sensitivity_analysis/gamma_turnover_sensitivity_results.csv',
+        "results/06_sensitivity_analysis/06a_lognormal_cdfs_0.50.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_cdfs_0.67.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_cdfs_1.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_cdfs_1.50.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_cdfs_2.csv",
+    output:
+        'figures/figS3.png',
+    script:
+        "notebooks/figS3.py"
+
+rule plot_figS4:
+    input:
+        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/gamma_model_optimization_results.csv",
+        'results/06_sensitivity_analysis/lognormal_input_data.csv',
+        'results/06_sensitivity_analysis/lognormal_tau_data.csv',
+        'results/06_sensitivity_analysis/lognormal_age_data.csv',
+    output:
+        "figures/figS4.png"
+    script:
+        "notebooks/figS4.py"
+
+rule plot_figS5:
+    input:
+        'results/06_sensitivity_analysis/06c_model_predictions_veg_effects.csv',
+    output:
+        "figures/figS5.png"
+    script:
+        "notebooks/figS5.py"
 
 
 # # Step 06: Sensitivity analysis

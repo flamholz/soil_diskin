@@ -39,7 +39,7 @@ def objective_function(params, merged_site_data):
     
     # Calculate the difference between the predicted and observed data
     diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm'])**2)
-    diff_turnover = np.nansum((model.T - merged_site_data['turnover']*2)**2)
+    diff_turnover = np.nansum((model.T - merged_site_data['turnover'])**2)
     
     # Return the sum of squared differences
     return diff_14C + diff_turnover
