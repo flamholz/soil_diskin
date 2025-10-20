@@ -138,84 +138,11 @@ plot_data(axs[2, 0], ts, gamma_input_data, green_colors, 'Change in input', '$J_
 plot_data(axs[2, 1], ts, gamma_a_data, red_colors, 'Change in $\\alpha$', '$\\alpha_{post}$/$\\alpha_{pre}$')
 plot_data(axs[2, 2], ts, gamma_tau_data, blue_colors, 'Change in $\\theta$', '$\\theta_{post}$/$\\theta_{pre}$')
 axs[0,0].text(-0.3, 0.5, 'Power-law model', transform=axs[0,0].transAxes, ha='center', va='center', fontsize=16, alpha=1, rotation=90)
-axs[1,0].text(-0.3, 0.5, 'Gamma model', transform=axs[1,0].transAxes, ha='center', va='center', fontsize=16, alpha=1, rotation=90)
+axs[1,0].text(-0.3, 0.5, 'Lognormal model', transform=axs[1,0].transAxes, ha='center', va='center', fontsize=16, alpha=1, rotation=90)
+axs[2,0].text(-0.3, 0.5, 'Gamma model', transform=axs[2,0].transAxes, ha='center', va='center', fontsize=16, alpha=1, rotation=90)
 plt.tight_layout()
 
-
-# %% [markdown]
-# #### Test vegetation effects
-
-# %%
-powerlaw_params = pd.read_csv('results/03_calibrate_models/powerlaw_model_optimization_results.csv')
-powerlaw_params
-
-# %%
-# ts = np.logspace(-1, 6, 1000)  # time in years
-ts = np.arange(0, 100000, 0.1)  # time in years
-ts_veg = np.arange(0, 1000, 0.1)  # time in years
-veg_age = stats.expon(scale = 450/50) # flux is NPP - 50 GtC yr-1 and stocks are 450 GtC
-# veg_age = stats.expon(scale = 450/50) # flux is NPP - 50 GtC yr-1 and stocks are 450 GtC
-veg_p = veg_age.pdf(ts_veg)
-
-
-def make_predictions(ts, veg_p, row, label_time):
-    model =PowerLawDisKin(row.loc['tau_0'], row.loc['tau_inf'])
-    model_pa = model.pA(ts)
-    conv_p = np.convolve(model_pa, veg_p, mode='full')[:len(ts)]
-    conv_cdf = cumulative_trapezoid(conv_p, ts) / cumulative_trapezoid(conv_p, ts)[-1]
-    conv_fnew = interp1d(ts[1:], conv_cdf, bounds_error=False, fill_value=0)(label_time)
-    
-    no_conv_cdf = cumulative_trapezoid(model_pa, ts) / cumulative_trapezoid(model_pa, ts)[-1]
-    no_conv_fnew = interp1d(ts[1:], no_conv_cdf, bounds_error=False, fill_value=0)(label_time)
-    # no_conv_fnew = model.cdfA(label_time)
-    
-    return conv_fnew, no_conv_fnew
-
-
-for i, row in tqdm(powerlaw_params.iterrows()):
-    conv_fnew, model_cdf = make_predictions(ts, veg_p, row, site_data.loc[i, 'Duration_labeling'])
-    site_data.loc[i, 'pred_conv'] = conv_fnew
-    site_data.loc[i, 'pred_no_conv'] = model_cdf
-
-# %%
-fig, ax = plt.subplots(1, 1, figsize=(5, 5), dpi = 300)
-ax.scatter(site_data['total_fnew'], site_data['pred_conv'], color='k')
-ax.scatter(site_data['total_fnew'], site_data['pred_no_conv'], color='royalblue')
-
-
-evaluator_conv = RegressionMetric(y_true=site_data['total_fnew'].values, y_pred=site_data['pred_conv'].values)
-evaluator_no_conv = RegressionMetric(y_true=site_data['total_fnew'].values, y_pred=site_data['pred_no_conv'].values)
-
-ax.text(0.05, 0.95, f'KGE: {evaluator_conv.kling_gupta_efficiency():.3f}', transform=ax.transAxes, fontsize=10, verticalalignment='top')
-ax.text(0.05, 0.90, f'RMSE: {evaluator_conv.root_mean_squared_error():.3f}', transform=ax.transAxes, fontsize=10, verticalalignment='top')
-
-ax.text(0.05, 0.85, f'KGE: {evaluator_no_conv.kling_gupta_efficiency():.3f}', transform=ax.transAxes, fontsize=10, verticalalignment='top', color='royalblue')
-ax.text(0.05, 0.80, f'RMSE: {evaluator_no_conv.root_mean_squared_error():.3f}', transform=ax.transAxes, fontsize=10, verticalalignment='top', color='royalblue')
-ax.set(xlabel='observed fraction of new carbon', ylabel='predicted fraction of new carbon')
-plt.legend(['with vegetation age', 'without vegetation age'], loc='lower right')
-ax.plot([0, 1], [0, 1], color='k', linestyle='-', label='y=x')
-
-# %%
-fig, ax = plt.subplots(1, 1, figsize=(5, 5))
-ax.scatter(site_data['total_fnew'], site_data['pred_conv'], color='k')
-ax.scatter(site_data['total_fnew'], site_data['pred_no_conv'], color='royalblue')
-ax.plot([0, 1], [0, 1], color='k', linestyle='-', label='y=x')
-
-evaluator_conv = RegressionMetric(y_true=site_data['total_fnew'].values, y_pred=site_data['pred_conv'].values)
-evaluator_no_conv = RegressionMetric(y_true=site_data['total_fnew'].values, y_pred=site_data['pred_no_conv'].values)
-
-ax.text(0.05, 0.95, f'KGE: {evaluator_conv.kling_gupta_efficiency():.3f}', transform=ax.transAxes, fontsize=10, verticalalignment='top')
-ax.text(0.05, 0.90, f'RMSE: {evaluator_conv.root_mean_squared_error():.3f}', transform=ax.transAxes, fontsize=10, verticalalignment='top')
-
-ax.text(0.05, 0.85, f'KGE: {evaluator_no_conv.kling_gupta_efficiency():.3f}', transform=ax.transAxes, fontsize=10, verticalalignment='top', color='royalblue')
-ax.text(0.05, 0.80, f'RMSE: {evaluator_no_conv.root_mean_squared_error():.3f}', transform=ax.transAxes, fontsize=10, verticalalignment='top', color='royalblue')
-ax.set(xlabel='observed', ylabel='predicted')
-
-
-# %%
-fig, ax = plt.subplots(1, 1, figsize=(5, 5))    
-plt.semilogx(ts[1:],cumulative_trapezoid(conv_p, ts) / cumulative_trapezoid(conv_p, ts)[-1], label='Convolution', color='k')
-plt.semilogx(ts[1:],cumulative_trapezoid(p, ts) / cumulative_trapezoid(p, ts)[-1], label='Convolution', color='royalblue')
-sns.regplot(data=site_data, x="Duration_labeling", y="total_fnew",ax=ax,scatter_kws={'color':'k'},line_kws={'color':'k','lw':0},x_bins=[3,10,30,50,100,300,1000,3000],fit_reg=False,ci=95)
+# Save figure
+plt.savefig('figures/figS5.png', dpi=600)
 
 
