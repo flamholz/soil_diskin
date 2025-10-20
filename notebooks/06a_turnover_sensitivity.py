@@ -75,11 +75,15 @@ def generate_predictions(model, initial_guess, data):
         # Minimize the objective function for each site
     def generate_prediction(model, initial_guess, row):
         # First optimize the parameters for the given site
-        if isinstance(model, PowerLawDisKin):
-            res = minimize(objective_function, initial_guess, args=(model, row, [1, 1]), method='Nelder-Mead')
-        elif isinstance(model, GammaDisKin):
-            res = minimize(objective_function, initial_guess, args=(model, row, [300, 1]), method='Nelder-Mead', bounds=((1.00001, None), (0, None)))
         
+        # if isinstance(model, PowerLawDisKin):
+        if model == PowerLawDisKin:
+            res = minimize(objective_function, initial_guess, args=(model, row, [1, 1]), method='Nelder-Mead')
+        elif model == GammaDisKin:
+            res = minimize(objective_function, initial_guess, args=(model, row, [300, 1]), method='Nelder-Mead', bounds=((1.00001, None), (0, None)))
+        else:
+            print(model)
+            raise ValueError("Model type not recognized for optimization.")
         # Generate the prediction using the optimized parameters
         prediction = model(*res.x).cdfA(row['Duration_labeling'])
         return prediction

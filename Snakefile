@@ -13,8 +13,13 @@ HE_2016_URL = "https://git.bgc-jena.mpg.de/csierra/Persistence/-/archive/master/
 rule all:
     input:
         # Plotting outputs -- should force all the models to be run
-        "figures/model_predictions.png",
-
+        # "figures/model_predictions.png",
+        "figures/fig1.png",
+        "figures/fig2.png",
+        "figures/figS1.png",
+        "figures/figS3.png",
+        "figures/figS4.png",
+        "figures/figS5.png",
         # # Sensitivity analysis outputs
         # "results/sensitivity_powerlaw.csv",
         # "results/sensitivity_lognormal.csv"
@@ -332,7 +337,7 @@ rule vegetation_effects_sensitivity_analysis:
         'results/processed_balesdent_2018.csv',
         'results/03_calibrate_models/powerlaw_model_optimization_results.csv',
         'results/03_calibrate_models/gamma_model_optimization_results.csv',
-        'results/06_sensitivity_analysis/06b_lognormal_cdfs_1.csv', 
+        'results/06_sensitivity_analysis/06a_lognormal_cdfs_1.csv', 
     output:
         'results/06_sensitivity_analysis/06c_model_predictions_veg_effects.csv',
     script:

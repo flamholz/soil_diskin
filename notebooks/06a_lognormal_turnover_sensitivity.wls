@@ -76,7 +76,7 @@ ratios = {0.5, 1/1.5, 1, 1.5, 2};
 FitParameters[ratio_] := (
 	data2 = data;
 	data2= MapAt[# * ratio &, data2, {All, 1}];
-	str = "results/06_sensitivity_analysis/06b_lognormal_age_scan" <> ToString[NumberForm[ratio, {3,2}]] <>".csv";
+	str = "results/06_sensitivity_analysis/06a_lognormal_age_scan" <> ToString[NumberForm[ratio, {3,2}]] <>".csv";
 	Print[str];
 	results = ParallelMap[ScanAges[#] &, data2[[All, 1]]];
 	Export[str, results, "CSV"];
