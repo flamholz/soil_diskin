@@ -320,7 +320,7 @@ rule turnover_sensitivity_analysis_lognormal_julia:
 # Step 06b: Steady-state sensitivity analysis
 rule steady_state_sensitivity_analysis_lognormal:
     input:
-        "results/raw_balesdant_2018.csv",
+        "data/balesdent_2018/balesdent_2018_raw.xlsx",
         "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
     output:
         "results/06_sensitivity_analysis/lognormal_input_data.csv",
@@ -388,6 +388,8 @@ rule plot_figS3:
 
 rule plot_figS4:
     input:
+        "data/balesdent_2018/balesdent_2018_raw.xlsx",
+        "results/processed_balesdent_2018.csv", 
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/gamma_model_optimization_results.csv",
         'results/06_sensitivity_analysis/lognormal_input_data.csv',

@@ -18,7 +18,7 @@ from permetrics.regression import RegressionMetric
 
 # %%
 # Read the raw data and calculate the ratio in C stocks between the reference and the experiment sites.
-raw_site_data = pd.read_excel('data/balesdent_2018/balesdent_2018_raw.xlsx', skiprows=7).query('MAT_C>17.0 & PANN_mm>1000.0 & `P to PET ratio` >0.8')
+raw_site_data = pd.read_excel('data/balesdent_2018/balesdent_2018_raw.xlsx', skiprows=7)
 site_data = pd.read_csv('results/processed_balesdent_2018.csv')
 J_ratio = raw_site_data['Cref_0-100estim'] / raw_site_data['Ctotal_0-100estim']
 
@@ -143,6 +143,8 @@ axs[2,0].text(-0.3, 0.5, 'Gamma model', transform=axs[2,0].transAxes, ha='center
 plt.tight_layout()
 
 # Save figure
-plt.savefig('figures/figS5.png', dpi=600)
+plt.savefig('figures/figS4.png', dpi=600)
 
 
+
+# %%
