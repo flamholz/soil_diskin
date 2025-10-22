@@ -1,9 +1,12 @@
-include("diskin_utils.jl")
+using Pkg
+Pkg.instantiate()
 
 using XLSX
 using CSV
 using DataFrames
 using Statistics
+
+include("diskin_utils.jl")
 
 raw_site_data = DataFrame(XLSX.readtable("data/balesdent_2018/balesdent_2018_raw.xlsx", "Profiles", first_row=8));
 raw_site_data[!, "Cref_0-100estim"] = replace(raw_site_data[!, "Cref_0-100estim"], "NA" => missing);
