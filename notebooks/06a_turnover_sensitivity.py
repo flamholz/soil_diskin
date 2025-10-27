@@ -122,7 +122,7 @@ initial_guess = [1.2, 0.5]
 for ratio in ratios:
     df = merged_df.copy()
     df['turnover'] = df['turnover'] * ratio
-    gamma_sensitivity_results.append(generate_predictions(GammaDisKin, initial_guess, df, type='Gamma'))
+    gamma_sensitivity_results.append(generate_predictions(GammaDisKin, initial_guess, df))
 
 # %%
 # Collect the results into DataFrames
