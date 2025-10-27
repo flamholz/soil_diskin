@@ -30,8 +30,10 @@ def decay(G_0, ages):
 
 
 # %%
-mosaic = 'AABDDEE\nAACDDEE'
-fig, axs = plt.subplot_mosaic(mosaic, layout='constrained', figsize=(14, 3), dpi=300)
+mosaic = 'HHIIFF\nAABCFF\nAADDEE\nGGDDEE'
+# mosaic = 'AABDDEE
+#           AACDDEE
+fig, axs = plt.subplot_mosaic(mosaic, layout='constrained', figsize=(10, 6), dpi=300)
 
 
 ax = axs['A']
@@ -111,13 +113,13 @@ ax.annotate('', xy=(6, 5), xytext=(5, 5.25),
 
 # Rectangular CO2 arrow from passive to fast pool with filled arrowheads on both ends
 # Draw the rectangular path as a line
-ax.plot([7.4, 8, 8, 7.4], [4, 4, 8, 8], 'k-', linewidth=4)
+ax.plot([7.3, 8, 8, 7.3], [4, 4, 8, 8], 'k-', linewidth=2)
 
 # Add filled arrowheads at both ends
 ax.annotate('', xy=(7, 4), xytext=(7.15, 4), 
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=40))
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=20))
 ax.annotate('', xy=(7, 8), xytext=(7.15, 8), 
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=40))
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=20))
 
 # Add curved arrow from middle of rectangular arrow to CO2 label
 ax.annotate('', xy=(8.5, 6), xytext=(8, 6),
@@ -133,8 +135,9 @@ ax.text(8.5, 6, 'CO$_2$', ha='left', va='center', rotation=0, fontsize=12)
 
 plt.sca(axs['B'])
 # stem plot of J_t
-# add label (a)
-ax.text(10, 10, 'B', ha='center', va='center', fontsize=14)
+
+# add label (b) at top left corner
+plt.text(-1.5, 16, 'B', ha='center', va='center', fontsize=14)
 
 
 for i, (J, color) in enumerate(zip(J_t[:5], color_order[:5])):
@@ -149,6 +152,9 @@ plt.ylabel(r'carbon inputs $J(t)$')
 plt.title('inputs over time')
 
 plt.sca(axs['C'])
+# add label (c) at top left corner
+plt.text(-1.5, 1.6, 'C', ha='center', va='center', fontsize=14)
+
 plt.stem(0, 1, color_order[0])
 ages = np.arange(100)
 plt.plot(ages, decay(1, ages), color=color_order[0])
@@ -160,6 +166,8 @@ plt.ylabel(r'remaining carbon $s(\tau)$')
 plt.title('decay with age')
 
 plt.sca(axs['D'])
+# add label (d) at top left corner
+plt.text(-1.5, 15, 'D', ha='center', va='center', fontsize=14)
 
 # Only have 10 colors -- plot the first 10
 for i, (J, color) in enumerate(zip(J_t[:10], color_order[:10])):
@@ -184,6 +192,8 @@ plt.title('inputs with different ages decay')
 # plot the stocks over time, which is the sum of 
 # what remains from prior inputs
 plt.sca(axs['E'])
+# add label (e) at top left corner
+plt.text(-1.5, 90, 'E', ha='center', va='center', fontsize=14)
 
 nts = g_ts.shape[1]
 njs = g_ts.shape[0]
@@ -197,15 +207,42 @@ for i in range(njs):
     bottom = top
 
 G_t = np.sum(g_ts, axis=0)
+plot_at_time = 40
+
 plt.plot(ts, G_t, color='black', lw=2)
+plt.axvline(plot_at_time, color='black', lw=1, ls='--')
 plt.xlabel('time')
 plt.xlim(0, 50)
 plt.ylim(0, 83)
 plt.ylabel(r'total carbon stocks $G(t)$')
 plt.title(r'stocks = sum of residual inputs')
 
+plt.sca(axs['F'])
+# add label (f) at top left corner
+plt.text(-1.5, 0.18, 'F', ha='center', va='center', fontsize=14)
+
+for i in range(njs):
+    color = color_order[i % len(color_order)]
+    plot_age = plot_at_time - i + 0.5
+    pA = g_ts[i, plot_at_time] / G_t[plot_at_time]
+    plt.bar(plot_age, pA, color=color, alpha=0.7, 
+                     edgecolor='k', lw=0.2)
+
+plt.xlim(0, 40)
+plt.ylabel('proportion of total stocks')
+plt.xlabel('age')
+plt.title(f'age distribution $p_A(\\tau)$ at time = {plot_at_time}')
+
+
+# hide panels G H and I for now
+axs['G'].axis('off')
+axs['H'].axis('off')
+axs['I'].axis('off')
+
 plt.tight_layout()
 
 plt.savefig('figures/fig1.png', dpi=600)
 
 
+
+# %%
