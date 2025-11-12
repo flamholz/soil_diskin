@@ -32,7 +32,7 @@ J_ratio = raw_site_data['Cref_0-100estim'] / raw_site_data['Ctotal_0-100estim']
 # load the powerlaw and gamma model parameters and lognormal cdfs
 powerlaw_params = pd.read_csv('results/03_calibrate_models/powerlaw_model_optimization_results.csv')
 gamma_params = pd.read_csv('results/03_calibrate_models/gamma_model_optimization_results.csv')
-lognormal_cdfs = pd.read_csv('results/06_sensitivity_analysis/06b_lognormal_cdfs_1.csv')
+lognormal_cdfs = pd.read_csv('results/06_sensitivity_analysis/06a_lognormal_cdfs_1.csv')
 lognormal_cdfs.columns = lognormal_cdfs.columns.astype(float)
 
 # %%

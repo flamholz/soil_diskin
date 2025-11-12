@@ -1,19 +1,19 @@
-axes.titlesize : 8
+axes.titlesize : 6
 axes.titlepad : 3
-axes.labelsize : 8
+axes.labelsize : 6
 axes.labelpad : 2
 axes.unicode_minus  : True
 lines.linewidth : 2
-lines.markersize : 6
-xtick.labelsize : 8
-ytick.labelsize : 8
+lines.markersize : 3
+xtick.labelsize : 6
+ytick.labelsize : 6
 xtick.color : k
 xtick.labelcolor : k
 ytick.color : k
 ytick.labelcolor : k
-legend.fontsize : 7
+legend.fontsize : 5
 font.family : DejaVu Sans
-font.size : 8
+font.size : 6
 mathtext.fontset : custom
 mathtext.rm : DejaVu Sans
 mathtext.it : DejaVu Sans:italic
