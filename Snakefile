@@ -347,11 +347,26 @@ rule vegetation_effects_sensitivity_analysis:
 rule plot_fig1:
     input:
     output:
-        "figures/fig1.png"
+        "figures/fig1.png",
     script:
         "notebooks/fig1.py"
 
+rule fig2_calcs:
+    input:
+    output:
+        "results/fig2_calcs.npz",
+    script:
+        "notebooks/fig2_calcs.py"
+
 rule plot_fig2:
+    input:
+        "results/fig2_calcs.npz",
+    output:
+        "figures/fig2.png"
+    script:
+        "notebooks/fig2.py"
+
+rule plot_fig3:
     input:
         'results/04_model_predictions/power_law.csv',
         'results/04_model_predictions/lognormal.csv',
@@ -360,9 +375,9 @@ rule plot_fig2:
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
     output:
-        "figures/fig2.png"
+        "figures/fig3.png"
     script:
-        "notebooks/fig2.py"
+        "notebooks/fig3.py"
 
 rule plot_figS1:
     input:
