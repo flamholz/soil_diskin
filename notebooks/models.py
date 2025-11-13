@@ -3,7 +3,7 @@ import xarray as xr
 from jax import numpy as jnp
 from jax import scipy as jsp
 import jax
-from scipy.integrate import quad, dblquad, solve_ivp, cumulative_trapezoid
+from scipy.integrate import quad, dblquad, solve_ivp
 from scipy.special import exp1, gammaincc, gamma
 from scipy.stats import lognorm, norm
 from notebooks.constants import LAMBDA_14C, INTERP_R_14C, SECS_PER_DAY, DAYS_PER_YEAR, GAMMA
@@ -13,7 +13,6 @@ from soil_diskin.age_dist_utils import box_model_ss_age_dist, dynamic_age_dist, 
 import warnings
 import unittest
 import itertools
-import sympy
 
 
 # TODO: make a parent class for all of the models.
@@ -106,8 +105,7 @@ class GlobalData:
 
 
 class GammaDisKin:
-    """A model where the rate distribution is gamma.
-    """
+    """A model where the rate distribution is gamma."""
     def __init__(self, a, b, beta = np.exp(-GAMMA), interp_r_14c=None, I=None):
         """
         Args:
@@ -132,9 +130,6 @@ class GammaDisKin:
 
         self.T = 1 / ((-1 + a) * b)
 
-        # mean age at steady-state
-        # self.A = (tau_inf * np.exp(-self.tratio)/e1_term) - tau_0
-
     def radiocarbon_age_integrand(self, a):
         # Interpolation was done with x as years before present,
         # so a is the correct input here
@@ -144,8 +139,7 @@ class GammaDisKin:
         return initial_r * self.pA(a) * radiocarbon_decay
 
     def s(self, t):
-        """ the term for the amount of carbon in the system at age t"""
-        
+        """the term for the amount of carbon in the system at age t"""
         return (1 + self.b * t) ** (-self.a)
 
     def pA(self, a):
@@ -160,7 +154,6 @@ class GammaDisKin:
         # The CDF is the integral of the PDF from 0 to a
         cdf = (-1 + (1 + self.b * t) ** (1 - self.a)) / (self.b * (1 - self.a)) / self.T
         return cdf
-
 
 
 class GeneralPowerLawDisKin:
@@ -203,9 +196,6 @@ class GeneralPowerLawDisKin:
         self.en_term = en_term
         self.T = self.product * np.exp(self.tratio) * en_term
 
-        # mean age at steady-state
-        # self.A = (tau_inf * np.exp(-self.tratio)/e1_term) - tau_0
-
     def radiocarbon_age_integrand(self, a):
         # Interpolation was done with x as years before present,
         # so a is the correct input here
@@ -213,6 +203,11 @@ class GeneralPowerLawDisKin:
         radiocarbon_decay = np.exp(-LAMBDA_14C*a)
 
         return initial_r * self.pA(a) * radiocarbon_decay
+    
+    def calc_radiocarbon_ratio_ss(self, quad_limit=1500, quad_epsabs=1e-3):
+        """Calculate the radiocarbon age by integrating the age distribution."""
+        return quad(self.radiocarbon_age_integrand, 0, np.inf,
+                    limit=quad_limit, epsabs=quad_epsabs)
 
     def mean_transit_time_integrand(self, a):
         return self.t0 * np.exp(-a/self.tinf) / (self.t0 + a)
@@ -222,7 +217,7 @@ class GeneralPowerLawDisKin:
         return quad(self.mean_transit_time_integrand, 0, np.inf)
 
     def s(self, t):
-        """ the term for the amount of carbon in the system at age t"""
+        """the term for the amount of carbon in the system at age t"""
         s = self.product ** self.beta * np.exp(-t / self.tinf) / (self.product + t) ** self.beta
         return s
 
@@ -269,14 +264,14 @@ class GeneralPowerLawDisKin:
 class PowerLawDisKin:
     """A model where rates of decay are proportional to 1/t between two bounding timescales.
 
-    We call these bounding timescales tau_0 and tau_inf as in the notes. 
+    We call these bounding timescales t_min and t_max.
     """
-    def __init__(self, tau_0, tau_inf, interp_r_14c=None, I=None):
+    def __init__(self, t_min, t_max, interp_r_14c=None, I=None):
         """
         Args:
-        tau_0: float
+        t_min: float
             The short time scale
-        tau_inf: float
+        t_max: float
             The long time scale
         interp_r_14c: callable
             An interpolator for the estimated historical radiocarbon concentration.
@@ -285,9 +280,9 @@ class PowerLawDisKin:
         I: np.ndarray, optional
             An array of inputs to the model, representing the carbon input to the system.
         """
-        self.t0 = tau_0  # short time scale
-        self.tinf = tau_inf  # long time scale
-        self.tratio = tau_0/ tau_inf
+        self.t_min = t_min  # short time scale
+        self.t_max = t_max  # long time scale
+        
         self.I = I
 
         self.interp_14c = interp_r_14c
@@ -295,31 +290,84 @@ class PowerLawDisKin:
             self.interp_14c = INTERP_R_14C
 
         # steady-state transit time
-        e1_term = exp1(self.tratio)
+        tratio = t_min / t_max
+        e1_term = exp1(tratio)
         self.e1_term = e1_term
-        self.T = tau_0 * np.exp(self.tratio) * e1_term
+        self.T = t_min * np.exp(tratio) * e1_term
 
         # mean age at steady-state
-        self.A = (tau_inf * np.exp(-self.tratio)/e1_term) - tau_0
+        self.A = (t_max * np.exp(-tratio)/e1_term) - t_min
 
-    def radiocarbon_age_integrand(self, a):
+    def s(self, tau):
+        """The survival function at age tau."""
+        num = self.t_min * np.exp(- tau / self.t_max)
+        denom = self.t_min + tau
+        return num / denom
+
+    def run_simulation(self, times, inputs):
+        """Run a simulation over the specified time steps.
+
+        Returns the simulation results g_ts and ts.
+
+        Parameters:
+            times (array-like): Time steps for the simulation.
+                Assumed to be uniformly spaced.
+            inputs (array-like): Input values at each time step.
+
+        Returns:
+            g_ts (np.ndarray): A matrix of decayed inputs over time.
+                rows correspond to input times, columns to ages.
+                G_t = np.sum(g_ts, axis=0) gives the total carbon at each age.
+        """
+        assert len(times) == len(inputs), "Length of times and inputs must be the same."
+        n_times = len(times)
+        n_inputs = len(inputs)
+        dt = times[1] - times[0] # timestep size, assumed uniform
+
+        # g_ts contains the decayed inputs over time
+        # each row is an input at time t=i
+        # each column is the amount remaining at time t+age
+        g_ts = np.zeros((n_inputs, n_times + n_inputs + 10))
+        for i in range(n_times):
+            # inputs[i] decays according to the survival function
+            my_times = np.arange(0, n_times - i) * dt
+            decay_i = inputs[i]*self.s(my_times)
+            g_ts[i, i:i+len(decay_i)] = decay_i
+
+        return g_ts
+
+    def radiocarbon_age_integrand(self, tau):
+        """Integrand for calculating the radiocarbon ratio.
+        
+        Args:
+            tau: float
+                The age at which to evaluate the integrand.
+        """
         # Interpolation was done with x as years before present,
         # so a is the correct input here
-        initial_r = self.interp_14c(a) 
-        radiocarbon_decay = np.exp(-LAMBDA_14C*a)
-        age_dist_term = np.power((self.e1_term * (self.t0 + a)), -1) * np.exp(-(self.t0 + a)/self.tinf)
+        initial_r = self.interp_14c(tau) 
+        radiocarbon_decay = np.exp(-LAMBDA_14C*tau)
+        age_dist_term = (
+            np.power((self.e1_term * (self.t_min + tau)), -1) *
+            np.exp(-(self.t_min + tau)/self.t_max))
         return initial_r * age_dist_term * radiocarbon_decay
     
+    def calc_radiocarbon_ratio_ss(self, quad_limit=1500, quad_epsabs=1e-3):
+        """Calculate the steady-state radiocarbon ratio by integrating the age distribution."""
+        return quad(
+            self.radiocarbon_age_integrand, 0, np.inf,
+                limit=quad_limit, epsabs=quad_epsabs)
+
     def mean_transit_time_integrand(self, a):
-        return self.t0 * np.exp(-a/self.tinf) / (self.t0 + a)
+        return self.t_min * np.exp(-a/self.t_max) / (self.t_min + a)
     
     def calc_mean_transit_time(self):
         """Calculate the mean by integrating the transit time distribution."""
         return quad(self.mean_transit_time_integrand, 0, np.inf)
     
     def pA(self, a):
-        t0 = self.t0
-        tinf = self.tinf
+        t0 = self.t_min
+        tinf = self.t_max
         e1_term = self.e1_term
         return np.exp(-(t0 + a)/tinf) / ((t0 + a)*e1_term)
 
@@ -349,14 +397,15 @@ class PowerLawDisKin:
         # The rate of change is proportional to the inverse of the time scale
         # and the current state of the system.
         # The decay rate is 1/tau_0 for the short time scale and 1/tau_inf for the long time scale.
-        dX = - ( 1 / (self.t0 + t) + 1 / (self.tinf + t)) * X
+        dX = - ( 1 / (self.t_min + t) + 1 / (self.t_max + t)) * X
 
         return dX
     
     def cdfA(self, a):
         """Calculate the cumulative distribution function of the age distribution."""
         # The CDF is the integral of the PDF from 0 to a
-        return (1 - exp1((self.t0 + a) / self.tinf) / exp1(self.tratio))
+        tratio = self.t_min / self.t_max
+        return (1 - exp1((self.t_min + a) / self.t_max) / exp1(tratio))
 
 class LognormalDisKin:
 
@@ -458,7 +507,7 @@ class LognormalDisKin:
         exp_factor = np.exp(-a*self.k_star*np.exp(q))
         return initial_r * radiocarbon_decay * p_q * exp_factor
 
-    def calc_radiocarbon_age(self):
+    def calc_radiocarbon_ratio_ss(self):
         """Integrate the radiocarbon age distribution."""
         res = dblquad(self._radiocarbon_age_integrand, self.q_min, self.q_max, 0, np.inf)
         return res

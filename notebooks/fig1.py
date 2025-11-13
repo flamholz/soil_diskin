@@ -1,22 +1,35 @@
+# %% 
+# if currently in notebooks/ directory, go up one level
+import os
+import sys
+
+# Add the notebooks/ directory to the sys.path
+print(os.getcwd())
+
+# If we are in the notebooks/ directory, go up one level
+if os.path.basename(os.getcwd()) == 'notebooks':
+    sys.path.append(os.getcwd())
+    os.chdir('..')
+    print(f'Changed working directory to {os.getcwd()}')
+
+
 # %%
 import itertools as it
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import pandas as pd
 
-from constants import LAMBDA_14C, C14_DATA, INTERP_R_14C
+from constants import LAMBDA_14C, INTERP_R_14C
 from matplotlib.patches import FancyArrowPatch
 from scipy.special import exp1, expi
-from scipy import stats
 from scipy import integrate
-from scipy.interpolate import interp1d
-from tqdm import tqdm
+
+from models import PowerLawDisKin
 
 import viz
 
 """
-Currently makes figures 1 and 2. 
+Currently makes figures 1 and 2.
 
 Figure 1: Schematic of model structure and age distribution calculation.
 
@@ -27,107 +40,6 @@ Intended to be run from the project root directory.
 
 # use the style file
 plt.style.use('notebooks/style.mpl')
-
-# TODO: should probably move all this funcitonality into models.py
-class PowerLawSimulation:
-    def __init__(self, t_min, t_max):
-        self.t_min = t_min
-        self.t_max = t_max
-
-        self.g_ts = None
-        self.ts = None
-        self.G_t = None
-        self.interp_14c = interp1d(
-            C14_DATA.years_before_2000, C14_DATA.R_14C,
-            kind='zero', fill_value='extrapolate')
-
-    def turnover_time(self):
-        """Calculate the mean turnover time of the system."""
-        # calculate the exponential integral E1(t_min/t_max) 
-        E1_term = exp1(self.t_min / self.t_max)
-        return self.t_min * np.exp(self.t_min / self.t_max) * E1_term
-    
-    def survival_fn(self, ages):
-        """Define a power-law survival function.
-        
-        Parameters:
-            ages (array-like): Array of ages.
-        """
-        float_ages = ages.astype(np.float64)
-        num = self.t_min*np.exp(-float_ages/self.t_max)
-        denom = float_ages + self.t_min
-        return num / denom
-    
-    def age_distribution_pdf_analytic_ss(self, ages):
-        """Calculate the age distribution function.
-        
-        Parameters:
-            ages (array-like): Array of ages.
-        """
-        s = self.survival_fn(ages)
-        return s / self.turnover_time()
-
-    def age_distribution_cdf_analytic_ss(self, ages):
-        """Calculate the cumulative distribution of
-        the steady-state age distribution.
-
-        Integral of PDF was calculated in Mathematica.
-
-        CDF(ages) = (e^(tmin/tmax) tmin (E1(tmin/tmax) + E1((tmin + ages)/tmax)))/T
-
-        Parameters:
-            ages (array-like): Array of ages.
-        """
-        tmin, tmax = self.t_min, self.t_max
-        T = self.turnover_time()
-        Ei_term = expi(- tmin / tmax) - expi( -(tmin + ages)/tmax)
-        return - np.exp(tmin/tmax) * tmin * Ei_term / T
-
-    def radiocarbon_age_integrand(self, a):
-        # Interpolation was done with x as years before present,
-        # so a is the correct input here
-        initial_r = self.interp_14c(a) 
-        radiocarbon_decay = np.exp(-LAMBDA_14C*a)
-        E1_term = exp1(self.t_min / self.t_max)
-        age_dist_term = np.power((E1_term * (self.t_min + a)), -1) * np.exp(-(self.t_min + a)/self.t_max)
-        return initial_r * age_dist_term * radiocarbon_decay
-    
-    def radiocarbon_ratio_ss(self):
-        """Calculate the steady-state radiocarbon ratio."""
-        integral, _ = integrate.quad(
-            self.radiocarbon_age_integrand, 0, np.inf,
-            limit=1500, epsabs=1e-3)
-        return integral
-        
-    def run(self, inputs):
-        """Run the simulation over the specified time steps.
-
-        Note: assumes inputs occur at each time step, so that 
-        the timesteps = np.arange(len(inputs)).
-
-        Stores state in this object.
-
-        Parameters:
-            inputs (array-like): Input values at each time step.
-        """
-        n_time_steps = len(inputs)
-        ts = np.arange(n_time_steps)
-
-        # g_ts contains the decayed inputs over time
-        # each row is an input at time t=i
-        # each column is the amount remaining at time t+age        
-        g_ts = np.zeros((n_time_steps, n_time_steps))
-
-        g_ts = np.zeros((len(inputs), len(ts)+len(inputs) + 10))
-        for i in range(n_time_steps):
-            decay_i = inputs[i]*self.survival_fn(np.arange(n_time_steps))
-            g_ts[i, i:i+len(decay_i)] = decay_i
-            
-        self.g_ts = g_ts.copy()
-        self.ts = ts
-        self.G_t = np.sum(self.g_ts, axis=0)
-
-        return g_ts, ts
 
 np.random.seed(1234)
 colors = viz.color_palette()
@@ -142,8 +54,10 @@ color_order = [colors[n] for n in color_name_order]
 J_t = np.random.normal(10, 2, 5000)
 ages = np.arange(2000.0, 0.1)
 
-my_sim = PowerLawSimulation(t_min=1, t_max=1000)
-g_ts, ts = my_sim.run(J_t)
+# Use the power law model to simulate decays for figures.
+my_sim = PowerLawDisKin(t_min=1, t_max=1000)
+ts = np.arange(5000)
+g_ts = my_sim.run_simulation(ts, J_t)
 
 def plot_inputs(ax):
     """Plot the inputs over time as a stem plot."""
@@ -176,7 +90,7 @@ def plot_survival_fn(ax, ages2plot):
     markerline.set_markersize(4)
     stemlines.set_linewidth(1)
 
-    plt.plot(ages2plot, my_sim.survival_fn(ages2plot),
+    plt.plot(ages2plot, my_sim.s(ages2plot),
              color=color_order[0], lw=1)
     plt.xlabel(r'age $\tau$')
     plt.xlim(-3, 50)
@@ -196,7 +110,7 @@ def plot_independent_decays(ax, J_t, my_sim):
         stemlines.set_linewidth(1)
 
     for i in range(10):
-        decay_i = J_t[i] * my_sim.survival_fn(ages2plot)
+        decay_i = J_t[i] * my_sim.s(ages2plot)
         plt.plot(ages2plot + i, decay_i, color=color_order[i], lw=1,
                 zorder=-1)
 
@@ -209,13 +123,16 @@ def plot_independent_decays(ax, J_t, my_sim):
     plt.yticks(np.arange(0, 17, 5))
     plt.title('inputs decay independently')
 
-def plot_total_stocks(ax, my_sim, my_t):
-    """Plot the total stocks as the sum of residual inputs over time."""
+def plot_total_stocks(ax, my_t, g_ts):
+    """Plot the total stocks as the sum of residual inputs over time.
+    
+    Args:
+        ax: matplotlib axis to plot on
+        my_t: time step to annotate
+        g_ts: matrix of decayed inputs over time
+    """
     plt.sca(ax)
     
-    # stocks from each input over time
-    g_ts = my_sim.g_ts.copy()
-
     nts = g_ts.shape[1]
     njs = g_ts.shape[0]
     bottom = np.zeros(nts)
@@ -228,7 +145,7 @@ def plot_total_stocks(ax, my_sim, my_t):
         bottom = top
 
     # overplot the total stocks line
-    G_t = my_sim.G_t.copy()
+    G_t = np.sum(g_ts, axis=0)
     plt.plot(ts, G_t, color='black', lw=2)
 
     # annotate the line with a curved arrow
@@ -245,12 +162,11 @@ def plot_total_stocks(ax, my_sim, my_t):
     plt.ylabel(r'total carbon stocks $G(t)$')
     plt.title(r'stocks = sum of residual inputs')
 
-def plot_age_distribution(ax, my_sim, my_t):
+def plot_age_distribution(ax, my_t, ts, g_ts):
     # simulated age distribution at time my_t
     plt.sca(ax)
 
-    g_ts = my_sim.g_ts.copy()
-    simulated_ages = my_t - my_sim.ts
+    simulated_ages = my_t - ts
     simulated_stocks = g_ts[:, my_t] / np.sum(g_ts[:, my_t])
     # remove negative ages and normalize
     SOC_ages = simulated_ages[:my_t]
@@ -269,18 +185,19 @@ def plot_age_distribution(ax, my_sim, my_t):
     plt.xlabel(r'age $\tau$')
     plt.title(f'age distribution at t = {my_t}')
 
-def plot_ss_age_distribution_inset(ax, my_sim, my_t):
+def plot_ss_age_distribution_inset(ax, my_sim, my_t, ts, g_ts):
     """Plot the CDF age distribution at steady state."""
-    max_age2plot = 50
+    max_age2plot = 1800
     max_idx = max_age2plot * 10
     ages_fine = np.arange(0, my_t, 0.1)
-    age_dist_cdf = my_sim.age_distribution_cdf_analytic_ss(ages_fine)
+    age_dist_cdf = my_sim.cdfA(ages_fine)
+    ax.set_xscale('log')
     ax.plot(ages_fine[:max_idx], age_dist_cdf[:max_idx],
             color='black', lw=1)
 
     # simulated age distribution at time my_t
-    simulated_ages = my_t - my_sim.ts
-    simulated_stocks = my_sim.g_ts[:, my_t] / np.sum(my_sim.g_ts[:, my_t])
+    simulated_ages = my_t - ts
+    simulated_stocks = g_ts[:, my_t] / np.sum(g_ts[:, my_t])
 
     # remove negative ages (keep only ages >= 1) and reorder from youngest->oldest
     SOC_ages = simulated_ages[:my_t]
@@ -294,8 +211,12 @@ def plot_ss_age_distribution_inset(ax, my_sim, my_t):
     cumulative_stocks = np.cumsum(stocks_truncated)
     normalized_cumulative_stocks = cumulative_stocks / np.sum(stocks_truncated)
 
-    ages2plot = SOC_ages[::5]
-    stock2plot = normalized_cumulative_stocks[::5]
+    # pick log spaced ages to plot from SOC_ages
+    idxs2plot = np.power(2, np.arange(0, np.log2(len(SOC_ages)), 0.5)).astype(int)
+    idxs2plot = idxs2plot[idxs2plot < len(SOC_ages)]
+
+    ages2plot = SOC_ages[idxs2plot]
+    stock2plot = normalized_cumulative_stocks[idxs2plot]
     # Plot a subset of points to avoid too much overlap
     ax.scatter(ages2plot, stock2plot, color='grey',
                s=10, edgecolors='w', lw=0.3, alpha=0.5,
@@ -303,6 +224,7 @@ def plot_ss_age_distribution_inset(ax, my_sim, my_t):
     ax.set_xlim(0, max_age2plot)
 
 # %%
+# Plot figure 1
 mosaic = 'ABC\nDEF'
 fig, axs = plt.subplot_mosaic(mosaic, layout='constrained',
                               figsize=(4.76, 3), dpi=300)
@@ -413,14 +335,14 @@ plot_independent_decays(axs['D'], J_t, my_sim)
 
 # Panel E -- total stocks as the sum of residual inputs over time
 my_t = 40
-plot_total_stocks(axs['E'], my_sim, my_t=my_t)
+plot_total_stocks(axs['E'], my_t, g_ts)
 
 # Panel F -- age distribution at time my_t
-plot_age_distribution(axs['F'], my_sim, my_t=my_t)
-
+plot_age_distribution(axs['F'], my_t, ts, g_ts)
 # inset axes with analytic age distribution at steady state
 inset_ax = axs['F'].inset_axes([0.5, 0.45, 0.4, 0.4])
-plot_ss_age_distribution_inset(inset_ax, my_sim, my_t=2000)
+plot_ss_age_distribution_inset(inset_ax, my_sim,
+                               my_t=2000, ts=ts, g_ts=g_ts)
 inset_ax.tick_params(axis='both', which='major', labelsize=5,
                      size=2, pad=0.3)
 inset_ax.set_title('steady-state', fontsize=5)
@@ -436,6 +358,7 @@ for key in panel_labels:
 
 plt.savefig('figures/fig1.png', dpi=600)
 
+# %%
 # Make a presentation version of the above figure
 # five panels in a row showing only B, C, D, E, F from above
 mosaic = 'ABC\nDEF'
@@ -448,161 +371,16 @@ plot_survival_fn(axs['B'], ages2plot)
 
 plot_independent_decays(axs['C'], J_t, my_sim)
 
-plot_total_stocks(axs['D'], my_sim, my_t=my_t)
+plot_total_stocks(axs['D'], my_t=my_t, g_ts=g_ts)
 
-plot_age_distribution(axs['E'], my_sim, my_t=my_t)
+plot_age_distribution(axs['E'], my_sim, my_t=my_t, g_ts=g_ts)
 
-plot_ss_age_distribution_inset(axs['F'], my_sim, my_t=2000)
+plot_ss_age_distribution_inset(
+    axs['F'], my_sim, my_t=2000,
+    ts=ts, g_ts=g_ts)
 plt.sca(axs['F'])
 plt.title('steady-state age dist.')
 plt.xlabel(r'age $\tau$')
 plt.ylabel(r'CDF of $p_A(\tau)$')
 
 plt.savefig('figures/fig1_presentation.png', dpi=600)
-
-# %% calculations needed to make figure 2
-# first scan over t_min and t_max to calculate T and R_14C
-# TODO: move all below here a new fig2.py once the 
-# simulation is importable. 
-# TODO: run this separately from the figure 2 plotting code
-# and save the results to a file, since it takes a while to run.
-
-# Exemplify calibration of the power-law model.
-# vary t_min and t_max and calculate the turnover T and
-# steady-state radiocarbon ratio. Store these in matrices
-# and plot as contour plots.
-t_min_values = np.linspace(0.1, 10, 100)
-t_max_values = np.linspace(1000, 100000, 100)
-t_min_grid, t_max_grid = np.meshgrid(
-    t_min_values, t_max_values, indexing='ij')
-
-T_matrix = np.zeros((len(t_min_values), len(t_max_values)))
-R_14C_matrix = np.zeros((len(t_min_values), len(t_max_values)))
-
-for i, t_min in enumerate(tqdm(t_min_values, desc='t_min loop')):
-    for j, t_max in enumerate(tqdm(t_max_values, desc='t_max loop', leave=False)):
-        my_model = PowerLawSimulation(t_min=t_min, t_max=t_max)
-        T_matrix[i, j] = my_model.turnover_time()
-        R_14C_matrix[i, j] = my_model.radiocarbon_ratio_ss()
-
-# %% For a few target T and R_14C values, find the model
-# parameters that best reproduce those values.
-
-target_Ts = [1, 3, 10, 50]
-target_R_14Cs = [1.1, 1., 0.88, 0.78]
-calibrated_Ts = []
-calibrated_R_14Cs = []
-calibrated_models = []
-
-for target_T, target_R_14C in zip(target_Ts, target_R_14Cs):
-    # find positions where T = target_T and R_14C = target_R_14C
-    T_positions = np.argwhere(np.isclose(T_matrix, target_T, rtol=0.1))
-    R_14C_positions = np.argwhere(np.isclose(R_14C_matrix, target_R_14C, rtol=0.1))
-
-    pct_diffs_T = 100 * (T_matrix - target_T) / target_T
-    pct_diffs_R_14C = 100 * (R_14C_matrix - target_R_14C) / target_R_14C
-    loss_mat = (pct_diffs_T**2 + pct_diffs_R_14C**2)
-    min_idx = np.unravel_index(np.argmin(loss_mat), loss_mat.shape)
-
-    print(f'For target T={target_T}, R_14C={target_R_14C}:')
-    print(f'Calibrated parameters: t_min = {t_min_values[min_idx[0]]}, t_max = {t_max_values[min_idx[1]]}')
-    print(f'With Turnover Time = {T_matrix[min_idx]}, R_14C = {R_14C_matrix[min_idx]}')
-    print(f'Percent differences: dT/T = {pct_diffs_T[min_idx]}, dR_14C/R_14C = {pct_diffs_R_14C[min_idx]}')
-    print('')
-
-    calibrated_Ts.append(T_matrix[min_idx])
-    calibrated_R_14Cs.append(R_14C_matrix[min_idx])
-    calibrated_model = PowerLawSimulation(
-        t_min=t_min_values[min_idx[0]],
-        t_max=t_max_values[min_idx[1]])
-    calibrated_model.run(J_t)
-    calibrated_models.append(calibrated_model)
-
-# %% Plot figure 2, which diagrams the calibration procedure
-mosaic = 'ABC\nDEF'
-fig, axs = plt.subplot_mosaic(
-    mosaic, layout='constrained', figsize=(7.25, 4))
-
-# Panel A -- contour plot of turnover time with log-scaled axes
-plt.sca(axs['B'])
-plt.contourf(t_max_grid, t_min_grid, T_matrix,
-             levels=10, cmap='Greys')
-plt.colorbar(label='Turnover Time (years)')
-
-# Mark the calibrated points
-calibrated_colors = [colors[c] for c in ['dark_green', 'purple', 'red', 'dark_blue']]
-for my_model, color in zip(calibrated_models, calibrated_colors):
-    plt.scatter(my_model.t_max, my_model.t_min,
-                marker='o', color='none',
-                edgecolor=color, s=15, lw=1.5)
-
-plt.xlabel('$t_{max}$ (years)')
-plt.ylabel('$t_{min}$ (years)')
-plt.title('turnover time (T)')
-
-# Panel B -- contour plot of steady-state radiocarbon ratio
-plt.sca(axs['C'])
-plt.contourf(t_max_grid, t_min_grid, R_14C_matrix,
-             levels=10, cmap='Greys')
-plt.colorbar(label='$^{14}C / ^{12}C$')
-
-# Mark the calibrated points
-for my_model, color in zip(calibrated_models, calibrated_colors):
-    plt.scatter(my_model.t_max, my_model.t_min,
-                marker='o', color='none',
-                edgecolor=color, s=15, lw=1.5)
-plt.xlabel('$t_{max}$ (years)')
-plt.ylabel('$t_{min}$ (years)')
-plt.title(r'steady-state $^{14}C / ^{12}C$ ratio')
-
-# Plot the survival functions for the calibrated points
-plt.sca(axs['E'])
-plt.xscale('log')
-ages = np.logspace(-3, np.log10(1800), 200)
-for i, (my_model, color) in enumerate(
-    zip(calibrated_models, calibrated_colors)):
-    survival_fn = my_model.survival_fn(ages)
-    T_val = calibrated_Ts[i]
-    R_14C_val = calibrated_R_14Cs[i]
-    label=f'$T={int(T_val)}$; $^{{14}}C/^{{12}}C={R_14C_val:.2f}$'
-    plt.plot(ages, survival_fn, color=color, lw=2, label=label)
-plt.xlim(1e-2, 1800)
-plt.xlabel(r'age $\tau$ (years)')
-plt.ylabel(r'$s(\tau)$')
-plt.title('calibrated survival functions')
-# hiding the legend, will make in inkscape
-plt.legend(loc='upper right', fontsize=5,
-           frameon=False).set_visible(False)
-
-plt.sca(axs['F'])
-plt.xscale('log')
-# plot the CDF of the age distributions for the calibrated points
-for idx, (my_model, color) in enumerate(zip(calibrated_models, calibrated_colors)):
-    # ages = np.arange(2000)
-    ages = np.logspace(-3, np.log10(100000), 200)
-    age_dist_cdf = my_model.age_distribution_cdf_analytic_ss(ages)
-    plt.plot(ages, age_dist_cdf, color=color, lw=2)
-
-# Diagram the process of model validation from a single point estimate
-# of the CDF at age = 100 for example. 
-obs_age, obs_CDF = 10, 0.21
-plt.scatter([obs_age], [obs_CDF], color='none', 
-            edgecolor='k', marker='o', s=15, lw=1,
-            zorder=10)
-# draw a dashed line to the x-axis from this point
-plt.axvline(x=obs_age, ymin=0, ymax=obs_CDF,
-            color='grey', linestyle='--', lw=1, zorder=-1)
-ax = axs['F']
-ax.hlines(y=obs_CDF, xmin=ax.get_xlim()[0], xmax=obs_age,
-          colors='grey', linestyles='--', linewidth=1, zorder=-1)
-
-plt.xlim(1e-1, 100000)
-plt.xlabel(r'age $\tau$ (years)')
-plt.ylabel(r'CDF of $p_A(\tau)$')
-plt.title('calibrated age distributions')
-
-# Turn off axes for panels A and D
-axs['A'].axis('off')
-axs['D'].axis('off')
-
-plt.savefig('figures/fig2_model_calibration.png', dpi=300, bbox_inches='tight')

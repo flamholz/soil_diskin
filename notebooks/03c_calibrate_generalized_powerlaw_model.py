@@ -39,7 +39,8 @@ def objective_function(params, merged_site_data):
     model = GeneralPowerLawDisKin(tau_0 = a, tau_inf = b)
     
     # Calculate the predicted 14C ratio and turnover
-    predicted_14C_ratio = quad(model.radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0]
+    predicted_14C_ratio = quad(model.radiocarbon_age_integrand, 0,
+                               np.inf, limit=1500,epsabs=1e-3)[0]
     
     # Calculate the difference between the predicted and observed data
     diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm'])**2)

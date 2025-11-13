@@ -44,7 +44,7 @@ power_law_params = pd.read_csv('results/03_calibrate_models/powerlaw_model_optim
 print("Generating power-law model predictions...")
 predictions = []
 for i, row in power_law_params.iterrows():
-    model = PowerLawDisKin(tau_0=row['tau_0'], tau_inf=row['tau_inf'])
+    model = PowerLawDisKin(t_min=row['tau_0'], t_max=row['tau_inf'])
     predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
 predictions = np.array(predictions)
 # Save the model predictions
