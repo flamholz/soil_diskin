@@ -1,18 +1,24 @@
 # %%
+import itertools as it
 import numpy as np
 import matplotlib.pyplot as plt
-import itertools as it
-from scipy.special import exp1
-
 import matplotlib.patches as patches
+import pandas as pd
+
+from constants import LAMBDA_14C, C14_DATA, INTERP_R_14C
 from matplotlib.patches import FancyArrowPatch
+from scipy.special import exp1, expi
+from scipy import stats
+from scipy import integrate
+from scipy.interpolate import interp1d
+from tqdm import tqdm
 
 import viz
 
 # use the style file
 plt.style.use('notebooks/style.mpl')
 
-
+# TODO: should probably move all this funcitonality into models.py
 class PowerLawSimulation:
     def __init__(self, t_min, t_max):
         self.t_min = t_min
@@ -21,6 +27,9 @@ class PowerLawSimulation:
         self.g_ts = None
         self.ts = None
         self.G_t = None
+        self.interp_14c = interp1d(
+            C14_DATA.years_before_2000, C14_DATA.R_14C,
+            kind='zero', fill_value='extrapolate')
 
     def turnover_time(self):
         """Calculate the mean turnover time of the system."""
@@ -39,7 +48,7 @@ class PowerLawSimulation:
         denom = float_ages + self.t_min
         return num / denom
     
-    def age_distribution_analytic_ss(self, ages):
+    def age_distribution_pdf_analytic_ss(self, ages):
         """Calculate the age distribution function.
         
         Parameters:
@@ -47,6 +56,38 @@ class PowerLawSimulation:
         """
         s = self.survival_fn(ages)
         return s / self.turnover_time()
+
+    def age_distribution_cdf_analytic_ss(self, ages):
+        """Calculate the cumulative distribution of
+        the steady-state age distribution.
+
+        Integral of PDF was calculated in Mathematica.
+
+        CDF(ages) = (e^(tmin/tmax) tmin (E1(tmin/tmax) + E1((tmin + ages)/tmax)))/T
+
+        Parameters:
+            ages (array-like): Array of ages.
+        """
+        tmin, tmax = self.t_min, self.t_max
+        T = self.turnover_time()
+        Ei_term = expi(- tmin / tmax) - expi( -(tmin + ages)/tmax)
+        return - np.exp(tmin/tmax) * tmin * Ei_term / T
+
+    def radiocarbon_age_integrand(self, a):
+        # Interpolation was done with x as years before present,
+        # so a is the correct input here
+        initial_r = self.interp_14c(a) 
+        radiocarbon_decay = np.exp(-LAMBDA_14C*a)
+        E1_term = exp1(self.t_min / self.t_max)
+        age_dist_term = np.power((E1_term * (self.t_min + a)), -1) * np.exp(-(self.t_min + a)/self.t_max)
+        return initial_r * age_dist_term * radiocarbon_decay
+    
+    def radiocarbon_ratio_ss(self):
+        """Calculate the steady-state radiocarbon ratio."""
+        integral, _ = integrate.quad(
+            self.radiocarbon_age_integrand, 0, np.inf,
+            limit=1500, epsabs=1e-3)
+        return integral
         
     def run(self, inputs):
         """Run the simulation over the specified time steps.
@@ -222,7 +263,7 @@ def plot_ss_age_distribution_inset(ax, my_sim, my_t):
     max_age2plot = 50
     max_idx = max_age2plot * 10
     ages_fine = np.arange(0, my_t, 0.1)
-    analytic_age_dist = my_sim.age_distribution_analytic_ss(ages_fine)
+    analytic_age_dist = my_sim.age_distribution_pdf_analytic_ss(ages_fine)
     ax.plot(ages_fine[:max_idx], analytic_age_dist[:max_idx],
             color='black', lw=1)
 
