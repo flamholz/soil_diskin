@@ -15,6 +15,16 @@ from tqdm import tqdm
 
 import viz
 
+"""
+Currently makes figures 1 and 2. 
+
+Figure 1: Schematic of model structure and age distribution calculation.
+
+Figure 2: Model calibration procedure.
+
+Intended to be run from the project root directory. 
+"""
+
 # use the style file
 plt.style.use('notebooks/style.mpl')
 
@@ -254,7 +264,7 @@ def plot_age_distribution(ax, my_sim, my_t):
             edgecolor='k', lw=0.50)
 
     plt.xlim(0, my_t)
-    plt.yticks(np.arange(0, 0.11, 0.05))
+    plt.yticks([0.0, 0.1])
     plt.ylabel('proportion of stocks')
     plt.xlabel(r'age $\tau$')
     plt.title(f'age distribution at t = {my_t}')
@@ -450,5 +460,149 @@ plt.ylabel(r'CDF of $p_A(\tau)$')
 
 plt.savefig('figures/fig1_presentation.png', dpi=600)
 
+# %% calculations needed to make figure 2
+# first scan over t_min and t_max to calculate T and R_14C
+# TODO: move all below here a new fig2.py once the 
+# simulation is importable. 
+# TODO: run this separately from the figure 2 plotting code
+# and save the results to a file, since it takes a while to run.
 
-# %%
+# Exemplify calibration of the power-law model.
+# vary t_min and t_max and calculate the turnover T and
+# steady-state radiocarbon ratio. Store these in matrices
+# and plot as contour plots.
+t_min_values = np.linspace(0.1, 10, 100)
+t_max_values = np.linspace(1000, 100000, 100)
+t_min_grid, t_max_grid = np.meshgrid(
+    t_min_values, t_max_values, indexing='ij')
+
+T_matrix = np.zeros((len(t_min_values), len(t_max_values)))
+R_14C_matrix = np.zeros((len(t_min_values), len(t_max_values)))
+
+for i, t_min in enumerate(tqdm(t_min_values, desc='t_min loop')):
+    for j, t_max in enumerate(tqdm(t_max_values, desc='t_max loop', leave=False)):
+        my_model = PowerLawSimulation(t_min=t_min, t_max=t_max)
+        T_matrix[i, j] = my_model.turnover_time()
+        R_14C_matrix[i, j] = my_model.radiocarbon_ratio_ss()
+
+# %% For a few target T and R_14C values, find the model
+# parameters that best reproduce those values.
+
+target_Ts = [1, 3, 10, 50]
+target_R_14Cs = [1.1, 1., 0.88, 0.78]
+calibrated_Ts = []
+calibrated_R_14Cs = []
+calibrated_models = []
+
+for target_T, target_R_14C in zip(target_Ts, target_R_14Cs):
+    # find positions where T = target_T and R_14C = target_R_14C
+    T_positions = np.argwhere(np.isclose(T_matrix, target_T, rtol=0.1))
+    R_14C_positions = np.argwhere(np.isclose(R_14C_matrix, target_R_14C, rtol=0.1))
+
+    pct_diffs_T = 100 * (T_matrix - target_T) / target_T
+    pct_diffs_R_14C = 100 * (R_14C_matrix - target_R_14C) / target_R_14C
+    loss_mat = (pct_diffs_T**2 + pct_diffs_R_14C**2)
+    min_idx = np.unravel_index(np.argmin(loss_mat), loss_mat.shape)
+
+    print(f'For target T={target_T}, R_14C={target_R_14C}:')
+    print(f'Calibrated parameters: t_min = {t_min_values[min_idx[0]]}, t_max = {t_max_values[min_idx[1]]}')
+    print(f'With Turnover Time = {T_matrix[min_idx]}, R_14C = {R_14C_matrix[min_idx]}')
+    print(f'Percent differences: dT/T = {pct_diffs_T[min_idx]}, dR_14C/R_14C = {pct_diffs_R_14C[min_idx]}')
+    print('')
+
+    calibrated_Ts.append(T_matrix[min_idx])
+    calibrated_R_14Cs.append(R_14C_matrix[min_idx])
+    calibrated_model = PowerLawSimulation(
+        t_min=t_min_values[min_idx[0]],
+        t_max=t_max_values[min_idx[1]])
+    calibrated_model.run(J_t)
+    calibrated_models.append(calibrated_model)
+
+# %% Plot figure 2, which diagrams the calibration procedure
+mosaic = 'ABC\nDEF'
+fig, axs = plt.subplot_mosaic(
+    mosaic, layout='constrained', figsize=(7.25, 4))
+
+# Panel A -- contour plot of turnover time with log-scaled axes
+plt.sca(axs['B'])
+plt.contourf(t_max_grid, t_min_grid, T_matrix,
+             levels=10, cmap='Greys')
+plt.colorbar(label='Turnover Time (years)')
+
+# Mark the calibrated points
+calibrated_colors = [colors[c] for c in ['dark_green', 'purple', 'red', 'dark_blue']]
+for my_model, color in zip(calibrated_models, calibrated_colors):
+    plt.scatter(my_model.t_max, my_model.t_min,
+                marker='o', color='none',
+                edgecolor=color, s=15, lw=1.5)
+
+plt.xlabel('$t_{max}$ (years)')
+plt.ylabel('$t_{min}$ (years)')
+plt.title('turnover time (T)')
+
+# Panel B -- contour plot of steady-state radiocarbon ratio
+plt.sca(axs['C'])
+plt.contourf(t_max_grid, t_min_grid, R_14C_matrix,
+             levels=10, cmap='Greys')
+plt.colorbar(label='$^{14}C / ^{12}C$')
+
+# Mark the calibrated points
+for my_model, color in zip(calibrated_models, calibrated_colors):
+    plt.scatter(my_model.t_max, my_model.t_min,
+                marker='o', color='none',
+                edgecolor=color, s=15, lw=1.5)
+plt.xlabel('$t_{max}$ (years)')
+plt.ylabel('$t_{min}$ (years)')
+plt.title(r'steady-state $^{14}C / ^{12}C$ ratio')
+
+# Plot the survival functions for the calibrated points
+plt.sca(axs['E'])
+plt.xscale('log')
+ages = np.logspace(-3, np.log10(1800), 200)
+for i, (my_model, color) in enumerate(
+    zip(calibrated_models, calibrated_colors)):
+    survival_fn = my_model.survival_fn(ages)
+    T_val = calibrated_Ts[i]
+    R_14C_val = calibrated_R_14Cs[i]
+    label=f'$T={int(T_val)}$; $^{{14}}C/^{{12}}C={R_14C_val:.2f}$'
+    plt.plot(ages, survival_fn, color=color, lw=2, label=label)
+plt.xlim(1e-2, 1800)
+plt.xlabel(r'age $\tau$ (years)')
+plt.ylabel(r'$s(\tau)$')
+plt.title('calibrated survival functions')
+# hiding the legend, will make in inkscape
+plt.legend(loc='upper right', fontsize=5,
+           frameon=False).set_visible(False)
+
+plt.sca(axs['F'])
+plt.xscale('log')
+# plot the CDF of the age distributions for the calibrated points
+for idx, (my_model, color) in enumerate(zip(calibrated_models, calibrated_colors)):
+    # ages = np.arange(2000)
+    ages = np.logspace(-3, np.log10(100000), 200)
+    age_dist_cdf = my_model.age_distribution_cdf_analytic_ss(ages)
+    plt.plot(ages, age_dist_cdf, color=color, lw=2)
+
+# Diagram the process of model validation from a single point estimate
+# of the CDF at age = 100 for example. 
+obs_age, obs_CDF = 10, 0.21
+plt.scatter([obs_age], [obs_CDF], color='none', 
+            edgecolor='k', marker='o', s=15, lw=1,
+            zorder=10)
+# draw a dashed line to the x-axis from this point
+plt.axvline(x=obs_age, ymin=0, ymax=obs_CDF,
+            color='grey', linestyle='--', lw=1, zorder=-1)
+ax = axs['F']
+ax.hlines(y=obs_CDF, xmin=ax.get_xlim()[0], xmax=obs_age,
+          colors='grey', linestyles='--', linewidth=1, zorder=-1)
+
+plt.xlim(1e-1, 100000)
+plt.xlabel(r'age $\tau$ (years)')
+plt.ylabel(r'CDF of $p_A(\tau)$')
+plt.title('calibrated age distributions')
+
+# Turn off axes for panels A and D
+axs['A'].axis('off')
+axs['D'].axis('off')
+
+plt.savefig('figures/fig2_model_calibration.png', dpi=300, bbox_inches='tight')
