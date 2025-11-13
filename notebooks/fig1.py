@@ -221,7 +221,8 @@ def plot_ss_age_distribution_inset(ax, my_sim, my_t, ts, g_ts):
     ax.scatter(ages2plot, stock2plot, color='grey',
                s=10, edgecolors='w', lw=0.3, alpha=0.5,
                zorder=10)
-    ax.set_xlim(0, max_age2plot)
+    ax.set_xlim(1, max_age2plot)
+    ax.set_xticks([10, 1000])
 
 # %%
 # Plot figure 1
@@ -373,7 +374,7 @@ plot_independent_decays(axs['C'], J_t, my_sim)
 
 plot_total_stocks(axs['D'], my_t=my_t, g_ts=g_ts)
 
-plot_age_distribution(axs['E'], my_sim, my_t=my_t, g_ts=g_ts)
+plot_age_distribution(axs['E'], my_t=my_t, ts=ts, g_ts=g_ts)
 
 plot_ss_age_distribution_inset(
     axs['F'], my_sim, my_t=2000,
