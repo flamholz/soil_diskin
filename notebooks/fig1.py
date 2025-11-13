@@ -254,29 +254,40 @@ def plot_age_distribution(ax, my_sim, my_t):
             edgecolor='k', lw=0.50)
 
     plt.xlim(0, my_t)
+    plt.yticks(np.arange(0, 0.11, 0.05))
     plt.ylabel('proportion of stocks')
     plt.xlabel(r'age $\tau$')
     plt.title(f'age distribution at t = {my_t}')
 
 def plot_ss_age_distribution_inset(ax, my_sim, my_t):
-    """Plot the age distribution at steady state."""
+    """Plot the CDF age distribution at steady state."""
     max_age2plot = 50
     max_idx = max_age2plot * 10
     ages_fine = np.arange(0, my_t, 0.1)
-    analytic_age_dist = my_sim.age_distribution_pdf_analytic_ss(ages_fine)
-    ax.plot(ages_fine[:max_idx], analytic_age_dist[:max_idx],
+    age_dist_cdf = my_sim.age_distribution_cdf_analytic_ss(ages_fine)
+    ax.plot(ages_fine[:max_idx], age_dist_cdf[:max_idx],
             color='black', lw=1)
 
     # simulated age distribution at time my_t
     simulated_ages = my_t - my_sim.ts
     simulated_stocks = my_sim.g_ts[:, my_t] / np.sum(my_sim.g_ts[:, my_t])
-    # remove negative ages and normalize
-    SOC_ages = simulated_ages[:my_t]
-    stocks = simulated_stocks[:my_t]
-    normalized_stocks = stocks / np.sum(stocks)
 
+    # remove negative ages (keep only ages >= 1) and reorder from youngest->oldest
+    SOC_ages = simulated_ages[:my_t]
+    stocks_truncated = simulated_stocks[:my_t]
+
+    # Reverse so arrays are ordered from youngest (age small) to oldest (age large)
+    SOC_ages = SOC_ages[::-1]
+    stocks_truncated = stocks_truncated[::-1]
+
+    # cumulative from youngest to oldest and normalize over the truncated range
+    cumulative_stocks = np.cumsum(stocks_truncated)
+    normalized_cumulative_stocks = cumulative_stocks / np.sum(stocks_truncated)
+
+    ages2plot = SOC_ages[::5]
+    stock2plot = normalized_cumulative_stocks[::5]
     # Plot a subset of points to avoid too much overlap
-    ax.scatter(SOC_ages, normalized_stocks, color='grey',
+    ax.scatter(ages2plot, stock2plot, color='grey',
                s=10, edgecolors='w', lw=0.3, alpha=0.5,
                zorder=10)
     ax.set_xlim(0, max_age2plot)
@@ -404,7 +415,7 @@ inset_ax.tick_params(axis='both', which='major', labelsize=5,
                      size=2, pad=0.3)
 inset_ax.set_title('steady-state', fontsize=5)
 inset_ax.set_xlabel(r'age $\tau$', fontsize=5)
-inset_ax.set_ylabel('proportion', fontsize=5)
+inset_ax.set_ylabel(r'CDF of $p_A(\tau)$', fontsize=5)
 
 # Add panel labels
 panel_labels = 'ABCDEF'
@@ -435,7 +446,7 @@ plot_ss_age_distribution_inset(axs['F'], my_sim, my_t=2000)
 plt.sca(axs['F'])
 plt.title('steady-state age dist.')
 plt.xlabel(r'age $\tau$')
-plt.ylabel('proportion')
+plt.ylabel(r'CDF of $p_A(\tau)$')
 
 plt.savefig('figures/fig1_presentation.png', dpi=600)
 
