@@ -16,6 +16,7 @@ rule all:
         # "figures/model_predictions.png",
         "figures/fig1.png",
         "figures/fig2.png",
+        "figures/fig3.png",
         "figures/figS1.png",
         "figures/figS3.png",
         "figures/figS4.png",
