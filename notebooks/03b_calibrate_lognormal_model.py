@@ -12,8 +12,6 @@ age_scan = pd.read_csv('results/03_calibrate_models/03b_lognormal_model_age_scan
 ages = 10**np.arange(3,5.5,(5.5-3)/100)
 ages = np.concatenate([ages, np.array([10**5.5])])
 
-predictions = pd.read_csv('results/03b_lognormal_site_parameters.csv',
-                          header=None)
 # predict the mean age for each site by interpolating the age scan 
 # calibration curve generated in Mathematica
 preds = []

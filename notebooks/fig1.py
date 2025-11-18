@@ -59,7 +59,7 @@ my_sim = PowerLawDisKin(t_min=1, t_max=1000)
 ts = np.arange(5000)
 g_ts = my_sim.run_simulation(ts, J_t)
 
-def plot_inputs(ax):
+def plot_inputs(ax, title='inputs over time'):
     """Plot the inputs over time as a stem plot."""
     plt.sca(ax)
 
@@ -79,9 +79,10 @@ def plot_inputs(ax):
     plt.text(5.5, 5, '...', fontsize=12, fontweight='bold',
              ha='center', va='center')
     plt.ylabel(r'carbon inputs $J(t)$')
-    plt.title('inputs over time')
+    if title:
+        plt.title(title)
 
-def plot_survival_fn(ax, ages2plot):
+def plot_survival_fn(ax, ages2plot, title='decay with age'):
     """Plot the survival function."""
     plt.sca(ax)
 
@@ -96,9 +97,10 @@ def plot_survival_fn(ax, ages2plot):
     plt.xlim(-3, 50)
     plt.ylim(0, 1.1)
     plt.ylabel(r'remaining carbon $s(\tau)$')
-    plt.title('decay with age')
+    if title:
+        plt.title(title)
 
-def plot_independent_decays(ax, J_t, my_sim):
+def plot_independent_decays(ax, J_t, my_sim, title='inputs decay independently'):
     """Plot the independent decays of inputs over time."""
     plt.sca(ax)
 
@@ -121,9 +123,12 @@ def plot_independent_decays(ax, J_t, my_sim):
     plt.xlim(-1, 20)
     plt.ylim(0, 16.5)
     plt.yticks(np.arange(0, 17, 5))
-    plt.title('inputs decay independently')
+    if title:
+        plt.title(title)
 
-def plot_total_stocks(ax, my_t, g_ts):
+def plot_total_stocks(ax, my_t, g_ts,
+                      annotate_age_dist=True,
+                      title='stocks = sum of residual inputs'):
     """Plot the total stocks as the sum of residual inputs over time.
     
     Args:
@@ -149,20 +154,22 @@ def plot_total_stocks(ax, my_t, g_ts):
     plt.plot(ts, G_t, color='black', lw=2)
 
     # annotate the line with a curved arrow
-    ymax = G_t[my_t]
-    arrowprops=dict(arrowstyle='->', connectionstyle='angle', lw=1)
-    plt.annotate('SOC age dist.', xy=(my_t, ymax-10), xytext=(my_t - 5, ymax + 10),
-                 arrowprops=arrowprops, fontsize=5.5, ha='center',
-                 bbox=dict(boxstyle='square,pad=0.0', edgecolor='none', facecolor='None'))
-    plt.plot([my_t, my_t], [0, ymax], color='k', linestyle='--', lw=1)
+    if annotate_age_dist:
+        ymax = G_t[my_t]
+        arrowprops=dict(arrowstyle='->', connectionstyle='angle', lw=1)
+        plt.annotate('SOC age dist.', xy=(my_t, ymax-10), xytext=(my_t - 5, ymax + 10),
+                    arrowprops=arrowprops, fontsize=5.5, ha='center',
+                    bbox=dict(boxstyle='square,pad=0.0', edgecolor='none', facecolor='None'))
+        plt.plot([my_t, my_t], [0, ymax], color='k', linestyle='--', lw=1)
 
     plt.xlabel('time')
     plt.xlim(0, 50)
     plt.ylim(0, 60)
     plt.ylabel(r'total carbon stocks $G(t)$')
-    plt.title(r'stocks = sum of residual inputs')
+    if title:
+        plt.title(title)
 
-def plot_age_distribution(ax, my_t, ts, g_ts):
+def plot_age_distribution(ax, my_t, ts, g_ts, title=True):
     # simulated age distribution at time my_t
     plt.sca(ax)
 
@@ -183,7 +190,8 @@ def plot_age_distribution(ax, my_t, ts, g_ts):
     plt.yticks([0.0, 0.1])
     plt.ylabel('proportion of stocks')
     plt.xlabel(r'age $\tau$')
-    plt.title(f'age distribution at t = {my_t}')
+    if title:
+        plt.title(f'age distribution at t = {my_t}')
 
 def plot_ss_age_distribution_inset(ax, my_sim, my_t, ts, g_ts):
     """Plot the CDF age distribution at steady state."""
@@ -364,23 +372,26 @@ plt.savefig('figures/fig1.png', dpi=600)
 # five panels in a row showing only B, C, D, E, F from above
 mosaic = 'ABC\nDEF'
 fig, axs = plt.subplot_mosaic(mosaic, layout='constrained',
-                              figsize=(4.25, 3), dpi=300)
+                              figsize=(4.25, 2.75), dpi=300)
 
-plot_inputs(axs['A'])
+plot_inputs(axs['A'], title=None)
 
-plot_survival_fn(axs['B'], ages2plot)
+plot_survival_fn(axs['B'], ages2plot, title=None)
 
-plot_independent_decays(axs['C'], J_t, my_sim)
+plot_independent_decays(axs['C'], J_t, my_sim, title=None)
 
-plot_total_stocks(axs['D'], my_t=my_t, g_ts=g_ts)
+plot_total_stocks(axs['D'], my_t=my_t, g_ts=g_ts,
+                  annotate_age_dist=False,
+                  title=None)
 
-plot_age_distribution(axs['E'], my_t=my_t, ts=ts, g_ts=g_ts)
+plot_age_distribution(axs['E'], my_t=my_t, ts=ts, g_ts=g_ts,
+                      title=None)
 
 plot_ss_age_distribution_inset(
     axs['F'], my_sim, my_t=2000,
     ts=ts, g_ts=g_ts)
 plt.sca(axs['F'])
-plt.title('steady-state age dist.')
+#plt.title('steady-state age dist.')
 plt.xlabel(r'age $\tau$')
 plt.ylabel(r'CDF of $p_A(\tau)$')
 

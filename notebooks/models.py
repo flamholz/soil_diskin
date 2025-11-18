@@ -449,6 +449,7 @@ class LognormalDisKin:
 
         # steady-state transit time
         self.T = np.exp((-self.mu + self.sigma**2)/2)
+        # mean age at steady-state
         self.a = self.T * np.exp(self.sigma**2)
         self.ks = np.logspace(self.q_min, self.q_max, N, base=np.e)
         self.I = lognorm.pdf(self.ks, s=self.sigma, scale=np.exp(self.mu))

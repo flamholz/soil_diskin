@@ -64,7 +64,7 @@ for ax, predictions, title, color in zip(axs[:3], continuum_models,
 
 ESM_model_colors = [pal['dark_purple'], pal['purple']]
 ESM_models = [CLM45_predictions, JSBACH_predictions]
-ESM_model_titles = ['CLM4.5 model', 'JSBACH model']
+ESM_model_titles = ['CLM4.5', 'JSBACH']
 for ax, predictions, title, color in zip(axs[3:5], ESM_models,
                                          ESM_model_titles, ESM_model_colors):
     plot_model_predictions(ax, predictions['prediction'], title, color)
@@ -94,4 +94,32 @@ for i, (ax, label) in enumerate(zip(axs, "ABCDEFGH")):
             fontsize=7, va='top', ha='left')
 # %% Save the figure
 out_fname = f'figures/fig3.png'
+plt.savefig(out_fname, dpi=300, bbox_inches='tight')
+
+
+# %% make a presentation version with no subpanel labels
+# show only the continuum models and ESMs
+fig, axs = plt.subplots(nrows=1, ncols=5, figsize=(7.24, 1.75),
+                        dpi=300, constrained_layout=True,
+                        sharex=False, sharey=True)
+
+# for presentation, want lognormal, gamma, powerlaw, in that order
+continuum_model_colors = [pal['dark_blue'], pal['blue'], pal['light_blue']]
+continuum_models = [lognormal_predictions, gamma_predictions, powerlaw_predictions]
+continuum_model_titles = ['lognormal model', 'gamma model', 'power law model']
+for ax, predictions, title, color in zip(axs[:3], continuum_models,
+                                         continuum_model_titles, continuum_model_colors):
+    plot_model_predictions(ax, predictions['prediction'], title, color) 
+
+for ax, predictions, title, color in zip(axs[3:5], ESM_models,
+                                         ESM_model_titles, ESM_model_colors):
+    plot_model_predictions(ax, predictions['prediction'], title, color)
+
+# Set axes labels on the outer plots
+for ax in axs:
+    ax.set_xlabel('observed F$_{new}$')
+axs[0].set_ylabel('predicted F$_{new}$')
+
+# %% Save the presentation figure
+out_fname = f'figures/fig3_presentation.png'
 plt.savefig(out_fname, dpi=300, bbox_inches='tight')
