@@ -23,5 +23,6 @@ for site in site_data.index:
 preds = np.array(preds)
 
 # save the predictions
+# TODO: give this column a more descriptive name
 site_data['pred'] = preds
 site_data.to_csv('results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv', index=False)
