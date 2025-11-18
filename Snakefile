@@ -121,18 +121,6 @@ rule calibrate_powerlaw:
     script:
         "notebooks/03a_calibrate_powerlaw_model.py"
 
-rule calibrate_lognormal_mathematica:
-    input:
-        "results/all_sites_14C_turnover.csv",
-        "data/14C_atm_annot.csv"
-    output:
-        "results/03b_lognormal_site_parameters.csv",
-        "results/03b_lognormal_model_predictions_14C.csv"
-    shell:
-        """
-        wolframscript --file notebooks/03b_calibrate_lognormal_model.wls
-        """
-
 rule lognormal_age_scan_mathematica:
     input:
         "data/14C_atm_annot.csv"
@@ -146,8 +134,6 @@ rule lognormal_age_scan_mathematica:
 rule calibrate_lognormal_python:
     input:
         "results/all_sites_14C_turnover.csv",
-        "results/03b_lognormal_site_parameters.csv",
-        "results/03b_lognormal_model_predictions_14C.csv",
         "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
         "data/14C_atm_annot.csv"
     output:
