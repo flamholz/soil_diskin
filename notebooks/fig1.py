@@ -1,28 +1,9 @@
-# %% 
-# if currently in notebooks/ directory, go up one level
-import os
-import sys
-
-# Add the notebooks/ directory to the sys.path
-print(os.getcwd())
-
-# If we are in the notebooks/ directory, go up one level
-if os.path.basename(os.getcwd()) == 'notebooks':
-    sys.path.append(os.getcwd())
-    os.chdir('..')
-    print(f'Changed working directory to {os.getcwd()}')
-
-
-# %%
 import itertools as it
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-from constants import LAMBDA_14C, INTERP_R_14C
-from matplotlib.patches import FancyArrowPatch
-from scipy.special import exp1, expi
-from scipy import integrate
+from tqdm import tqdm
 
 from models import PowerLawDisKin
 
@@ -51,23 +32,22 @@ color_order = [colors[n] for n in color_name_order]
 # %%
 # inputs are a train of impulses J_t 
 # that are normally distributed with mean 10 and sd 2
-J_t = np.random.normal(10, 2, 5000)
+n_inputs = 50000
+J_t = np.random.normal(10, 2, n_inputs)
 ages = np.arange(2000.0, 0.1)
 
 # Use the power law model to simulate decays for figures.
 my_sim = PowerLawDisKin(t_min=1, t_max=1000)
-ts = np.arange(5000)
+ts = np.arange(n_inputs)
 g_ts = my_sim.run_simulation(ts, J_t)
 
-def plot_inputs(ax, title='inputs over time'):
+def plot_inputs(ax, J_t, title='inputs over time'):
     """Plot the inputs over time as a stem plot."""
     plt.sca(ax)
 
     for i, (J, color) in enumerate(zip(J_t[:5], color_order[:5])):
         markerline, stemlines, _ = plt.stem(
             i, J, color)
-        #markerline.set_markeredgecolor('k')
-        #markerline.set_markeredgewidth(0.5)
         markerline.set_markersize(4)
         stemlines.set_linewidth(1)
         
@@ -100,7 +80,7 @@ def plot_survival_fn(ax, ages2plot, title='decay with age'):
     if title:
         plt.title(title)
 
-def plot_independent_decays(ax, J_t, my_sim, title='inputs decay independently'):
+def plot_independent_decays(ax, J_t, ages2plot, my_sim, title='inputs decay independently'):
     """Plot the independent decays of inputs over time."""
     plt.sca(ax)
 
@@ -140,9 +120,10 @@ def plot_total_stocks(ax, my_t, g_ts,
     
     nts = g_ts.shape[1]
     njs = g_ts.shape[0]
+    njs2plot = min(njs, 200)
     bottom = np.zeros(nts)
     ts = np.arange(nts)
-    for i in range(njs):
+    for i in tqdm(range(njs2plot), desc="plot total stocks"):
         color = color_order[i % len(color_order)]
         top = bottom + g_ts[i, :]
         plt.fill_between(ts, bottom, top, color=color, alpha=0.7, 
@@ -151,7 +132,7 @@ def plot_total_stocks(ax, my_t, g_ts,
 
     # overplot the total stocks line
     G_t = np.sum(g_ts, axis=0)
-    plt.plot(ts, G_t, color='black', lw=2)
+    plt.plot(ts[:njs2plot], G_t[:njs2plot], color='black', lw=2)
 
     # annotate the line with a curved arrow
     if annotate_age_dist:
@@ -201,7 +182,7 @@ def plot_ss_age_distribution_inset(ax, my_sim, my_t, ts, g_ts):
     age_dist_cdf = my_sim.cdfA(ages_fine)
     ax.set_xscale('log')
     ax.plot(ages_fine[:max_idx], age_dist_cdf[:max_idx],
-            color='black', lw=1)
+            color='black', lw=1, label='analytic')
 
     # simulated age distribution at time my_t
     simulated_ages = my_t - ts
@@ -228,7 +209,7 @@ def plot_ss_age_distribution_inset(ax, my_sim, my_t, ts, g_ts):
     # Plot a subset of points to avoid too much overlap
     ax.scatter(ages2plot, stock2plot, color='grey',
                s=10, edgecolors='w', lw=0.3, alpha=0.5,
-               zorder=10)
+               zorder=10, label='simulation')
     ax.set_xlim(1, max_age2plot)
     ax.set_xticks([10, 1000])
 
@@ -333,25 +314,30 @@ ax.text(8.5, 6, 'CO$_2$', ha='left', va='center', rotation=0, fontsize=6)
 
 # Panel B -- inputs over time
 ax = axs['B']
-plot_inputs(ax)
+print('Plotting panel B: inputs over time...')
+plot_inputs(ax, J_t)
 
 # Panel C -- survival function for a single input
 ages2plot = np.arange(0, 50, 0.1) # finer age steps
+print('Plotting panel C: survival function...')
 plot_survival_fn(axs['C'], ages2plot)
 
 # Panel D -- independent decays of inputs over time
-plot_independent_decays(axs['D'], J_t, my_sim)
+print('Plotting panel D: independent decays...')
+plot_independent_decays(axs['D'], J_t, ages2plot, my_sim)
 
 # Panel E -- total stocks as the sum of residual inputs over time
 my_t = 40
+print('Plotting panel E: total stocks...')
 plot_total_stocks(axs['E'], my_t, g_ts)
 
 # Panel F -- age distribution at time my_t
+print('Plotting panel F: age distribution...')
 plot_age_distribution(axs['F'], my_t, ts, g_ts)
 # inset axes with analytic age distribution at steady state
 inset_ax = axs['F'].inset_axes([0.5, 0.45, 0.4, 0.4])
 plot_ss_age_distribution_inset(inset_ax, my_sim,
-                               my_t=2000, ts=ts, g_ts=g_ts)
+                               my_t=n_inputs-1, ts=ts, g_ts=g_ts)
 inset_ax.tick_params(axis='both', which='major', labelsize=5,
                      size=2, pad=0.3)
 inset_ax.set_title('steady-state', fontsize=5)
@@ -371,14 +357,15 @@ plt.savefig('figures/fig1.png', dpi=600)
 # Make a presentation version of the above figure
 # five panels in a row showing only B, C, D, E, F from above
 mosaic = 'ABC\nDEF'
+print('Plotting presentation version of figure 1...')
 fig, axs = plt.subplot_mosaic(mosaic, layout='constrained',
                               figsize=(4.25, 2.75), dpi=300)
 
-plot_inputs(axs['A'], title=None)
+plot_inputs(axs['A'], J_t, title=None)
 
 plot_survival_fn(axs['B'], ages2plot, title=None)
 
-plot_independent_decays(axs['C'], J_t, my_sim, title=None)
+plot_independent_decays(axs['C'], J_t, ages2plot, my_sim, title=None)
 
 plot_total_stocks(axs['D'], my_t=my_t, g_ts=g_ts,
                   annotate_age_dist=False,
@@ -387,9 +374,11 @@ plot_total_stocks(axs['D'], my_t=my_t, g_ts=g_ts,
 plot_age_distribution(axs['E'], my_t=my_t, ts=ts, g_ts=g_ts,
                       title=None)
 
+plt.sca(axs['F'])
 plot_ss_age_distribution_inset(
-    axs['F'], my_sim, my_t=2000,
+    axs['F'], my_sim, my_t=n_inputs-1,
     ts=ts, g_ts=g_ts)
+plt.legend(loc=2, fontsize=6, frameon=False)
 plt.sca(axs['F'])
 #plt.title('steady-state age dist.')
 plt.xlabel(r'age $\tau$')
