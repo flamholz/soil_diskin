@@ -1,8 +1,10 @@
-import numpy as np
-import xarray as xr
-from jax import numpy as jnp
-from jax import scipy as jsp
+import itertools
 import jax
+import numpy as np
+import unittest
+import warnings
+import xarray as xr
+
 from scipy.integrate import quad, dblquad, solve_ivp
 from scipy.special import exp1, gammaincc, gamma
 from scipy.stats import lognorm, norm
@@ -10,9 +12,9 @@ from notebooks.constants import LAMBDA_14C, INTERP_R_14C, SECS_PER_DAY, DAYS_PER
 from collections import namedtuple
 from scipy.linalg import block_diag
 from soil_diskin.age_dist_utils import box_model_ss_age_dist, dynamic_age_dist, calc_age_dist_cdf
-import warnings
-import unittest
-import itertools
+from jax import numpy as jnp
+from jax import scipy as jsp
+from tqdm import tqdm
 
 
 # TODO: make a parent class for all of the models.
@@ -328,7 +330,7 @@ class PowerLawDisKin:
         # each row is an input at time t=i
         # each column is the amount remaining at time t+age
         g_ts = np.zeros((n_inputs, n_times + n_inputs + 10))
-        for i in range(n_times):
+        for i in tqdm(range(n_times), desc="power law simulation"):
             # inputs[i] decays according to the survival function
             my_times = np.arange(0, n_times - i) * dt
             decay_i = inputs[i]*self.s(my_times)
