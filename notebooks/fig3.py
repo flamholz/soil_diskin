@@ -4,7 +4,7 @@ import viz
 
 from permetrics.regression import RegressionMetric
 from sklearn.metrics import root_mean_squared_error
-
+from matplotlib.colors import LogNorm
 
 #%% Load the site data
 tropical_sites = pd.read_csv('results/processed_balesdent_2018.csv')
@@ -40,13 +40,29 @@ def plot_model_predictions(ax, predictions, model_name, color):
     ax.text(0.05, 0.95, box_text,
             transform=ax.transAxes, fontsize=6,
             verticalalignment='top', bbox=props)
-
-    # ax.text(0.05, 0.95, f'KGE = {evaluator.kling_gupta_efficiency():.2f}',
-    #         transform=ax.transAxes, fontsize=6, verticalalignment='top')
-    # ax.text(0.05, 0.90, f'RMSE = {rmse:.2f}', transform=ax.transAxes,
-    #         fontsize=6, verticalalignment='top')
-    #ax.set(xlabel='observed', ylabel='predicted')
     ax.set_title(model_name) 
+
+
+# Alternate version with colormap and color normalization
+def plot_model_predictions_cmap(ax, predictions, model_name, clabel, cmap, norm):
+    ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
+            label='y=x', zorder=-10, lw=1)
+    sc = ax.scatter(tropical_sites['total_fnew'],
+               predictions, label=model_name,
+               c=tropical_sites[clabel], cmap=cmap, norm=norm,
+               edgecolor='k', lw=0.5, s=20, alpha=0.9)
+
+    evaluator = RegressionMetric(y_true=tropical_sites['total_fnew'].values, y_pred=predictions.values)
+    rmse = root_mean_squared_error(tropical_sites['total_fnew'], predictions)
+    # Make a single box reporting KGE and RMSE. Black border and grey background
+    props = dict(boxstyle='round', facecolor=pal['light_yellow'],
+                 edgecolor=pal['dark_grey'], alpha=0.8)
+    box_text = f'KGE = {evaluator.kling_gupta_efficiency():.2f}\nRMSE = {rmse:.2f}'
+    ax.text(0.05, 0.95, box_text,
+            transform=ax.transAxes, fontsize=6,
+            verticalalignment='top', bbox=props)
+    ax.set_title(model_name)
+    return sc
 
 # %% Plot the predictions predictions
 fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(7.24, 3.5),
@@ -96,6 +112,54 @@ for i, (ax, label) in enumerate(zip(axs, "ABCDEFGH")):
 out_fname = f'figures/fig3.png'
 plt.savefig(out_fname, dpi=300, bbox_inches='tight')
 
+# %% make a version of the above plot where the points are colored by the
+# timing of the land use change event. Using a log color scale.
+fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(7.24, 3.5),
+                        dpi=300, constrained_layout=True,
+                        sharex=True, sharey=True)
+axs = axs.flatten()
+# make a log-scaled color map for the duration of labeling
+cmap = 'viridis'
+norm = LogNorm(vmin=tropical_sites['Duration_labeling'].min(), vmax=tropical_sites['Duration_labeling'].max())
+for ax, predictions, title, color in zip(axs[:3], continuum_models,
+                                         continuum_model_titles, continuum_model_colors):
+    sc = plot_model_predictions_cmap(ax, predictions['prediction'], title,
+                                     clabel='Duration_labeling', cmap=cmap, norm=norm)
+
+for ax, predictions, title, color in zip(axs[3:5], ESM_models,
+                                         ESM_model_titles, ESM_model_colors):
+    sc = plot_model_predictions_cmap(ax, predictions['prediction'], title,
+                                     clabel='Duration_labeling', cmap=cmap, norm=norm)
+    
+
+# Reduced complexity model predictions
+for i, col in enumerate(RCM_predictions.columns):
+    title = col +  ' ($^{14} C$ corrected)'
+    sc = plot_model_predictions_cmap(axs[5 + i], RCM_predictions[col], title,
+                                     clabel='Duration_labeling', cmap=cmap, norm=norm)
+
+colorbar_label = 'time since transition (yrs)'
+cbar = plt.colorbar(sc, ax=axs, orientation='vertical',
+                    label=colorbar_label, pad=0.01)
+
+# Set axes labels on the outer plots
+for ax in axs[4:8]:
+    ax.set_xlabel('observed F$_{new}$')
+for ax in axs[[0, 4]]:
+    ax.set_ylabel('predicted F$_{new}$')
+# add labels to each subplot
+for i, (ax, label) in enumerate(zip(axs, "ABCDEFGH")):
+    if label == 'A' or label == 'E':
+        ax.text(
+            -0.25, 1.1, label, transform=ax.transAxes,
+            fontsize=7, va='top', ha='left')
+    else:
+        ax.text(
+            -0.15, 1.1, label, transform=ax.transAxes,
+            fontsize=7, va='top', ha='left')
+
+out_fname = f'figures/fig3_colored_by_labeling_duration.png'
+plt.savefig(out_fname, dpi=300, bbox_inches='tight')
 
 # %% make a presentation version with no subpanel labels
 # show only the continuum models and ESMs
@@ -123,3 +187,42 @@ axs[0].set_ylabel('predicted F$_{new}$')
 # %% Save the presentation figure
 out_fname = f'figures/fig3_presentation.png'
 plt.savefig(out_fname, dpi=300, bbox_inches='tight')
+
+# Make a version of the presentation figure where the points are colored by the
+# timing of the land use change event. 
+fig, axs = plt.subplots(nrows=1, ncols=5, figsize=(7.24, 1.75),
+                        dpi=300, constrained_layout=True,
+                        sharex=False, sharey=True)
+# for presentation, want lognormal, gamma, powerlaw, in that order
+continuum_model_colors = [pal['dark_blue'], pal['blue'], pal['light_blue']]
+continuum_models = [lognormal_predictions, gamma_predictions, powerlaw_predictions]
+continuum_model_titles = ['lognormal model', 'gamma model', 'power law model']
+
+# make a log-scaled color map for the duration of labeling
+norm = LogNorm(vmin=tropical_sites['Duration_labeling'].min(), vmax=tropical_sites['Duration_labeling'].max())
+for ax, predictions, title, color in zip(axs[:3], continuum_models,
+                                         continuum_model_titles, continuum_model_colors):
+    sc = ax.scatter(tropical_sites['total_fnew'],
+               predictions['prediction'], label=title, 
+               c=tropical_sites['Duration_labeling'],
+               cmap='viridis', norm=norm, edgecolor='k', lw=0.5, s=20, alpha=0.9)
+    ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
+            label='y=x', zorder=-10, lw=1)
+    ax.set_title(title)
+
+for ax, predictions, title, color in zip(axs[3:5], ESM_models,
+                                         ESM_model_titles, ESM_model_colors):
+    sc = ax.scatter(tropical_sites['total_fnew'],
+               predictions['prediction'], label=title, 
+               c=tropical_sites['Duration_labeling'],
+               cmap='viridis', norm=norm, edgecolor='k', lw=0.5, s=20, alpha=0.9)
+    ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
+            label='y=x', zorder=-10, lw=1)
+    ax.set_title(title)
+
+colorbar_label = 'time since transition (yrs)'
+cbar = plt.colorbar(sc, ax=axs, orientation='vertical', label=colorbar_label, pad=0.01)
+
+plt.savefig('figures/fig3_presentation_colored_by_labeling_duration.png', dpi=300, bbox_inches='tight')
+
+# %%
