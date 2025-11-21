@@ -53,7 +53,7 @@ def process_balesdent_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     # Take only the columns with Ctotal_ and end with a digit but can have
     # other characters in between, and calculate the difference between the
     # columns as an estimate of the density of C in each layer
-    end_depths = list(range(0, 110, 10))
+    end_depths = list(range(10, 110, 10))
     cols_of_interest = [f'Ctotal_0-{d}' for d in end_depths]
     C_dens = raw_data[cols_of_interest].diff(axis=1).iloc[:, 1:]
 
@@ -75,7 +75,7 @@ def process_balesdent_data(raw_data: pd.DataFrame) -> pd.DataFrame:
                                      index=raw_data.index)
     all_sites = pd.merge(raw_data, site_C_weights_df, left_index=True, right_index=True)
 
-    # Restrict to columns that of the form f_10, f_20, ..., f_100. These columns
+    # Restrict to columns of the form f_10, f_20, ..., f_100. These columns
     # give the fraction of new C in the soil column at a specific depth after
     # a certain duration of labeling.
     f_columns_of_interest = [f'f_{d}' for d in end_depths]
