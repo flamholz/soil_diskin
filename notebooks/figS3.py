@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from itertools import product
 from permetrics.regression import RegressionMetric
-from sklearn.metrics import r2_score, root_mean_squared_error
+from sklearn.metrics import root_mean_squared_error
 from scipy.interpolate import interp1d
 
 # %%

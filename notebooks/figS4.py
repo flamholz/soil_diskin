@@ -10,11 +10,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import scipy.stats as stats
-from tqdm import tqdm
-from scipy.integrate import cumulative_trapezoid
-from scipy.interpolate import interp1d
-from permetrics.regression import RegressionMetric
+
 
 # %%
 # Read the raw data and calculate the ratio in C stocks between the reference and the experiment sites.

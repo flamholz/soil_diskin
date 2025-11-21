@@ -5,7 +5,7 @@ import matplotlib.patches as patches
 
 from tqdm import tqdm
 
-from models import PowerLawDisKin
+from soil_diskin.models import PowerLawDisKin
 
 import viz
 
@@ -378,7 +378,7 @@ plt.sca(axs['F'])
 plot_ss_age_distribution_inset(
     axs['F'], my_sim, my_t=n_inputs-1,
     ts=ts, g_ts=g_ts)
-plt.legend(loc=2, fontsize=6, frameon=False)
+plt.legend(loc=2, fontsize=5, frameon=False)
 plt.sca(axs['F'])
 #plt.title('steady-state age dist.')
 plt.xlabel(r'age $\tau$')

@@ -7,7 +7,7 @@ from sklearn.metrics import root_mean_squared_error
 from matplotlib.colors import LogNorm
 
 #%% Load the site data
-tropical_sites = pd.read_csv('results/processed_balesdent_2018.csv')
+all_sites = pd.read_csv('results/processed_balesdent_2018.csv')
 
 # use the style file
 plt.style.use('notebooks/style.mpl')
@@ -16,7 +16,6 @@ plt.style.use('notebooks/style.mpl')
 pal = viz.color_palette()
 
 #%% Load the predictions
-# powerlaw_predictions = pd.read_csv('results/04_model_predictions/power_law_16-07-2025.csv',header=None, names=['prediction'])
 powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/power_law.csv',header=None, names=['prediction'])
 lognormal_predictions = pd.read_csv(f'results/04_model_predictions/lognormal.csv',header=None, names=['prediction'])
 gamma_predictions = pd.read_csv(f'results/04_model_predictions/gamma.csv',header=None, names=['prediction'])    
@@ -27,12 +26,12 @@ RCM_predictions = pd.read_csv(f'results/04_model_predictions/RCM.csv')
 def plot_model_predictions(ax, predictions, model_name, color):
     ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
             label='y=x', zorder=-10, lw=1)
-    ax.scatter(tropical_sites['total_fnew'],
+    ax.scatter(all_sites['total_fnew'],
                predictions, label=model_name, color=color,
                edgecolor='k', lw=0.5, s=20, alpha=0.9)
 
-    evaluator = RegressionMetric(y_true=tropical_sites['total_fnew'].values, y_pred=predictions.values)
-    rmse = root_mean_squared_error(tropical_sites['total_fnew'], predictions)
+    evaluator = RegressionMetric(y_true=all_sites['total_fnew'].values, y_pred=predictions.values)
+    rmse = root_mean_squared_error(all_sites['total_fnew'], predictions)
     # Make a single box reporting KGE and RMSE. Black border and grey background
     props = dict(boxstyle='round', facecolor=pal['light_yellow'],
                  edgecolor=pal['dark_grey'], alpha=0.8)
@@ -47,13 +46,13 @@ def plot_model_predictions(ax, predictions, model_name, color):
 def plot_model_predictions_cmap(ax, predictions, model_name, clabel, cmap, norm):
     ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
             label='y=x', zorder=-10, lw=1)
-    sc = ax.scatter(tropical_sites['total_fnew'],
+    sc = ax.scatter(all_sites['total_fnew'],
                predictions, label=model_name,
-               c=tropical_sites[clabel], cmap=cmap, norm=norm,
+               c=all_sites[clabel], cmap=cmap, norm=norm,
                edgecolor='k', lw=0.5, s=20, alpha=0.9)
 
-    evaluator = RegressionMetric(y_true=tropical_sites['total_fnew'].values, y_pred=predictions.values)
-    rmse = root_mean_squared_error(tropical_sites['total_fnew'], predictions)
+    evaluator = RegressionMetric(y_true=all_sites['total_fnew'].values, y_pred=predictions.values)
+    rmse = root_mean_squared_error(all_sites['total_fnew'], predictions)
     # Make a single box reporting KGE and RMSE. Black border and grey background
     props = dict(boxstyle='round', facecolor=pal['light_yellow'],
                  edgecolor=pal['dark_grey'], alpha=0.8)
@@ -120,7 +119,7 @@ fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(7.24, 3.5),
 axs = axs.flatten()
 # make a log-scaled color map for the duration of labeling
 cmap = 'viridis'
-norm = LogNorm(vmin=tropical_sites['Duration_labeling'].min(), vmax=tropical_sites['Duration_labeling'].max())
+norm = LogNorm(vmin=all_sites['Duration_labeling'].min(), vmax=all_sites['Duration_labeling'].max())
 for ax, predictions, title, color in zip(axs[:3], continuum_models,
                                          continuum_model_titles, continuum_model_colors):
     sc = plot_model_predictions_cmap(ax, predictions['prediction'], title,
@@ -199,27 +198,17 @@ continuum_models = [lognormal_predictions, gamma_predictions, powerlaw_predictio
 continuum_model_titles = ['lognormal model', 'gamma model', 'power law model']
 
 # make a log-scaled color map for the duration of labeling
-norm = LogNorm(vmin=tropical_sites['Duration_labeling'].min(), vmax=tropical_sites['Duration_labeling'].max())
+cmap = 'viridis'
+norm = LogNorm(vmin=all_sites['Duration_labeling'].min(), vmax=all_sites['Duration_labeling'].max())
 for ax, predictions, title, color in zip(axs[:3], continuum_models,
                                          continuum_model_titles, continuum_model_colors):
-    sc = ax.scatter(tropical_sites['total_fnew'],
-               predictions['prediction'], label=title, 
-               c=tropical_sites['Duration_labeling'],
-               cmap='viridis', norm=norm, edgecolor='k', lw=0.5, s=20, alpha=0.9)
-    ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
-            label='y=x', zorder=-10, lw=1)
-    ax.set_title(title)
+    sc = plot_model_predictions_cmap(ax, predictions['prediction'], title,
+                                     clabel='Duration_labeling', cmap=cmap, norm=norm)
 
 for ax, predictions, title, color in zip(axs[3:5], ESM_models,
                                          ESM_model_titles, ESM_model_colors):
-    sc = ax.scatter(tropical_sites['total_fnew'],
-               predictions['prediction'], label=title, 
-               c=tropical_sites['Duration_labeling'],
-               cmap='viridis', norm=norm, edgecolor='k', lw=0.5, s=20, alpha=0.9)
-    ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
-            label='y=x', zorder=-10, lw=1)
-    ax.set_title(title)
-
+    sc = plot_model_predictions_cmap(ax, predictions['prediction'], title,
+                                     clabel='Duration_labeling', cmap=cmap, norm=norm)
 colorbar_label = 'time since transition (yrs)'
 cbar = plt.colorbar(sc, ax=axs, orientation='vertical', label=colorbar_label, pad=0.01)
 

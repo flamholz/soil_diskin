@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.patches as patches
 
-from soil_diskin.data_wrangling import process_balesdent_data, assign_biome_numpy
+from soil_diskin.data_wrangling import assign_biome_numpy
 
 # %%
 # download the biome data

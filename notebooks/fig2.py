@@ -2,7 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from models import PowerLawDisKin
+from soil_diskin.models import PowerLawDisKin
 
 import viz
 colors = viz.color_palette()
