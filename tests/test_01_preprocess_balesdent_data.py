@@ -35,9 +35,9 @@ def mock_raw_data():
         data[f'f_{i}'] = [np.random.rand() * 0.2 for _ in range(len(list(data.values())[0]))]
     return pd.DataFrame(data)
 
-def test_process_baledant_data(mock_raw_data):
+def test_process_balesdent_data(mock_raw_data):
     """
-    Tests the process_baledant_data function with mock data.
+    Tests the process_balesdent_data function with mock data.
     """
     processed_data = pbd(mock_raw_data)
 
