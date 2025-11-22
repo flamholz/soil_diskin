@@ -12,7 +12,9 @@ from scipy.io import loadmat
 from joblib import Parallel, delayed, parallel_backend
 
 """
-TODO: lots of commented code that should be removed.
+TODO: remove this file, as it is now superseded by
+04_collect_continuum_model_predictions.py and the 
+model-specific prediction notebooks for the box models.
 """
 
 # Timestamp for saving files

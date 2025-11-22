@@ -7,15 +7,15 @@ import pickle
 from soil_diskin.age_dist_utils import predict_fnew
 from soil_diskin.data_wrangling import parse_he_data
 from notebooks.constants import *
-from scipy.integrate import solve_ivp
 from  scipy.io import loadmat
 from joblib import Parallel, delayed, parallel_backend
 
 """
 Collects model predictions and saves them. 
 
-TODO: lots of commented out code that should be removed.
-TODO: we will get rid of this file and prefer 04_model_predictions.py
+TODO: remove this file, as it is now superseded by
+04_collect_continuum_model_predictions.py and the 
+model-specific prediction notebooks for the box models.
 """
 
 current_date = pd.Timestamp.now().date().strftime("%d-%m-%Y")
