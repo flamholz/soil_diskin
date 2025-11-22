@@ -34,6 +34,45 @@ class TestPowerLawDisKin(unittest.TestCase):
             print('Calculated mean age: ', A_calc)
             print('Integrated mean age: ', A_int[0])
 
+    def test_pdf_properties(self):
+        """Test that the age distribution PDF has valid properties."""
+        for t_min, t_max in itertools.product(self.T_MINS, self.T_MAXS):
+            pow_diskin = PowerLawDisKin(t_min, t_max)
+            
+            # PDF should be non-negative
+            test_ages = np.logspace(0, 3, 20)
+            for age in test_ages:
+                pA = pow_diskin.pA(age)
+                self.assertGreaterEqual(
+                    pA, 0, msg=f"PDF is negative at age={age} for t_min={t_min}, t_max={t_max}")
+            
+            # s(t) should be decreasing
+            s_vals = [pow_diskin.s(t) for t in test_ages]
+            for i in range(len(s_vals) - 1):
+                self.assertGreaterEqual(
+                    s_vals[i], s_vals[i+1],
+                    msg=f"s(t) is not decreasing for t_min={t_min}, t_max={t_max}")
+
+    def test_cdf_properties(self):
+        """Test that the CDF has valid properties."""
+        for t_min, t_max in itertools.product(self.T_MINS, self.T_MAXS):
+            pow_diskin = PowerLawDisKin(t_min, t_max)
+            
+            test_ages = np.logspace(0, 3, 20)
+            cdf_vals = [pow_diskin.cdfA(t) for t in test_ages]
+            
+            # CDF should be non-decreasing
+            for i in range(len(cdf_vals) - 1):
+                self.assertLessEqual(cdf_vals[i], cdf_vals[i+1],
+                                   msg=f"CDF is not increasing for t_min={t_min}, t_max={t_max}")
+            
+            # CDF should be between 0 and 1
+            for i, cdf in enumerate(cdf_vals):
+                self.assertGreaterEqual(cdf, 0,
+                                      msg=f"CDF < 0 at age={test_ages[i]} for t_min={t_min}, t_max={t_max}")
+                self.assertLessEqual(cdf, 1.1,  # Allow small numerical error
+                                   msg=f"CDF > 1 at age={test_ages[i]} for t_min={t_min}, t_max={t_max}")
+
     # Make sure we run the radiocarbon age integral without error
     def test_radiocarbon_ratio(self):
         for t_min, t_max in itertools.product(self.T_MINS, self.T_MAXS):
@@ -160,15 +199,164 @@ class TestGammaDisKin(unittest.TestCase):
                                msg=f"Radiocarbon ratio > 1.5 for a={a}, b={b}")
 
 
+class TestGeneralPowerLawDisKin(unittest.TestCase):
+
+    TAU_0_VALS = [1.0, 10.0, 100.0]  # short time scale values
+    TAU_INF_VALS = [1000.0, 10000.0]  # long time scale values
+    BETA_VALS = [0.5, np.exp(-GAMMA), 0.9]  # beta parameter values
+
+    def test_numerical_T_integral(self):
+        """Test that the analytical and numerical transit times match."""
+        for tau_0, tau_inf, beta in itertools.product(self.TAU_0_VALS, self.TAU_INF_VALS, self.BETA_VALS):
+            model = GeneralPowerLawDisKin(tau_0, tau_inf, beta)
+            T_int = model.calc_mean_transit_time()
+            T_calc = model.T
+            print(f'Calculated transit time: {T_calc}')
+            print(f'Integrated transit time: {T_int[0]}')
+            
+            self.assertAlmostEqual(T_calc, T_int[0], places=3,
+                                 msg=f"Transit time mismatch for tau_0={tau_0}, tau_inf={tau_inf}, beta={beta}")
+
+    def test_numerical_age_integral(self):
+        """Test that the analytical and numerical mean ages can be calculated."""
+        for tau_0, tau_inf, beta in itertools.product(self.TAU_0_VALS, self.TAU_INF_VALS, self.BETA_VALS):
+            model = GeneralPowerLawDisKin(tau_0, tau_inf, beta)
+            A_int = model.calc_mean_age()
+            print(f'Integrated mean age: {A_int[0]}')
+            
+            # Mean age should be positive
+            self.assertGreater(
+                A_int[0], 0, msg=f"Mean age is not positive for tau_0={tau_0}, tau_inf={tau_inf}, beta={beta}")
+
+            self.assertAlmostEqual(
+                model.A, A_int[0], places=3,
+                msg=f"Mean age mismatch for tau_0={tau_0}, tau_inf={tau_inf}, beta={beta}")
+
+    def test_pdf_properties(self):
+        """Test that the age distribution PDF has valid properties."""
+        for tau_0, tau_inf, beta in itertools.product(self.TAU_0_VALS, self.TAU_INF_VALS, self.BETA_VALS):
+            model = GeneralPowerLawDisKin(tau_0, tau_inf, beta)
+            
+            # PDF should be non-negative
+            test_ages = np.logspace(0, 3, 20)
+            for age in test_ages:
+                pA = model.pA(age)
+                self.assertGreaterEqual(
+                    pA, 0, msg=f"PDF is negative at age={age} for tau_0={tau_0}, tau_inf={tau_inf}, beta={beta}")
+            
+            # s(t) should be decreasing
+            s_vals = [model.s(t) for t in test_ages]
+            for i in range(len(s_vals) - 1):
+                self.assertGreaterEqual(
+                    s_vals[i], s_vals[i+1],
+                    msg=f"s(t) is not decreasing for tau_0={tau_0}, tau_inf={tau_inf}, beta={beta}")
+
+    def test_cdf_properties(self):
+        """Test that the CDF has valid properties."""
+        for tau_0, tau_inf, beta in itertools.product(self.TAU_0_VALS, self.TAU_INF_VALS, self.BETA_VALS):
+            model = GeneralPowerLawDisKin(tau_0, tau_inf, beta)
+            
+            test_ages = np.logspace(0, 3, 20)
+            cdf_vals = [model.cdfA(t) for t in test_ages]
+            
+            # CDF should be non-decreasing
+            for i in range(len(cdf_vals) - 1):
+                self.assertLessEqual(cdf_vals[i], cdf_vals[i+1],
+                                   msg=f"CDF is not increasing for tau_0={tau_0}, tau_inf={tau_inf}, beta={beta}")
+            
+            # CDF should be between 0 and 1
+            for i, cdf in enumerate(cdf_vals):
+                self.assertGreaterEqual(cdf, 0,
+                                      msg=f"CDF < 0 at age={test_ages[i]} for tau_0={tau_0}, tau_inf={tau_inf}, beta={beta}")
+                self.assertLessEqual(cdf, 1.1,  # Allow small numerical error
+                                   msg=f"CDF > 1 at age={test_ages[i]} for tau_0={tau_0}, tau_inf={tau_inf}, beta={beta}")
+
+    def test_parameter_validation(self):
+        """Test that invalid parameters are handled correctly."""
+        # Beta must be between 0 and 1
+        with self.assertRaises(ValueError):
+            GeneralPowerLawDisKin(t_min=10, t_max=1000, beta=1.5)  # beta > 1
+        
+        with self.assertRaises(ValueError):
+            GeneralPowerLawDisKin(t_min=10, t_max=1000, beta=-0.1)  # beta < 0
+
+        with self.assertRaises(ValueError):
+            GeneralPowerLawDisKin(t_min=1000, t_max=10, beta=0.5)  # t_min >= t_max
+
+    def test_radiocarbon_ratio(self):
+        """Test that the radiocarbon ratio calculation runs without error."""
+        for tau_0, tau_inf, beta in itertools.product(self.TAU_0_VALS, self.TAU_INF_VALS, self.BETA_VALS):
+            model = GeneralPowerLawDisKin(tau_0, tau_inf, beta)
+            rc_ratio = model.calc_radiocarbon_ratio_ss()
+            print(f'Radiocarbon ratio for tau_0={tau_0}, tau_inf={tau_inf}, beta={beta}: {rc_ratio}')
+            
+            # The result should be a tuple (value, error_estimate)
+            self.assertIsInstance(rc_ratio, tuple,
+                                msg=f"calc_radiocarbon_ratio_ss should return a tuple")
+            self.assertEqual(len(rc_ratio), 2,
+                           msg=f"calc_radiocarbon_ratio_ss should return a 2-tuple")
+            
+            # The radiocarbon ratio should be between 0 and 1 (approximately)
+            ratio_value = rc_ratio[0]
+            self.assertGreaterEqual(ratio_value, 0,
+                                  msg=f"Radiocarbon ratio < 0 for tau_0={tau_0}, tau_inf={tau_inf}, beta={beta}")
+            self.assertLessEqual(ratio_value, 1.5,  # Allow some wiggle room
+                               msg=f"Radiocarbon ratio > 1.5 for tau_0={tau_0}, tau_inf={tau_inf}, beta={beta}")
+
+
 class TestLognormalDisKin(unittest.TestCase):
     
     MEAN_AGES = [10, 100, 1000]
     MEAN_TRANSIT_TIMES = [10, 100, 1000]
 
-    def test_input_output(self):
+    MUS = [0.0, 1.0, 2.0]
+    SIGMAS = [0.1, 0.5, 1.0]
+
+    INVALID_SIGMAS = [-0.1, -1.0]
+
+    def test_basic_properties(self):
+        """Test that basic properties of the model are calculated correctly."""
         for a, T in itertools.product(self.MEAN_AGES, self.MEAN_TRANSIT_TIMES):
             if a/T < 1:
-                # not allowed
+                continue
+            
+            model = LognormalDisKin.from_age_and_transit_time(a, T)
+            
+            # Check that transit time matches input
+            self.assertAlmostEqual(model.T, T, places=5,
+                                 msg=f"Transit time mismatch for a={a}, T={T}")
+            
+            # Check that mean age matches input
+            self.assertAlmostEqual(model.a, a, places=5,
+                                 msg=f"Mean age mismatch for a={a}, T={T}")
+
+        for mu, sigma in itertools.product(self.MUS, self.SIGMAS):
+            model = LognormalDisKin(mu, sigma)
+            expected_a = np.exp(1.5 * sigma**2 - mu)
+            expected_T = np.exp(sigma**2 / 2 - mu)
+
+            self.assertAlmostEqual(model.a, expected_a, places=5,
+                                   msg=f"Mean age mismatch for mu={mu}, sigma={sigma}")
+            self.assertAlmostEqual(model.T, expected_T, places=5,
+                                   msg=f"Transit time mismatch for mu={mu}, sigma={sigma}")
+
+        for sigma in self.INVALID_SIGMAS:
+            with self.assertRaises(ValueError):
+                LognormalDisKin(mu=0, sigma=sigma)
+
+    def test_parameter_validation(self):
+        """Test that invalid parameter combinations are handled."""
+        # a/T < 1 should not be allowed in from_age_and_transit_time
+        # as it implies negative sigma
+        with self.assertRaises(ValueError):
+            # This should fail because a/T < 1 implies negative sigma_squared
+            model = LognormalDisKin.from_age_and_transit_time(a=50, T=100)
+
+    def test_input_output_relations(self):
+        for a, T in itertools.product(self.MEAN_AGES, self.MEAN_TRANSIT_TIMES):
+            if a/T < 1:
+                with self.assertRaises(ValueError):
+                    LognormalDisKin.from_age_and_transit_time(a, T)
                 continue
 
             print('constructing model with mean_age', a, 'and T', T)
