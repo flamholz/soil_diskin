@@ -35,7 +35,7 @@ def objective_function(params, merged_site_data):
     a, b = params
 
     # Create an instance of the GeneralPowerLawDisKin model with the given parameters
-    model = GeneralPowerLawDisKin(tau_0 = a, tau_inf = b)
+    model = GeneralPowerLawDisKin(t_min = a, t_max = b)
     
     # Calculate the predicted 14C ratio and turnover
     predicted_14C_ratio = quad(model.radiocarbon_age_integrand, 0,

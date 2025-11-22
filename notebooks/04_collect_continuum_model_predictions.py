@@ -48,7 +48,7 @@ general_power_law_params = pd.read_csv('results/03_calibrate_models/general_powe
 print("Generating generalized power-law model predictions...")
 predictions = []
 for i, row in general_power_law_params.iterrows():
-    model = GeneralPowerLawDisKin(tau_0=row['tau_0'], tau_inf=row['tau_inf'])
+    model = GeneralPowerLawDisKin(t_min=row['tau_0'], t_max=row['tau_inf'])
     predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
 predictions = np.array(predictions)
 # Save the model predictions
