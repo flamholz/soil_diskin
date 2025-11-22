@@ -1,10 +1,10 @@
 import os
 import pandas as pd
+import sympy
 
 from os import path
-
 from scipy.interpolate import interp1d
-import sympy
+
 # Description: Constants used in the notebooks
 
 CWD = os.getcwd()

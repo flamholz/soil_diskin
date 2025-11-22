@@ -108,7 +108,7 @@ class GlobalData:
 
 class GammaDisKin:
     """A model where the rate distribution is gamma."""
-    def __init__(self, a, b, beta = np.exp(-GAMMA), interp_r_14c=None, I=None):
+    def __init__(self, a, b, interp_r_14c=None, I=None):
         """
         Args:
         a: float
@@ -124,11 +124,16 @@ class GammaDisKin:
             An array of inputs to the model, representing the carbon input to the system.
         """
         self.a = a  # shape parameter
-        self.b = b  # scale parameter
+        self.b = b  # scale parameter -- should not be zero
         self.I = I
         self.interp_14c = interp_r_14c
         if interp_r_14c is None:
             self.interp_14c = INTERP_R_14C
+
+        if a <= 0:
+            raise ValueError("Shape parameter a must be positive.")
+        if b <= 0:
+            raise ValueError("Scale parameter b must be positive.")
 
         self.T = 1 / ((-1 + a) * b)
 
@@ -139,6 +144,11 @@ class GammaDisKin:
         radiocarbon_decay = np.exp(-LAMBDA_14C * a)
 
         return initial_r * self.pA(a) * radiocarbon_decay
+
+    def calc_radiocarbon_ratio_ss(self, quad_limit=1500, quad_epsabs=1e-3):
+        """Calculate the radiocarbon age by integrating the age distribution."""
+        return quad(self.radiocarbon_age_integrand, 0, np.inf,
+                    limit=quad_limit, epsabs=quad_epsabs)
 
     def s(self, t):
         """the term for the amount of carbon in the system at age t"""
