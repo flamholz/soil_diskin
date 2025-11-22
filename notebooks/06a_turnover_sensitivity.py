@@ -7,7 +7,7 @@ if os.getcwd().endswith('notebooks'):
 # Load libraries
 import pandas as pd
 import numpy as np
-from notebooks.models import PowerLawDisKin, GammaDisKin
+from soil_diskin.models import PowerLawDisKin, GammaDisKin
 from os import path
 from scipy.integrate import quad
 from scipy.optimize import minimize

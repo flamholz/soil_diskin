@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
-from notebooks.models import PowerLawDisKin
 from os import path
 from scipy.integrate import quad
 from scipy.optimize import minimize
+from soil_diskin.models import PowerLawDisKin
 from tqdm import tqdm
 
 # Define the objective function for optimization
@@ -36,11 +36,15 @@ def objective_function(params, merged_site_data):
                                0, np.inf, limit=1500, epsabs=1e-3)[0]
 
     # Calculate the difference between the predicted and observed data
-    diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm'])**2)
-    diff_turnover = np.nansum((model.T - merged_site_data['turnover'])**2)
+    diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm']))
+    total_14C = np.nansum(merged_site_data['fm'] + 1e-6)
+    relative_diff_14C = diff_14C / total_14C
+    diff_turnover = np.nansum((model.T - merged_site_data['turnover']))
+    total_turnover = np.nansum(merged_site_data['turnover'] + 1e-6)
+    relative_diff_turnover = diff_turnover / total_turnover
     
-    # Return the sum of squared differences
-    return diff_14C + diff_turnover
+    # Return the sum of squared relative differences 
+    return relative_diff_14C**2 + relative_diff_turnover**2
 
 #%% Load the data
 

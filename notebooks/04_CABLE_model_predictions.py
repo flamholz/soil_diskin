@@ -1,9 +1,8 @@
 import numpy as np
 import pandas as pd
-from notebooks.models import * 
+from soil_diskin.models import CABLE
 from collections import namedtuple
 import pickle
-from notebooks.constants import *
 
 """
 Runs the CABLE model for the sites in the Balesdent dataset and saves the predictions to a pickle file.

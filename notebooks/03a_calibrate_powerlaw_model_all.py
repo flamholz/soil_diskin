@@ -4,10 +4,15 @@
 import pandas as pd
 import numpy as np
 from notebooks.models import PowerLawDisKin
-from notebooks.constants import INTERP_R_14C, C14_DATA
 from scipy.integrate import quad
 from scipy.optimize import minimize
 from tqdm import tqdm
+
+"""
+TODO: this code is not run by the main pipeline. It is 
+superseded notebooks/03a_calibrate_powerlaw_model.py. 
+It should be deleted. 
+"""
 
 #%% Define the objective function for optimization
 # optimize the two parameters of the model to match the turnover and 14C data

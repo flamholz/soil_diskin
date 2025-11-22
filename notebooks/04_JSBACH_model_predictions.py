@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 import xarray as xr
-from notebooks.models import * 
 from collections import namedtuple
-from soil_diskin.age_dist_utils import predict_fnew
-from notebooks.constants import *
 from scipy.interpolate import interp1d
+from soil_diskin.constants import SECS_PER_DAY, DAYS_PER_YEAR, T_MELT
+from soil_diskin.models import JSBACH
+from soil_diskin.age_dist_utils import predict_fnew
 from joblib import Parallel, delayed, parallel_backend
 
 

@@ -2,10 +2,11 @@
 import numpy as np
 import pandas as pd
 import xarray as xr
-from notebooks.models import * 
 from soil_diskin.age_dist_utils import predict_fnew
-from soil_diskin.data_wrangling import parse_he_data
-from notebooks.constants import *
+from soil_diskin.models import CLM5
+from soil_diskin.models import ConfigParams, GlobalData
+
+from scipy.interpolate import interp1d
 from scipy.io import loadmat
 from joblib import Parallel, delayed, parallel_backend
 
@@ -41,7 +42,13 @@ global_da = global_da.rio.write_crs("EPSG:4326", inplace=True)
 
 # define model parameters
 CLM_params = xr.open_dataset('data/CLM5_global_simulation/clm5_params.c171117.nc')
-taus = np.array([CLM_params['tau_cwd'],CLM_params['tau_l1'],CLM_params['tau_l2_l3'],CLM_params['tau_l2_l3'],CLM_params['tau_s1'],CLM_params['tau_s2'],CLM_params['tau_s3']]).squeeze()
+taus = np.array([CLM_params['tau_cwd'],
+                 CLM_params['tau_l1'],
+                 CLM_params['tau_l2_l3'],
+                 CLM_params['tau_l2_l3'],
+                 CLM_params['tau_s1'],
+                 CLM_params['tau_s2'],
+                 CLM_params['tau_s3']]).squeeze()
 Gamma_soil = 1e-4 
 F_soil = 0
 
