@@ -1,11 +1,9 @@
-import itertools
 import jax
 import numpy as np
-import unittest
 import warnings
 import xarray as xr
 
-from scipy.integrate import quad, dblquad, solve_ivp
+from scipy.integrate import quad, solve_ivp
 from scipy.special import exp1, gammaincc, gamma
 from scipy.stats import lognorm, norm
 from soil_diskin.age_dist_utils import box_model_ss_age_dist, dynamic_age_dist, calc_age_dist_cdf
@@ -123,17 +121,17 @@ class GammaDisKin:
         I: np.ndarray, optional
             An array of inputs to the model, representing the carbon input to the system.
         """
+        if a <= 0:
+            raise ValueError("Shape parameter a must be positive.")
+        if b <= 0:
+            raise ValueError("Scale parameter b must be positive.")
+
         self.a = a  # shape parameter
         self.b = b  # scale parameter -- should not be zero
         self.I = I
         self.interp_14c = interp_r_14c
         if interp_r_14c is None:
             self.interp_14c = INTERP_R_14C
-
-        if a <= 0:
-            raise ValueError("Shape parameter a must be positive.")
-        if b <= 0:
-            raise ValueError("Scale parameter b must be positive.")
 
         self.T = 1 / ((-1 + a) * b)
 
@@ -173,7 +171,7 @@ class GeneralPowerLawDisKin:
 
     We call these bounding timescales tau_0 and tau_inf as in the notes. 
     """
-    def __init__(self, tau_0, tau_inf, beta = np.exp(-GAMMA), interp_r_14c=None, I=None):
+    def __init__(self, t_min, t_max, beta = np.exp(-GAMMA), interp_r_14c=None, I=None):
         """
         Args:
         tau_0: float
@@ -187,14 +185,15 @@ class GeneralPowerLawDisKin:
         I: np.ndarray, optional
             An array of inputs to the model, representing the carbon input to the system.
         """
-        self.t0 = tau_0  # short time scale
-        self.tinf = tau_inf  # long time scale
-        self.tratio = tau_0 * beta / tau_inf
-        self.product = tau_0 * beta
+        if beta <= 0 or beta > 1:
+            raise ValueError("Beta must be between 0 and 1.")
+        
+        if t_min >= t_max:
+            raise ValueError("t_min must be less than t_max.")
+
+        self.t_min = t_min  # short time scale
+        self.t_max = t_max  # long time scale
         self.I = I
-
-        assert beta > 0 and beta <= 1, "Beta must be between 0 and 1."
-
         self.beta = beta
 
         self.En = lambda n, x: x ** (n-1) * gammaincc(1 - n, x) * gamma(1 - n) if n < 1 else exp1(x)
@@ -204,9 +203,20 @@ class GeneralPowerLawDisKin:
             self.interp_14c = INTERP_R_14C
 
         # steady-state transit time
-        en_term = self.En(beta, self.tratio)
-        self.en_term = en_term
-        self.T = self.product * np.exp(self.tratio) * en_term
+        tratio = (t_min * beta) / t_max
+        en_term = self.En(beta, tratio)
+        prod = t_min * beta
+        self.T = prod * np.exp(tratio) * en_term
+
+        # mean age at steady-state
+        A_num = prod * (-np.exp(-tratio) + (beta + tratio -1) * self.En(beta-1, tratio))
+        A_denom = (beta - 1) * en_term
+        self.A = A_num / A_denom
+
+        # Save these for shorthand in other methods
+        self.product = prod  # vague name... 
+        self.tratio = tratio
+
 
     def radiocarbon_age_integrand(self, a):
         # Interpolation was done with x as years before present,
@@ -222,16 +232,18 @@ class GeneralPowerLawDisKin:
                     limit=quad_limit, epsabs=quad_epsabs)
 
     def mean_transit_time_integrand(self, a):
-        return self.t0 * np.exp(-a/self.tinf) / (self.t0 + a)
+        return self.s(a)
     
-    def calc_mean_transit_time(self):
+    def calc_mean_transit_time(self, quad_limit=1500, quad_epsabs=1e-3):
         """Calculate the mean by integrating the transit time distribution."""
-        return quad(self.mean_transit_time_integrand, 0, np.inf)
+        return quad(self.mean_transit_time_integrand, 0, np.inf,
+                    limit=quad_limit, epsabs=quad_epsabs)
 
     def s(self, t):
         """the term for the amount of carbon in the system at age t"""
-        s = self.product ** self.beta * np.exp(-t / self.tinf) / (self.product + t) ** self.beta
-        return s
+        num = self.product ** self.beta * np.exp(- t / self.t_max)
+        denom = (self.product + t) ** self.beta
+        return num / denom
 
     def pA(self, a):
         """Calculate the probability density function of the age distribution."""
@@ -263,14 +275,14 @@ class GeneralPowerLawDisKin:
         # The rate of change is proportional to the inverse of the time scale
         # and the current state of the system.
         # The decay rate is 1/tau_0 for the short time scale and 1/tau_inf for the long time scale.
-        dX = - ( 1 / (self.t0 + t) + 1 / (self.tinf + t)) * X
+        dX = - ( 1 / (self.t_min + t) + 1 / (self.t_max + t)) * X
 
         return dX
     
     def cdfA(self, a):
         """Calculate the cumulative distribution function of the age distribution."""
         # The CDF is the integral of the PDF from 0 to a
-        cdf = 1 - (self.product / (self.product + a)) ** (self.beta - 1) * self.En(self.beta, (self.product + a) / self.tinf) / self.En(self.beta, self.tratio)
+        cdf = 1 - (self.product / (self.product + a)) ** (self.beta - 1) * self.En(self.beta, (self.product + a) / self.t_max) / self.En(self.beta, self.tratio)
         return cdf
 
 class PowerLawDisKin:
@@ -441,6 +453,9 @@ class LognormalDisKin:
         ppf_lim: float
             The percent point function limit for the lognormal distribution.
         """
+        if sigma < 0:
+            raise ValueError("Sigma must be non-negative.")
+        
         self.mu = mu
         self.k_star = np.exp(mu)
         self.sigma = sigma
@@ -484,11 +499,13 @@ class LognormalDisKin:
             LognormalDisKin
                 An instance of the LognormalDisKin class.
         """
+        if a / T < 1:
+            raise ValueError("a / T < 1 implies negative variance.")
         sigma_squared = np.log(a/T)
         sigma = np.sqrt(sigma_squared)
         mu = sigma_squared/2 - np.log(T)
 
-        print(mu, sigma)    
+        print(mu, sigma)
         return cls(mu, sigma, N=N)
 
     def _pA_alpha_logscale_integrand(self, alpha, q):
