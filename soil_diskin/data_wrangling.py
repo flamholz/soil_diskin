@@ -88,17 +88,19 @@ def process_balesdent_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     layer_f_data = f_data.T.rolling(2).mean().T.values[:, 1:]
     all_sites.loc[:, 'total_fnew'] = np.nansum(layer_f_data * site_C_weights, axis=1)
 
-    # fill NaN values for Ctotal with the mean top 1 meter Ctotal
-    # across all sites
-    all_sites['Ctotal_0-100estim'] = all_sites['Ctotal_0-100estim'].fillna(
-        all_sites['Ctotal_0-100estim'].mean())
+    # There are 11 sites with entirely missing C density data. 
+    # We could potentiall fill in from SoilGrids or other global datasets.
+    # For now we omit them. 
+    all_Ctotal_cols = cols_of_interest + ['Ctotal_0-100estim']
+    all_sites = all_sites[~(all_sites[all_Ctotal_cols].isna().all(axis=1))]
+
+    # Note: in the real data, Ctotal_0-100estim is present when there 
+    # is some site level C density data, and absent when there is none.
 
     # Calculate data for unique sites 
     group_cols = ['Latitude','Longitude','Duration_labeling']
     output_cols = ['total_fnew'] + weight_columns + ['Ctotal_0-100estim']
-    final_data = all_sites.groupby(group_cols)[output_cols].mean().reset_index()
-
-    return final_data
+    return all_sites.groupby(group_cols)[output_cols].mean().reset_index()
 
 
 def point_in_polygon(x, y, polygon_coords):
