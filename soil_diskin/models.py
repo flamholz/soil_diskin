@@ -188,8 +188,8 @@ class GeneralPowerLawDisKin:
         if beta <= 0 or beta > 1:
             raise ValueError("Beta must be between 0 and 1.")
         
-        if t_min >= t_max:
-            raise ValueError("t_min must be less than t_max.")
+        # if t_min >= t_max:
+        #     raise ValueError("t_min must be less than t_max.")
 
         self.t_min = t_min  # short time scale
         self.t_max = t_max  # long time scale
