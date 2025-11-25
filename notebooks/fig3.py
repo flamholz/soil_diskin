@@ -1,6 +1,7 @@
 #%% 
-import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import viz
 
 from permetrics.regression import RegressionMetric
@@ -52,7 +53,9 @@ def plot_model_predictions(ax, predictions, model_name, color):
     ax.text(0.05, 0.95, box_text,
             transform=ax.transAxes, fontsize=6,
             verticalalignment='top', bbox=props)
-    ax.set_title(model_name) 
+    ax.set_title(model_name)
+    ax.set_xticks(np.arange(0, 1.1, 0.5))
+    ax.set_yticks(np.arange(0, 1.1, 0.5))
 
 
 # Alternate version with colormap and color normalization
@@ -114,7 +117,7 @@ for i, col in enumerate(RCM_predictions.columns):
     
 # Set axes labels on the outer plots
 for ax in axs[4:8]:
-    ax.set_xlabel('observed F$_{new}$')
+    ax.set_xlabel('observed F$_{new}$ ($\delta^{13}C$ based)')
 for ax in axs[[0, 4]]:
     ax.set_ylabel('predicted F$_{new}$')
 
