@@ -358,6 +358,7 @@ rule plot_fig3:
         'results/04_model_predictions/power_law.csv',
         'results/04_model_predictions/lognormal.csv',
         'results/04_model_predictions/gamma.csv',
+        'results/04_model_predictions/general_power_law.csv',
         'results/04_model_predictions/CLM45_fnew.csv',
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
