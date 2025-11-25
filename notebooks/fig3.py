@@ -1,3 +1,4 @@
+#%% 
 import pandas as pd
 import matplotlib.pyplot as plt
 import viz
@@ -5,7 +6,10 @@ import viz
 from permetrics.regression import RegressionMetric
 from sklearn.metrics import root_mean_squared_error
 from matplotlib.colors import LogNorm
-
+# %%
+import os
+if os.getcwd().endswith('notebooks'):
+    os.chdir('..')
 #%% Load the site data
 all_sites = pd.read_csv('results/processed_balesdent_2018.csv')
 
@@ -17,11 +21,13 @@ pal = viz.color_palette()
 
 #%% Load the predictions
 powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/power_law.csv',header=None, names=['prediction'])
+general_powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/general_power_law.csv', header=None, names=['prediction'])
 lognormal_predictions = pd.read_csv(f'results/04_model_predictions/lognormal.csv',header=None, names=['prediction'])
 gamma_predictions = pd.read_csv(f'results/04_model_predictions/gamma.csv',header=None, names=['prediction'])    
 CLM45_predictions = pd.read_csv(f'results/04_model_predictions/CLM45_fnew.csv', header=None, names=['prediction'])
 JSBACH_predictions = pd.read_csv(f'results/04_model_predictions/JSBACH_fnew.csv', header=None, names=['prediction'])
 RCM_predictions = pd.read_csv(f'results/04_model_predictions/RCM.csv')
+
 # %% Define function to plot model predictions
 def plot_model_predictions(ax, predictions, model_name, color):
     ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
@@ -30,12 +36,19 @@ def plot_model_predictions(ax, predictions, model_name, color):
                predictions, label=model_name, color=color,
                edgecolor='k', lw=0.5, s=20, alpha=0.9)
 
-    evaluator = RegressionMetric(y_true=all_sites['total_fnew'].values, y_pred=predictions.values)
-    rmse = root_mean_squared_error(all_sites['total_fnew'], predictions)
+    # calculate metrics
+    true_vals = all_sites['total_fnew'].values
+    predictions = predictions.values
+    mask = ~pd.isna(true_vals) & ~pd.isna(predictions)
+    evaluator = RegressionMetric(y_true=true_vals[mask],
+                                 y_pred=predictions[mask])
+    rmse = root_mean_squared_error(true_vals[mask], predictions[mask])
+    kge = evaluator.kling_gupta_efficiency()
+
     # Make a single box reporting KGE and RMSE. Black border and grey background
     props = dict(boxstyle='round', facecolor=pal['light_yellow'],
                  edgecolor=pal['dark_grey'], alpha=0.8)
-    box_text = f'KGE = {evaluator.kling_gupta_efficiency():.2f}\nRMSE = {rmse:.2f}'
+    box_text = f'KGE = {kge:.2f}\nRMSE = {rmse:.2f}'
     ax.text(0.05, 0.95, box_text,
             transform=ax.transAxes, fontsize=6,
             verticalalignment='top', bbox=props)
@@ -51,12 +64,20 @@ def plot_model_predictions_cmap(ax, predictions, model_name, clabel, cmap, norm)
                c=all_sites[clabel], cmap=cmap, norm=norm,
                edgecolor='k', lw=0.5, s=20, alpha=0.9)
 
-    evaluator = RegressionMetric(y_true=all_sites['total_fnew'].values, y_pred=predictions.values)
+    # calculate metrics
+    true_vals = all_sites['total_fnew'].values
+    predictions = predictions.values
+    mask = ~pd.isna(true_vals) & ~pd.isna(predictions)
+    evaluator = RegressionMetric(y_true=true_vals[mask],
+                                 y_pred=predictions[mask])
+    rmse = root_mean_squared_error(true_vals[mask], predictions[mask])
+    kge = evaluator.kling_gupta_efficiency()
+
     rmse = root_mean_squared_error(all_sites['total_fnew'], predictions)
     # Make a single box reporting KGE and RMSE. Black border and grey background
     props = dict(boxstyle='round', facecolor=pal['light_yellow'],
                  edgecolor=pal['dark_grey'], alpha=0.8)
-    box_text = f'KGE = {evaluator.kling_gupta_efficiency():.2f}\nRMSE = {rmse:.2f}'
+    box_text = f'KGE = {kge:.2f}\nRMSE = {rmse:.2f}'
     ax.text(0.05, 0.95, box_text,
             transform=ax.transAxes, fontsize=6,
             verticalalignment='top', bbox=props)
