@@ -53,7 +53,7 @@ def process_balesdent_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     # Take only the columns with Ctotal_ and end with a digit but can have
     # other characters in between, and calculate the difference between the
     # columns as an estimate of the density of C in each layer
-    end_depths = list(range(10, 110, 10))
+    end_depths = list(range(0, 110, 10))
     cols_of_interest = [f'Ctotal_0-{d}' for d in end_depths]
     C_dens = raw_data[cols_of_interest].diff(axis=1).iloc[:, 1:]
 
