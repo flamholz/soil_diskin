@@ -145,7 +145,8 @@ rule calibrate_generalized_powerlaw:
     input:
         "results/all_sites_14C_turnover.csv",
     output:
-        "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv"
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv"
     script:
         "notebooks/03c_calibrate_generalized_powerlaw_model.py"
 
@@ -192,24 +193,16 @@ rule continuum_model_predictions:
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
         "results/04_model_predictions/04b_lognormal_cdfs.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
         "results/03_calibrate_models/gamma_model_optimization_results.csv"
     output:
         "results/04_model_predictions/gamma.csv",
         "results/04_model_predictions/power_law.csv",
         "results/04_model_predictions/lognormal.csv",
         "results/04_model_predictions/general_power_law.csv",
+        "results/04_model_predictions/general_power_law_beta_half.csv",
     script:
         "notebooks/04_collect_continuum_model_predictions.py"
-
-# Run the cable model
-rule cable_model_predictions:
-    input:
-        "results/processed_balesdent_2018.csv",
-        "results/all_sites_14C_turnover.csv",
-    output:
-        "results/04_model_predictions/CABLE.pkl",
-    script:
-        "notebooks/04_CABLE_model_predictions.py"
 
 # Run CLM4.5
 rule CLM45_model_predictions:
@@ -359,6 +352,7 @@ rule plot_fig3:
         'results/04_model_predictions/lognormal.csv',
         'results/04_model_predictions/gamma.csv',
         'results/04_model_predictions/general_power_law.csv',
+        'results/04_model_predictions/general_power_law_beta_half.csv',
         'results/04_model_predictions/CLM45_fnew.csv',
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
