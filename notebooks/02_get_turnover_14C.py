@@ -45,7 +45,7 @@ unique_coords = all_sites.drop_duplicates(subset=['Longitude','Latitude'])
 site_C_weights = unique_coords.filter(regex='^weight_\d+').values
 
 # use the coordinates in the unique_coords to create a list of ee.Geometry.Point objects
-unique_coords['geometry'] = unique_coords.apply(lambda row: ee.Geometry.Point([row['Longitude'], row['Latitude']]), axis=1)
+unique_coords.loc[:,'geometry'] = unique_coords.apply(lambda row: ee.Geometry.Point([row['Longitude'], row['Latitude']]), axis=1)
 # create a list of ee.Feature objects from the unique_coords
 unique_sites_ee = ee.FeatureCollection(unique_coords.apply(lambda row: ee.Feature(row['geometry']), axis=1).tolist())
 
@@ -54,14 +54,14 @@ MOD17A3HGF = ee.ImageCollection("MODIS/061/MOD17A3HGF")
 
 #%% get 14C and NPP data for the tropical sites
 
-# site_14C = find_nearest(unique_coords[['Longitude','Latitude']],c14_data_extrapolated)
-# site_GPP = find_nearest(unique_coords[['Longitude','Latitude']],GPP)
-
 def extract_sites(ds):
-    return xr.concat([ds.sel(y=row['Latitude'],x=row['Longitude'],method='nearest') for i,row in unique_coords.iterrows()],dim='site')
+    return xr.concat([ds.sel(y=row['Latitude'], x=row['Longitude'], method='nearest')
+                      for _, row in unique_coords.iterrows()], dim='site')
 
+extracted_c14 = extract_sites(c14_data_extrapolated).values.reshape(
+    (-1,10,10)).mean(axis=2)
 # extract 1m integrated 14C signal
-site_1m_14C = np.nansum(extract_sites(c14_data_extrapolated).values.reshape((-1,10,10)).mean(axis=2) * site_C_weights, axis=1)
+site_1m_14C = np.nansum(extracted_c14 * site_C_weights, axis=1)
 
 # get the NPP data for the sites
 # scale factor for NPP from https://developers.google.com/earth-engine/datasets/catalog/MODIS_061_MOD17A3HGF#bands
@@ -77,17 +77,17 @@ site_npp_data = geemap.ee_to_df(site_npp_data)
 site_npp_data.columns = ['NPP']
 
 # merge SOC, 14C and NPP data
-merged_site_data = unique_coords[['Latitude','Longitude']].reset_index()\
-                            .merge(site_npp_data, left_index=True, right_index=True, how='left')\
-                            .merge(pd.DataFrame(site_1m_14C, columns=['14C']), left_index=True, right_index=True, how='left')
+single_col_14C_df = pd.DataFrame(site_1m_14C, columns=['14C'])
+merged_site_data = unique_coords[['Latitude','Longitude']].reset_index().merge(
+    site_npp_data, left_index=True, right_index=True, how='left').merge(
+        single_col_14C_df, left_index=True, right_index=True, how='left')
 
 # Merge with the original all_sites dataframe and retain only the
 # relevant columns for output. Need to make sure we retain all sites 
 # so that our output corresponds to the Balesdent et al. (2018) data
 # for downstream analysis. 
-merged_site_data = all_sites.merge(merged_site_data,
-                                   on=['Latitude','Longitude'],
-                                   how='left')
+merged_site_data = all_sites.merge(
+    merged_site_data, on=['Latitude','Longitude'], how='left')
 cols2keep = ['Latitude','Longitude','14C','NPP','Ctotal_0-100estim']
 merged_site_data = merged_site_data[cols2keep]
 
