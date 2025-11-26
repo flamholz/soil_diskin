@@ -96,6 +96,8 @@ def process_balesdent_data(raw_data: pd.DataFrame) -> pd.DataFrame:
 
     # Note: in the real data, Ctotal_0-100estim is present when there 
     # is some site level C density data, and absent when there is none.
+    # So this check will do nothing in practice, but is here for completeness.
+    all_sites = all_sites[~all_sites['Ctotal_0-100estim'].isna()]
 
     # Calculate data for unique sites 
     group_cols = ['Latitude','Longitude','Duration_labeling']
