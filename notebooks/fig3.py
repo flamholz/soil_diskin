@@ -16,13 +16,12 @@ all_sites = pd.read_csv('results/processed_balesdent_2018.csv')
 
 # use the style file
 plt.style.use('notebooks/style.mpl')
-
-
 pal = viz.color_palette()
 
 #%% Load the predictions
 powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/power_law.csv',header=None, names=['prediction'])
-general_powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/general_power_law.csv', header=None, names=['prediction'])
+gen_powerlaw_preds_beta = pd.read_csv(f'results/04_model_predictions/general_power_law.csv', header=None, names=['prediction'])
+gen_powerlaw_preds_beta_half = pd.read_csv(f'results/04_model_predictions/general_power_law_beta_half.csv', header=None, names=['prediction'])
 lognormal_predictions = pd.read_csv(f'results/04_model_predictions/lognormal.csv',header=None, names=['prediction'])
 gamma_predictions = pd.read_csv(f'results/04_model_predictions/gamma.csv',header=None, names=['prediction'])    
 CLM45_predictions = pd.read_csv(f'results/04_model_predictions/CLM45_fnew.csv', header=None, names=['prediction'])
@@ -86,6 +85,20 @@ def plot_model_predictions_cmap(ax, predictions, model_name, clabel, cmap, norm)
             verticalalignment='top', bbox=props)
     ax.set_title(model_name)
     return sc
+
+#%% 
+# Plot the generalized power law model predictions to check
+fig, axs = plt.subplots(1, 3, figsize=(7.24, 2), dpi=300, constrained_layout=True)
+
+plt.sca(axs[0])
+plot_model_predictions(axs[0], powerlaw_predictions['prediction'], 'power law model', pal['dark_blue'])
+
+plt.sca(axs[1])
+plot_model_predictions(axs[1], gen_powerlaw_preds_beta['prediction'], 'generalized power law model', pal['blue'])
+
+plt.sca(axs[2])
+plot_model_predictions(axs[2], gen_powerlaw_preds_beta_half['prediction'], 'generalized power law model (beta/2)', pal['light_blue'])
+plt.show()
 
 # %% Plot the predictions predictions
 fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(7.24, 3.5),
