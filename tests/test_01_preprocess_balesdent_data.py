@@ -1,7 +1,5 @@
 import pandas as pd
 import numpy as np
-import pytest
-from unittest.mock import patch
 from unittest import TestCase
 
 import sys
@@ -22,6 +20,8 @@ MOCK_DATA = {
     'MAT_C':            [18.0,  19.0,   16.0,   20.0,   18, 18],
     'PANN_mm':          [1200.0,1500.0, 900.0,  1100.0, 1300.0, 1300.0],
     'P to PET ratio':   [0.9,   0.95,   0.7,    0.85,   1.2, 1.2],
+    # this row is here in the actual data as a convenience for difference calculations
+    'Ctotal_0-0':       [0.0,   0.0,    np.nan,    0.0,    0.0, 0.0],  # Carbon in 0-0 
     'Ctotal_0-10':      [10.0,  12.0,   np.nan, 11.0,   15.0, 20.0], # Carbon in 0-10
     'Ctotal_0-20':      [18.0,  22.0,   np.nan, 20.0,   25.0, 30.0], # Cumulative carbon to 20cm
     'Ctotal_0-30':      [24.0,  30.0,   np.nan, 26.0,   35.0, 40.0], # Cumulative carbon to 30cm
@@ -53,17 +53,21 @@ class TestProcessBalesdentData(TestCase):
     def setUp(self):
         self.mock_data = mock_raw_data()
         self.processed_data = pbd(self.mock_data)
+        print(self.processed_data)
+        print(self.processed_data.columns)
+        weight_cols = [f'weight_{i*10}' for i in range(0, 10)]
+        print(self.processed_data[weight_cols])
         
     def test_columns(self):
         """
         Test that the processed data contains the expected columns.
         """
         expected_columns = ['Latitude', 'Longitude', 'Duration_labeling', 'total_fnew', 
-                            'weight_10', 'weight_20', 'weight_30', 'weight_40', 
+                            'weight_0', 'weight_10', 'weight_20', 'weight_30', 'weight_40', 
                             'weight_50', 'weight_60', 'weight_70', 'weight_80', 
                             'weight_90', 'Ctotal_0-100estim']
-        for col in expected_columns:
-            self.assertIn(col, self.processed_data.columns)
+        column_set = set(self.processed_data.columns)
+        self.assertTrue(set(expected_columns).issubset(column_set))
 
     def test_sites(self):
         """
@@ -72,7 +76,7 @@ class TestProcessBalesdentData(TestCase):
         # We expect the third column to be removed due to filtering (Latitude 20.0)
         # and the last one (index 5) to be averaged with the prior
         # (index 4, Latitude 30.0, Duration 100)
-        assert len(self.processed_data) == 4
+        self.assertEqual(len(self.processed_data), 3)
 
         filtered_site_idx = 2  # The index of the site that should be filtered out
         site_lat = MOCK_DATA['Latitude'][filtered_site_idx]
@@ -83,7 +87,20 @@ class TestProcessBalesdentData(TestCase):
         mask = (self.processed_data['Latitude'] == site_lat) & \
                (self.processed_data['Longitude'] == site_lng) & \
                (self.processed_data['Duration_labeling'] == site_duration)
-        assert not mask.any()
+        self.assertFalse(mask.any())
+
+        # The site with Ctotal_0-100estim should be removed even though 
+        # such a case does not occur in the real data.
+        filtered_site_idx = 3  # The index of the site that should be 
+        site_lat = MOCK_DATA['Latitude'][filtered_site_idx]
+        site_lng = MOCK_DATA['Longitude'][filtered_site_idx]
+        site_duration = MOCK_DATA['Duration_labeling'][filtered_site_idx]
+
+        # Make sure a site with this combination does not exist (it was filtered out)
+        mask = (self.processed_data['Latitude'] == site_lat) & \
+               (self.processed_data['Longitude'] == site_lng) & \
+               (self.processed_data['Duration_labeling'] == site_duration)
+        self.assertFalse(mask.any())
 
         filtered_site_idx = 5  # The index of the site that should be averaged with the prior
         site_lat = MOCK_DATA['Latitude'][filtered_site_idx]
@@ -94,7 +111,7 @@ class TestProcessBalesdentData(TestCase):
         mask = (self.processed_data['Latitude'] == site_lat) & \
                (self.processed_data['Longitude'] == site_lng) & \
                (self.processed_data['Duration_labeling'] == site_duration)
-        assert mask.sum() == 1  # There should be only one row after averaging
+        self.assertEqual(mask.sum(), 1)  # There should be only one row after averaging
 
         # Make sure that some averaging happened.
         original_values = self.mock_data.iloc[[4, 5]]
@@ -103,7 +120,7 @@ class TestProcessBalesdentData(TestCase):
         self.assertAlmostEqual(expected_Ctotal, processed_Ctotal)
 
         # For the other sites, they should remain unchanged.
-        for idx in [0, 1, 3]:
+        for idx in [0, 1]:
             site_lat = MOCK_DATA['Latitude'][idx]
             site_lng = MOCK_DATA['Longitude'][idx]
             site_duration = MOCK_DATA['Duration_labeling'][idx]
@@ -125,7 +142,7 @@ class TestProcessBalesdentData(TestCase):
         """
         Test that the weights for each site sum to 1.
         """
-        weight_columns = [f'weight_{i*10}' for i in range(1, 10)]
+        weight_columns = [f'weight_{i*10}' for i in range(0, 10)]
         for _, row in self.processed_data.iterrows():
             weight_sum = row[weight_columns].sum()
             self.assertAlmostEqual(weight_sum, 1.0, places=5)
