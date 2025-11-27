@@ -6,6 +6,30 @@ from soil_diskin.models import PowerLawDisKin, GammaDisKin
 from soil_diskin.models import GeneralPowerLawDisKin, LognormalDisKin
 from soil_diskin.constants import GAMMA
 
+model_classes = [PowerLawDisKin, GammaDisKin,
+                 GeneralPowerLawDisKin, LognormalDisKin]
+
+class TestImplementsAbstractMethods(unittest.TestCase):
+    def test_implements_abstract_methods(self):
+        for model_class in model_classes:
+            param_1, param_2 = 1.1, 0.8
+            instance = model_class(param_1, param_2)
+
+            self.assertIsNotNone(instance.A)
+            self.assertIsNotNone(instance.T)
+
+            try:
+                instance.params_valid()
+            except NotImplementedError as e:
+                self.fail(f"{model_class.__name__} does not implement params_valid: {e}")
+
+            # All these methods have a single numeric argument
+            methods2call = 's,pA,cdfA'.split(',')
+            for method in methods2call:
+                try:
+                    getattr(instance, method)(1)
+                except NotImplementedError as e:
+                    self.fail(f"{model_class.__name__} does not implement {method}: {e}")
 
 class TestPowerLawDisKin(unittest.TestCase):
 
@@ -27,7 +51,7 @@ class TestPowerLawDisKin(unittest.TestCase):
     def test_numerical_T_integral(self):
         for t_min, t_max in itertools.product(self.T_MINS, self.T_MAXS):
             pow_diskin = PowerLawDisKin(t_min, t_max)
-            T_int = pow_diskin.calc_mean_transit_time()
+            T_int = pow_diskin.calc_transit_time()
             T_calc = pow_diskin.T
             print('Calcualted transit time: ', T_calc)
             print('Integrated transit time: ', T_int[0])
@@ -125,11 +149,17 @@ class TestGammaDisKin(unittest.TestCase):
             self.assertAlmostEqual(T, T_expected, places=6,
                                    msg=f"Transit time mismatch for a={a}, b={b}")
             
-            # Check that mean age is calculated
-            mean_a = model.mean_age()
-            mean_a_expected = 1 / ((a - 2) * (a - 1) * b**2) / T
-            self.assertAlmostEqual(mean_a, mean_a_expected, places=6,
-                                 msg=f"Mean age mismatch for a={a}, b={b}")
+            # Check that mean age is calculated correctly
+            A_expected = 1 / ((a - 2) * (a - 1) * b**2) / T
+            A_numeric, _ = model.calc_mean_age()
+            A_analytical = model.A
+            
+            self.assertAlmostEqual(
+                A_numeric, A_expected, places=6,
+                msg=f"Numeric mean age mismatch for a={a}, b={b}")
+            self.assertAlmostEqual(
+                A_analytical, A_expected, places=6,
+                msg=f"Analytic mean age mismatch for a={a}, b={b}")
 
     def test_pdf_properties(self):
         """Test that the age distribution PDF has valid properties."""
@@ -170,16 +200,22 @@ class TestGammaDisKin(unittest.TestCase):
                 self.assertLessEqual(cdf, 1.1,  # Allow small numerical error
                                    msg=f"CDF > 1 at age={test_ages[i]} for a={a}, b={b}")
 
-    def test_parameter_validation(self):
-        """Test that invalid parameters raise errors."""
-        with self.assertRaises(ValueError):
-            GammaDisKin(a=-1, b=1)  # negative shape parameter
+    def test_params_valid(self):
+        """Test parameter combinations.
         
-        with self.assertRaises(ValueError):
-            GammaDisKin(a=2, b=-0.5)  # negative scale parameter
+        For the gamma distribution, shape (a) and scale (b) must be positive.
+        """
+        valid_params = [(2.5, 0.1), (5.0, 1.0), (10.0, 0.01)]
+        for a, b in valid_params:
+            model = GammaDisKin(a, b)
+            self.assertTrue(model.params_valid(),
+                           msg=f"Valid parameters a={a}, b={b} marked as invalid.")
         
-        with self.assertRaises(ValueError):
-            GammaDisKin(a=0, b=1)  # zero shape parameter
+        invalid_params = [(-1.0, 0.1), (5.0, -0.5), (0.0, 1.0), (-0.1, -0.2)]
+        for a, b in invalid_params:
+            model = GammaDisKin(a, b)
+            self.assertFalse(model.params_valid(),
+                            msg=f"Invalid parameters a={a}, b={b} marked as valid.")
 
     def test_radiocarbon_ratio(self):
         """Test that the radiocarbon ratio calculation runs without error."""
@@ -212,7 +248,7 @@ class TestGeneralPowerLawDisKin(unittest.TestCase):
         """Test that the analytical and numerical transit times match."""
         for t_min, t_max, beta in itertools.product(self.T_MIN_VALS, self.T_MAX_VALS, self.BETA_VALS):
             model = GeneralPowerLawDisKin(t_min, t_max, beta)
-            T_int = model.calc_mean_transit_time()
+            T_int = model.calc_transit_time()
             T_calc = model.T
             print(f'Calculated transit time: {T_calc}')
             print(f'Integrated transit time: {T_int[0]}')
@@ -274,17 +310,29 @@ class TestGeneralPowerLawDisKin(unittest.TestCase):
                 self.assertLessEqual(cdf, 1.1,  # Allow small numerical error
                                    msg=f"CDF > 1 at age={test_ages[i]} for t_min={t_min}, t_max={t_max}, beta={beta}")
 
-    def test_parameter_validation(self):
-        """Test that invalid parameters are handled correctly."""
+    def test_params_valid(self):
+        """Test params_valid method. 
+        
+        For GeneralPowerLawDisKin, t_min and t_max must be positive, and t_min < t_max.
+        """
+        valid_params = [(10, 1000, 0.5), (1, 10000, np.exp(-GAMMA)), (50, 5000, 0.9)]
+        for t_min, t_max, beta in valid_params:
+            model = GeneralPowerLawDisKin(t_min, t_max, beta)
+            self.assertTrue(model.params_valid(),
+                            msg=f"Valid parameters t_min={t_min}, t_max={t_max}, beta={beta} marked as invalid.")
+        
+        invalid_params = [(-0.001, 1000, 0.5), (-10, 5000, 0.8), (10, -100, 0.3)]
+        for t_min, t_max, beta in invalid_params:
+            model = GeneralPowerLawDisKin(t_min, t_max, beta)
+            self.assertFalse(model.params_valid(),
+                             msg=f"Invalid parameters t_min={t_min}, t_max={t_max}, beta={beta} marked as valid.")
+        
         # Beta must be between 0 and 1
         with self.assertRaises(ValueError):
             GeneralPowerLawDisKin(t_min=10, t_max=1000, beta=1.5)  # beta > 1
         
         with self.assertRaises(ValueError):
             GeneralPowerLawDisKin(t_min=10, t_max=1000, beta=-0.1)  # beta < 0
-
-        # with self.assertRaises(ValueError):
-        #     GeneralPowerLawDisKin(t_min=1000, t_max=10, beta=0.5)  # t_min >= t_max
 
     def test_radiocarbon_ratio(self):
         """Test that the radiocarbon ratio calculation runs without error."""
@@ -319,33 +367,29 @@ class TestLognormalDisKin(unittest.TestCase):
 
     def test_basic_properties(self):
         """Test that basic properties of the model are calculated correctly."""
-        for a, T in itertools.product(self.MEAN_AGES, self.MEAN_TRANSIT_TIMES):
-            if a/T < 1:
+        for A, T in itertools.product(self.MEAN_AGES, self.MEAN_TRANSIT_TIMES):
+            if A/T < 1:
                 continue
             
-            model = LognormalDisKin.from_age_and_transit_time(a, T)
+            model = LognormalDisKin.from_age_and_transit_time(A, T)
             
             # Check that transit time matches input
             self.assertAlmostEqual(model.T, T, places=5,
-                                 msg=f"Transit time mismatch for a={a}, T={T}")
+                                 msg=f"Transit time mismatch for A={A}, T={T}")
             
             # Check that mean age matches input
-            self.assertAlmostEqual(model.a, a, places=5,
-                                 msg=f"Mean age mismatch for a={a}, T={T}")
-
+            self.assertAlmostEqual(model.A, A, places=5,
+                                 msg=f"Mean age mismatch for A={A}, T={T}")
+            
         for mu, sigma in itertools.product(self.MUS, self.SIGMAS):
             model = LognormalDisKin(mu, sigma)
-            expected_a = np.exp(1.5 * sigma**2 - mu)
+            expected_A = np.exp(1.5 * sigma**2 - mu)
             expected_T = np.exp(sigma**2 / 2 - mu)
 
-            self.assertAlmostEqual(model.a, expected_a, places=5,
+            self.assertAlmostEqual(model.A, expected_A, places=5,
                                    msg=f"Mean age mismatch for mu={mu}, sigma={sigma}")
             self.assertAlmostEqual(model.T, expected_T, places=5,
                                    msg=f"Transit time mismatch for mu={mu}, sigma={sigma}")
-
-        for sigma in self.INVALID_SIGMAS:
-            with self.assertRaises(ValueError):
-                LognormalDisKin(mu=0, sigma=sigma)
 
     def test_parameter_validation(self):
         """Test that invalid parameter combinations are handled."""
@@ -354,6 +398,11 @@ class TestLognormalDisKin(unittest.TestCase):
         with self.assertRaises(ValueError):
             # This should fail because a/T < 1 implies negative sigma_squared
             model = LognormalDisKin.from_age_and_transit_time(a=50, T=100)
+
+        for sigma in self.INVALID_SIGMAS:
+            model = LognormalDisKin(mu=0, sigma=sigma)
+            self.assertFalse(model.params_valid(),
+                             msg=f"Invalid sigma={sigma} marked as valid.")
 
     def test_input_output_relations(self):
         for a, T in itertools.product(self.MEAN_AGES, self.MEAN_TRANSIT_TIMES):
