@@ -15,14 +15,19 @@ Calibrates the Generalized Power Law model from Rothman, PNAS 2025.
 
 # Define the objective function for optimization
 # optimize the two parameters of the model to match the turnover and 14C data
-def objective_function(params, merged_site_data):
+def objective_function(params, beta, merged_site_data):
     """
-    Objective function to minimize the difference between the model predictions and the observed data.
+    Objective function to minimize the difference between model predictions and observations.
+
+    Note: 'beta' is the power law exponent parameter in the GeneralPowerLawDisKin model.
+    We do not alter it during optimization, but pass it in for model instantiation.
     
     Parameters
     ----------
     params : list
         List of parameters [a, b] for the PowerLawDisKin model.
+    beta : float
+        The beta parameter for the GeneralPowerLawDisKin model.
     merged_site_data : pd.DataFrame
         DataFrame containing the observed data for each site, including 'fm' (14C ratio) and 'turnover'.
     
@@ -31,9 +36,8 @@ def objective_function(params, merged_site_data):
     float
         The sum of squared differences between the predicted and observed data.
     """
-    
     # Unpack the parameters
-    t_min, t_max, beta = params
+    t_min, t_max = params
 
     # Create an instance of the GeneralPowerLawDisKin model with the given parameters
     model = GeneralPowerLawDisKin(t_min=t_min, t_max=t_max, beta=beta)
@@ -54,18 +58,26 @@ def objective_function(params, merged_site_data):
     return relative_diff_14C**2 + relative_diff_turnover**2
 
 
-# Helper functions to calculate modeled T and 14C for rows
+# Helper functions to calculate values on DataFrame rows
 def calc_modeled_T(row):
+    """Calculate the modeled turnover time T from a row of parameters."""
     model = GeneralPowerLawDisKin(row['t_min'], row['t_max'], row['beta'])
     return model.T
 
 
 def calc_modeled_14C(row):
+    """Numerically integrate to get the modeled 14C ratio from a row of parameters."""
     model = GeneralPowerLawDisKin(row['t_min'], row['t_max'], row['beta'])
     return quad(model.radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0]
 
 
-def results_to_dataframe(results, merged_site_data):
+def calc_params_valid(row):
+    """Returns True if the model parameters are valid for this DataFrame row."""
+    model = GeneralPowerLawDisKin(row['t_min'], row['t_max'], row['beta'])
+    return model.params_valid()
+
+
+def results_to_dataframe(results, beta, merged_site_data):
     """
     Convert optimization results to a DataFrame.
     
@@ -73,6 +85,8 @@ def results_to_dataframe(results, merged_site_data):
     ----------
     results : list
         List of optimization results.
+    beta : float
+        The beta parameter used in the model optimization.
     merged_site_data : pd.DataFrame
         DataFrame containing the observed data for each site.
     
@@ -85,12 +99,14 @@ def results_to_dataframe(results, merged_site_data):
                              index=merged_site_data.index)
 
     # Unpack the parameters into separate columns
-    index_names = 't_min,t_max,beta'.split(',')
+    index_names = 't_min,t_max'.split(',')
     result_df[index_names] = result_df['params'].apply(lambda x: pd.Series(x, index=index_names))
     result_df.drop(columns ='params',inplace=True)
 
+    result_df['beta'] = beta
     result_df['modeled_T'] = result_df.apply(calc_modeled_T, axis=1)
     result_df['modeled_14C'] = result_df.apply(calc_modeled_14C, axis=1)
+    result_df['params_valid'] = result_df.apply(calc_params_valid, axis=1)
     merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
 
     return merged_result_df
@@ -101,7 +117,7 @@ merged_site_data = pd.read_csv('results/all_sites_14C_turnover.csv')
 
 # initial guess for the parameters
 beta = np.exp(-GAMMA) # gamma is the Euler-Mascheroni constant
-initial_guess = [0.0005, 1000, beta]
+initial_guess = [0.0005, 1000]
 
 # optimize the parameters using a simple optimization method
 results = []
@@ -110,32 +126,34 @@ results = []
 print('Running optimization for generalized power law with b = np.exp(-GAMMA)...')
 for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
     # Minimize the objective function for each site
-    res = minimize(objective_function, initial_guess, args=(row,), method='Nelder-Mead')
+    my_args = (beta, row)
+    res = minimize(objective_function, initial_guess,
+                   args=my_args, method='Nelder-Mead')
     
     # Append the optimized parameters to the result list
     results.append([res.x, res.fun])
 
-merged_result_df = results_to_dataframe(results, merged_site_data)
+merged_result_df = results_to_dataframe(results, beta, merged_site_data)
 print(f'the Maximum objective value is {merged_result_df["objective_value"].max():.3f}')
 
 
 # Now run it all again, but with b = np.exp(-GAMMA) / 2
 results_2 = []
-
 beta = np.exp(-GAMMA) / 2
-initial_guess = [0.0005, 1000, beta]
+initial_guess = [0.0005, 1000]
 
 # iterate over each row in the merged_site_data DataFrame
 print('Running optimization for generalized power law with b = np.exp(-GAMMA) / 2...')
 for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
-    
     # Minimize the objective function for each site
-    res = minimize(objective_function, initial_guess, args=(row,), method='Nelder-Mead')
+    my_args = (beta, row)
+    res = minimize(objective_function, initial_guess,
+                   args=my_args, method='Nelder-Mead')
     
     # Append the optimized parameters to the result list
     results_2.append([res.x,res.fun])
 
-merged_result_df_2 = results_to_dataframe(results_2, merged_site_data)
+merged_result_df_2 = results_to_dataframe(results_2, beta, merged_site_data)
 print(f'the Maximum objective value is {merged_result_df_2["objective_value"].max():.3f}')
 
 # Save the two sets of results to different CSV files
