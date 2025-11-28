@@ -2,8 +2,8 @@ import itertools
 import unittest
 import numpy as np
 
-from soil_diskin.models import PowerLawDisKin, GammaDisKin
-from soil_diskin.models import GeneralPowerLawDisKin, LognormalDisKin
+from soil_diskin.continuum_models import PowerLawDisKin, GammaDisKin
+from soil_diskin.continuum_models import GeneralPowerLawDisKin, LognormalDisKin
 from soil_diskin.constants import GAMMA
 
 model_classes = [PowerLawDisKin, GammaDisKin,
