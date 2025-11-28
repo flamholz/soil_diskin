@@ -77,8 +77,8 @@ ln_age_data = [ln_age_data.values[:,i] for i in range(ln_age_data.shape[1]-1)]
 powerlaw_params = pd.read_csv('results/03_calibrate_models/powerlaw_model_optimization_results.csv')
 gamma_params = pd.read_csv('results/03_calibrate_models/gamma_model_optimization_results.csv')
 
-a1 = powerlaw_params['tau_0'].mean()
-tau1 = powerlaw_params['tau_inf'].mean()
+a1 = powerlaw_params['t_min'].mean()
+tau1 = powerlaw_params['t_max'].mean()
 
 gamma_alpha = gamma_params['a'].mean()
 gamma_theta = gamma_params['b'].mean()
