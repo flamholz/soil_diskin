@@ -98,7 +98,8 @@ plot_model_predictions(axs[1], gen_powerlaw_preds_beta['prediction'], 'generaliz
 
 plt.sca(axs[2])
 plot_model_predictions(axs[2], gen_powerlaw_preds_beta_half['prediction'], 'generalized power law model (beta/2)', pal['light_blue'])
-plt.show()
+
+plt.savefig('figures/gen_powerlaw.png', dpi=300, bbox_inches='tight')
 
 # %% Plot the predictions predictions
 fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(7.24, 3.5),
@@ -194,7 +195,7 @@ for i, (ax, label) in enumerate(zip(axs, "ABCDEFGH")):
             -0.15, 1.1, label, transform=ax.transAxes,
             fontsize=7, va='top', ha='left')
 
-out_fname = f'figures/fig3_colored_by_labeling_duration.png'
+out_fname = f'figures/figS3.png'
 plt.savefig(out_fname, dpi=300, bbox_inches='tight')
 
 # %% make a presentation version with no subpanel labels

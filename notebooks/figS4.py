@@ -83,6 +83,6 @@ axs[1,0].text(-0.5, 0.5, 'Lognormal model', transform=axs[1,0].transAxes, fontsi
 axs[2,0].text(-0.5, 0.5, 'Gamma model', transform=axs[2,0].transAxes, fontsize=12, rotation=90, verticalalignment='center')
 
 # Save figure
-fig.savefig('figures/figS3.png', dpi=600)
+fig.savefig('figures/figS4.png', dpi=600)
 
 

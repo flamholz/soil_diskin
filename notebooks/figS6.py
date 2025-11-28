@@ -37,6 +37,6 @@ plot_data('_gamma', axs[2], 'Gamma model')
 plt.tight_layout()
 
 # Save figure
-fig.savefig('figures/figS5.png', dpi=600)
+fig.savefig('figures/figS6.png', dpi=600)
 
 

@@ -139,8 +139,6 @@ axs[2,0].text(-0.3, 0.5, 'Gamma model', transform=axs[2,0].transAxes, ha='center
 plt.tight_layout()
 
 # Save figure
-plt.savefig('figures/figS4.png', dpi=600)
-
-
+plt.savefig('figures/figS5.png', dpi=600)
 
 # %%
