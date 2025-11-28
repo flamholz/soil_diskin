@@ -76,6 +76,7 @@ result_df.drop(columns ='params',inplace=True)
 
 result_df['modeled_tau'] = result_df.apply(lambda x: GammaDisKin(x['a'], x['b']).T, axis=1)
 result_df['modeled_14C'] = result_df.apply(lambda x: quad(GammaDisKin(x['a'], x['b']).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
+result_df['params_valid'] = result_df.apply(lambda x: GammaDisKin(x['a'], x['b']).params_valid(), axis=1)
 
 merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
 print(f'the Maximum objective value is {result_df["objective_value"].max():.3f}')

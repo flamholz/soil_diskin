@@ -1,7 +1,8 @@
-import pandas as pd
-from scipy.interpolate import interp1d
 import numpy as np
-import matplotlib.pyplot as plt
+import pandas as pd
+
+from scipy.interpolate import interp1d
+
 
 # Read the age scan data and the radiocarbon data
 # the Mathematica script must be run first to generate the age scan

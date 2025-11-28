@@ -58,7 +58,6 @@ result = []
 
 # iterate over each row in the merged_site_data DataFrame
 for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
-    
     # Minimize the objective function for each site
     res = minimize(objective_function, initial_guess, args=(row,), method='Nelder-Mead')
     
@@ -74,6 +73,7 @@ result_df.drop(columns ='params',inplace=True)
 
 result_df['modeled_tau'] = result_df.apply(lambda x: PowerLawDisKin(x['tau_0'], x['tau_inf']).T, axis=1)
 result_df['modeled_14C'] = result_df.apply(lambda x: quad(PowerLawDisKin(x['tau_0'], x['tau_inf']).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
+result_df['params_valid'] = result_df.apply(lambda x: PowerLawDisKin(x['tau_0'], x['tau_inf']).params_valid(), axis=1)
 
 merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
 
