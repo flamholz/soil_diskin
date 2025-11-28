@@ -356,6 +356,7 @@ rule plot_fig3:
         'results/04_model_predictions/CLM45_fnew.csv',
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
+        'results/processed_balesdent_2018.csv',
     output:
         "figures/fig3.png"
     script:
