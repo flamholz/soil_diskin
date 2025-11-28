@@ -249,7 +249,8 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         self.I = I
         self.beta = beta
 
-        self.En = lambda n, x: x ** (n-1) * gammaincc(1 - n, x) * gamma(1 - n) if n < 1 else exp1(x)
+        # En function - take real part to avoid complex number artifacts
+        self.En = lambda n, x: np.real(x ** (n-1) * gammaincc(1 - n, x) * gamma(1 - n)) if n < 1 else exp1(x)
 
         # steady-state transit time
         tratio = (t_min * beta) / t_max
