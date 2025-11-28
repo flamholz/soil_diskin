@@ -5,7 +5,6 @@ if os.getcwd().endswith('notebooks'):
 
 # %%
 # Load libraries
-from soil_diskin.models import PowerLawDisKin, GammaDisKin
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -14,7 +13,8 @@ from tqdm import tqdm
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
 from scipy.signal import convolve
-from scipy.interpolate import interp1d
+from soil_diskin.continuum_models import PowerLawDisKin, GammaDisKin
+
 
 # %%
 # Read the raw data and calculate the ratio in C stocks between the reference and the experiment sites.

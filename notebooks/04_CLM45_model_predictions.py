@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from soil_diskin.age_dist_utils import predict_fnew
-from soil_diskin.models import CLM5
-from soil_diskin.models import ConfigParams, GlobalData
+from soil_diskin.compartmental_models import CLM5
+from soil_diskin.compartmental_models import ConfigParams, GlobalData
 
 from scipy.interpolate import interp1d
 from scipy.io import loadmat

@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from scipy.interpolate import interp1d
-from soil_diskin.models import GammaDisKin, PowerLawDisKin, GeneralPowerLawDisKin
+from soil_diskin.continuum_models import GammaDisKin, PowerLawDisKin, GeneralPowerLawDisKin
 
 """
 Collects the continuum model predictions for all sites and saves them to CSV files.

@@ -1,9 +1,10 @@
 import pandas as pd
 import numpy as np
-from soil_diskin.models import GammaDisKin
 from os import path
+
 from scipy.integrate import quad
 from scipy.optimize import minimize
+from soil_diskin.continuum_models import GammaDisKin
 from tqdm import tqdm
 
 # Define the objective function for optimization

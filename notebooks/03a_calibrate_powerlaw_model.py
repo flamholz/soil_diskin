@@ -3,7 +3,7 @@ import numpy as np
 from os import path
 from scipy.integrate import quad
 from scipy.optimize import minimize
-from soil_diskin.models import PowerLawDisKin
+from soil_diskin.continuum_models import PowerLawDisKin
 from tqdm import tqdm
 
 # Define the objective function for optimization

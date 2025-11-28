@@ -4,7 +4,7 @@ import xarray as xr
 from collections import namedtuple
 from scipy.interpolate import interp1d
 from soil_diskin.constants import SECS_PER_DAY, DAYS_PER_YEAR, T_MELT
-from soil_diskin.models import JSBACH
+from soil_diskin.compartmental_models import JSBACH
 from soil_diskin.age_dist_utils import predict_fnew
 from joblib import Parallel, delayed, parallel_backend
 

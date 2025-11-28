@@ -4,7 +4,7 @@ from os import path
 from scipy.integrate import quad
 from scipy.optimize import minimize
 from soil_diskin.constants import GAMMA
-from soil_diskin.models import GeneralPowerLawDisKin
+from soil_diskin.continuum_models import GeneralPowerLawDisKin
 from tqdm import tqdm
 
 """
