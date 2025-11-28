@@ -15,7 +15,7 @@ if os.path.basename(os.getcwd()) == 'notebooks':
 # %% imports
 import numpy as np
 
-from soil_diskin.models import PowerLawDisKin
+from soil_diskin.continuum_models import PowerLawDisKin
 from tqdm import tqdm
 
 # %% calculations needed to make figure 2

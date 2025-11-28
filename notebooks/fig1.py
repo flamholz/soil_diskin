@@ -3,9 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+from soil_diskin.continuum_models import PowerLawDisKin
 from tqdm import tqdm
 
-from soil_diskin.models import PowerLawDisKin
 
 import viz
 
