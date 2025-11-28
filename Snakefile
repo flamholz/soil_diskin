@@ -21,9 +21,7 @@ rule all:
         "figures/figS3.png",
         "figures/figS4.png",
         "figures/figS5.png",
-        # # Sensitivity analysis outputs
-        # "results/sensitivity_powerlaw.csv",
-        # "results/sensitivity_lognormal.csv"
+        "figures/figS6.png",
 
 # Step 00: Download necessary data files using curl.
 # NOTE: wget was hard to install with UV for some reason. Using curl instead.
@@ -358,7 +356,8 @@ rule plot_fig3:
         'results/04_model_predictions/RCM.csv',
         'results/processed_balesdent_2018.csv',
     output:
-        "figures/fig3.png"
+        "figures/fig3.png",
+        "figures/figS3.png" # also make figS3 here
     script:
         "notebooks/fig3.py"
 
@@ -370,7 +369,7 @@ rule plot_figS1:
     script:
         "notebooks/figS1.py"
 
-rule plot_figS3:
+rule plot_figS4:
     input:
         'results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results.csv',
         'results/06_sensitivity_analysis/gamma_turnover_sensitivity_results.csv',
@@ -380,11 +379,11 @@ rule plot_figS3:
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_1.50.csv",
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_2.csv",
     output:
-        'figures/figS3.png',
+        'figures/figS4.png',
     script:
-        "notebooks/figS3.py"
+        "notebooks/figS4.py"
 
-rule plot_figS4:
+rule plot_figS5:
     input:
         "data/balesdent_2018/balesdent_2018_raw.xlsx",
         "results/processed_balesdent_2018.csv", 
@@ -394,17 +393,17 @@ rule plot_figS4:
         'results/06_sensitivity_analysis/lognormal_tau_data.csv',
         'results/06_sensitivity_analysis/lognormal_age_data.csv',
     output:
-        "figures/figS4.png"
-    script:
-        "notebooks/figS4.py"
-
-rule plot_figS5:
-    input:
-        'results/06_sensitivity_analysis/06c_model_predictions_veg_effects.csv',
-    output:
         "figures/figS5.png"
     script:
         "notebooks/figS5.py"
+
+rule plot_figS6:
+    input:
+        'results/06_sensitivity_analysis/06c_model_predictions_veg_effects.csv',
+    output:
+        "figures/figS6.png"
+    script:
+        "notebooks/figS6.py"
 
 
 # # Step 06: Sensitivity analysis
