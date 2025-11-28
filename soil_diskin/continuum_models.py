@@ -226,10 +226,12 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
     def __init__(self, t_min, t_max, beta = np.exp(-GAMMA), interp_r_14c=None, I=None):
         """
         Args:
-        tau_0: float
+        t_min: float
             The short time scale
-        tau_inf: float
+        t_max: float
             The long time scale
+        beta: float
+            The exponent of the power law decay with age. Must be in the range (0, 1].
         interp_r_14c: callable
             An interpolator for the estimated historical radiocarbon concentration.
             Takes a single argument, the number of years before a reference time (e.g. 2000).
@@ -256,7 +258,7 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         self.T = prod * np.exp(tratio) * en_term
 
         # mean age at steady-state
-        A_num = prod * (-np.exp(-tratio) + (beta + tratio -1) * self.En(beta-1, tratio))
+        A_num = prod * (-np.exp(-tratio) + (beta + tratio - 1) * self.En(beta-1, tratio))
         A_denom = (beta - 1) * en_term
         self.A = A_num / A_denom
 
@@ -265,7 +267,10 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         self.tratio = tratio
 
     def params_valid(self):
-        """Returns True if the parameters are valid, False otherwise."""
+        """Returns True if the parameters are valid, False otherwise.
+        
+        TODO: is t_min == 0 valid? tmax == tmin?
+        """
         t_min_valid = self.t_min > 0
         t_max_valid = self.t_max > 0
         t_hierarchy_valid = self.t_max > self.t_min
@@ -276,6 +281,9 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         """The survival function at age t.
         
         The survival function gives the fraction of input remaining at age t.
+
+        The expression for s(t) is
+            s(t) = ( (t_min * β)^β * exp(- t / t_max) ) / ( (t_min * β + t)^β )
 
         Args:
             t: float
@@ -355,7 +363,10 @@ class PowerLawDisKin(AbstractDiskinModel):
         self.A = (t_max * np.exp(-tratio)/e1_term) - t_min
 
     def params_valid(self):
-        """Returns True if the parameters are valid, False otherwise."""
+        """Returns True if the parameters are valid, False otherwise.
+        
+        TODO: is t_min == 0 valid? tmax == tmin?
+        """
         t_min_valid = self.t_min > 0
         t_max_valid = self.t_max > 0
         t_hierarchy_valid = self.t_max > self.t_min
