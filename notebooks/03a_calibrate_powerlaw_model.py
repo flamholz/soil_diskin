@@ -26,10 +26,10 @@ def objective_function(params, merged_site_data):
     """
     
     # Unpack the parameters
-    a, b = params
+    t_min, t_max = params
 
     # Create an instance of the PowerLawDisKin model with the given parameters
-    model = PowerLawDisKin(a, b)
+    model = PowerLawDisKin(t_min, t_max)
     
     # Calculate the predicted 14C ratio and turnover
     predicted_14C_ratio = quad(model.radiocarbon_age_integrand,
@@ -68,12 +68,12 @@ for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
 result_df = pd.DataFrame(result,columns=['params','objective_value'],index=merged_site_data.index)
 
 # Unpack the parameters into separate columns
-result_df[['tau_0','tau_inf']] = result_df['params'].apply(lambda x: pd.Series(x,index = ['tau_0','tau_inf']))
+result_df[['t_min','t_max']] = result_df['params'].apply(lambda x: pd.Series(x,index = ['t_min','t_max']))
 result_df.drop(columns ='params',inplace=True)
 
-result_df['modeled_tau'] = result_df.apply(lambda x: PowerLawDisKin(x['tau_0'], x['tau_inf']).T, axis=1)
-result_df['modeled_14C'] = result_df.apply(lambda x: quad(PowerLawDisKin(x['tau_0'], x['tau_inf']).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
-result_df['params_valid'] = result_df.apply(lambda x: PowerLawDisKin(x['tau_0'], x['tau_inf']).params_valid(), axis=1)
+result_df['modeled_tau'] = result_df.apply(lambda x: PowerLawDisKin(x['t_min'], x['t_max']).T, axis=1)
+result_df['modeled_14C'] = result_df.apply(lambda x: quad(PowerLawDisKin(x['t_min'], x['t_max']).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
+result_df['params_valid'] = result_df.apply(lambda x: PowerLawDisKin(x['t_min'], x['t_max']).params_valid(), axis=1)
 
 merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
 

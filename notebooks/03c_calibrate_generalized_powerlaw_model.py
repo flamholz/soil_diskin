@@ -128,7 +128,8 @@ for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
     # Minimize the objective function for each site
     my_args = (beta, row)
     res = minimize(objective_function, initial_guess,
-                   args=my_args, method='Nelder-Mead')
+                   args=my_args, method='L-BFGS-B',
+                   bounds=[(1e-10, None), (1e-10, None)])
     
     # Append the optimized parameters to the result list
     results.append([res.x, res.fun])
@@ -148,7 +149,8 @@ for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
     # Minimize the objective function for each site
     my_args = (beta, row)
     res = minimize(objective_function, initial_guess,
-                   args=my_args, method='Nelder-Mead')
+                   args=my_args, method='L-BFGS-B',
+                   bounds=[(1e-10, None), (1e-10, None)])
     
     # Append the optimized parameters to the result list
     results_2.append([res.x,res.fun])

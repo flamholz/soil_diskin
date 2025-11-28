@@ -22,6 +22,8 @@ print("Generating gamma model predictions...")
 predictions = []
 for i, row in gamma_params.iterrows():
     model = GammaDisKin(a=row['a'], b=row['b'])
+    if not model.params_valid():
+        print(f"Invalid parameters for site {i}: a={row['a']}, b={row['b']}")
     predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
 predictions = np.array(predictions)
 # Save the model predictions
@@ -36,7 +38,9 @@ power_law_params = pd.read_csv(f'results/03_calibrate_models/{fname}')
 print("Generating power-law model predictions...")
 predictions = []
 for i, row in power_law_params.iterrows():
-    model = PowerLawDisKin(t_min=row['tau_0'], t_max=row['tau_inf'])
+    model = PowerLawDisKin(t_min=row['t_min'], t_max=row['t_max'])
+    if not model.params_valid():
+        print(f"Invalid parameters for site {i}: t_min={row['tau_0']}, t_max={row['tau_inf']}")
     predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
 predictions = np.array(predictions)
 # Save the model predictions
@@ -52,6 +56,9 @@ print("Generating generalized power-law model predictions...")
 predictions = []
 for i, row in general_power_law_params.iterrows():
     model = GeneralPowerLawDisKin(t_min=row['t_min'], t_max=row['t_max'], beta=row['beta'])
+    if not model.params_valid():
+        print(f"Invalid parameters for site {i}: t_min={row['t_min']}, t_max={row['t_max']}, beta={row['beta']}")
+    
     predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
 predictions = np.array(predictions)
 # Save the model predictions
@@ -67,6 +74,9 @@ print("Generating generalized power-law model predictions...")
 predictions = []
 for i, row in general_power_law_params.iterrows():
     model = GeneralPowerLawDisKin(t_min=row['t_min'], t_max=row['t_max'], beta=row['beta'])
+    if not model.params_valid():
+        print(f"Invalid parameters for site {i}: t_min={row['t_min']}, t_max={row['t_max']}, beta={row['beta']}")
+    
     predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
 predictions = np.array(predictions)
 
