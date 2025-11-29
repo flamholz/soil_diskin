@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
-from models import * 
+from soil_diskin.compartmental_models import JSBACH 
 from collections import namedtuple
-from constants import *
+from soil_diskin.constants import DAYS_PER_YEAR
 import subprocess
 
 # from https://pure.mpg.de/rest/items/item_3279802_26/component/file_3316522/content#page=107.51 and 
@@ -24,7 +24,7 @@ JSBACH_config.r = r
 
 # run the bash command inside the script 
 # subprocess.run(['cd', '../../jsbach'])
-subprocess.run(['cd' , '../../jsbach', ' &&' ,' echo' ,' "n"' ,'|' ,' ./run_yasso_test_YMB.sh'])
+# subprocess.run(['cd' , '../../jsbach', ' &&' ,' echo' ,' "n"' ,'|' ,' ./run_yasso_test_YMB.sh'])
 
 # distribute NPP
 fract_npp_2_woodPool = 0.3 # fraction of NPP that goes to wood pool
@@ -45,8 +45,10 @@ JSBACH_model = JSBACH(config=JSBACH_config,
                  env_params=JSBACH_env_params)
 
 JSBACH_output = JSBACH_model._dX(t = 0, X = np.ones(18))[:9]
-fortran_output = pd.read_csv('../../jsbach/yasso_output.csv')
-
+# fortran_output = pd.read_csv('../../jsbach/yasso_output.csv')
+fortran_output = pd.read_csv('tests/test_data/jsbach/yasso_output.csv')
+print(fortran_output['Value'].values[:9])
+print(JSBACH_output[:9] * (1/DAYS_PER_YEAR) + np.ones(9))
 assert np.allclose(fortran_output['Value'].values[:9],JSBACH_output[:9] * (1/DAYS_PER_YEAR) + np.ones(9), rtol=1e-3, atol=1e-3), "JSBACH model output does not match Fortran implementation output"
 print("JSBACH model output matches Fortran implementation output")
 

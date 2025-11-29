@@ -69,6 +69,9 @@ class GlobalData:
         inputs = xr.concat([CWD_input, LITR1_input, LITR2_input, LITR3_input, zero_da, zero_da, zero_da], dim='pools')
         self.inputs = inputs.stack(pooldepth=['pools','LEVDCMP1_10'])
 
+        # remove negative inputs
+        self.inputs = xr.where(self.inputs>=1e-36,self.inputs,0)
+
     def make_ldd(self, lat, lon):
         test_point = self.w_scalar_da.sel(y=lat, x=lon, method='nearest')
         if test_point.notnull().all() == False:
@@ -164,6 +167,7 @@ class CLM5(CompartmentalModel):
 
         self.X_size = self.I.shape[1]
     
+    @classmethod
     def make_V_matrix(self, Gamma_soil, F_soil, npools, nlevels,
                     dz, dz_node, zsoi, zisoi):
         """
@@ -251,6 +255,8 @@ class CLM5(CompartmentalModel):
         tri_matrix = (tri_matrix.T/np.tile(dz[:nlevels],npools)).T
         return tri_matrix
 
+
+    @classmethod
     def make_A_matrix(self, sand_content, nlevels):
         """
         Create a A matrix for soil carbon pools for the CENTURY model with 7 pools. 
@@ -314,6 +320,7 @@ class CLM5(CompartmentalModel):
 
         return A_matrix
 
+    @classmethod
     def make_K_matrix(self, taus, zsoi,
                     w_scalar, t_scalar, o_scalar, n_scalar,
                     decomp_depth_efolding, nlevels):
@@ -349,7 +356,7 @@ class CLM5(CompartmentalModel):
         k_modifier = (t_scalar * w_scalar * o_scalar * depth_scalar)
         return block_diag(*[np.diag(k * k_modifier * n_scalar if i in [1,2,3] else k * k_modifier) for i,k in enumerate(ks)]) # only for the litter pools (pools 2,3,4) do we multiply by n_scalar
 
-    def _dX(self, t, X):
+    def _dX(self, t, X, tres = 'Y'):
         """ODE to be integrated to calculate C pools via CLM style CENTURY type model. 
 
         K_t is time dependent, needs to be calculated at each step.
@@ -360,12 +367,18 @@ class CLM5(CompartmentalModel):
         Args:
             X: state matrix of C pools
             t: time
+            tres: time resolution ('M' for monthly, 'Y' for yearly)
 
         Returns:
             dX: change in state matrix of C pools
         """
-        
-        t_ind = int((t % (1 / 12)) * 12 * 12) # t is in units of years, and the dt for the I, T and P is in months, so we multiply by 12 to get the index
+
+        assert tres in ['M','Y'], "tres must be 'M' or 'Y'"
+        # print('t:', t)
+        if tres == 'Y':
+            t_ind = int((t % (1 / 12)) * 12 * 12) # t is in units of years, and the dt for the I, T and P is in months, so we multiply by 12 to get the index
+        else:
+            t_ind = int(t % 12) # t is in units of months
         I_t = self.I[t_ind,:].values
         
         taus = self.config.taus
@@ -383,22 +396,28 @@ class CLM5(CompartmentalModel):
 
         
         # dX = I_t + (self.A @ K_t - self.V) @ X#.values
-        dX = I_t + (self.A @ self.K_ts[t_ind, :, :] - self.V) @ X#.values
+        dX = X.copy()
+        dX.data = I_t + (self.A @ self.K_ts[t_ind, :, :] - self.V) @ X.values
+
         return dX
     
-    def run(self, timesteps, dt):
+    def run(self, timesteps, dt, tres = 'Y'):
         """
         Run the model for a series of timesteps.
 
         Args:
             timesteps: list of timesteps to run the model for
             dt: timestep size
+            tres: time resolution ('M' for monthly, 'Y' for yearly)
         """
+        assert tres in ['M','Y'], "tres must be 'M' or 'Y'"
+
         Xs = [self.env.X0]
         for i,ts in enumerate(timesteps):
             # print("Running timestep ", i,ts)
             # print(self._CLM_vertical(Xs[-1], ts))
-            Xs.append(Xs[-1] + self._dX(Xs[-1], ts) * dt)
+            # print("ts:", ts)
+            Xs.append(Xs[-1] + self._dX(ts, Xs[-1], tres) * dt)
         
         return xr.concat(Xs, dim = 'TIME')
 
