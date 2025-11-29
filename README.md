@@ -21,6 +21,16 @@ pip install -e .
 * install julia -- describe version - version 1.11.6
 ** install julia deps in Project.toml
 
+* install the fortran compiler for testing JSBACH code
+
+on linux:
+
+`sudo apt install gfortran`
+
+on mac - install [homebrew](https://brew.sh/) and then:
+
+`brew install gcc`
+
 * run snakemake to run the entire pipeline
 
 `uv run snakemake --cores 3`
