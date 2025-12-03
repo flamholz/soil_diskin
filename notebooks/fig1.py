@@ -215,6 +215,7 @@ def plot_ss_age_distribution_inset(ax, my_sim, my_t, ts, g_ts):
 
 # %%
 # Plot figure 1
+print("Plotting figure 1...")
 mosaic = 'ABC\nDEF'
 fig, axs = plt.subplot_mosaic(mosaic, layout='constrained',
                               figsize=(4.76, 3), dpi=300)
@@ -247,69 +248,71 @@ ax.text(5, 4, 'passive', ha='center', va='center', fontsize=6)
 ax.text(0.1, 7, 'input\ncarbon', ha='center', va='center', fontsize=6)
 
 # 4. Add all the arrows
-# Dotted arrows for input carbon with solid arrowheads
-# First arrow: draw dotted line, then solid arrowhead
-#ax.plot([2.15, 2.85], [7.3, 7.86], 'k:', linewidth=1)  # dotted line
-ax.annotate('', xy=(0.15, 2.85), xytext=(2.85, 7.85), 
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=1, mutation_scale=10))
+# Arrows from input carbon to fast and slow pools
+# Arrow to fast pool
+ax.annotate('', xy=(3.1, 8), xytext=(0.8, 7.25), 
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0.8, mutation_scale=5))
 
-# Second arrow: draw dotted line, then solid arrowhead
-#ax.plot([2.15, 2.85], [6.85, 6.15], 'k:', linewidth=1)  # dotted line
-ax.annotate('', xy=(0.15, 2.85), xytext=(2.85, 6.15), 
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=1, mutation_scale=10))
+# Arrow to slow pool
+ax.annotate('', xy=(3.1, 6), xytext=(0.8, 6.75), 
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0.8, mutation_scale=5))
 
-ax.plot([6.5, 6.5], [6.65, 7.3], 'k-', linewidth=1)  # dotted line
+# Respiration from fast pool
+ax.plot([6.5, 6.5], [6.5, 7.5], 'k-', linewidth=0.8)
 ax.annotate('', xy=(6.5, 7.5), xytext=(6.5, 6.5), 
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=10))
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=7))
 
-ax.plot([3.5, 3.5], [6.75, 7.4], 'k-', linewidth=1)  # dotted line
+# Transfer from fast to slow pool
+ax.plot([3.5, 3.5], [6.5, 7.5], 'k-', linewidth=0.8)
 ax.annotate('', xy=(3.5, 6.5), xytext=(3.5, 7.5), 
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=10))
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=7))
 
-ax.plot([5, 5], [5.35, 4.65], 'k-', linewidth=1)  # dotted line
+# Transfer from slow to passive pool
+ax.plot([5, 5], [4.5, 5.5], 'k-', linewidth=0.8)
 ax.annotate('', xy=(5, 4.5), xytext=(5, 5.5), 
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=10))
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=7))
 
 ax.text(5, 7, 'CO$_2$', ha='center', va='center', rotation=0, fontsize=6)
 ax.text(6.5, 5, 'CO$_2$', ha='center', va='center', rotation=0, fontsize=6)
 
+# Curved arrow from fast pool respiration to CO2 label
 ax.annotate('', xy=(5.55, 7), xytext=(6.5, 6.65),
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=.75, 
-                          connectionstyle='angle3,angleA=75,angleB=0', mutation_scale=5))
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0.6, 
+                          connectionstyle='angle3,angleA=75,angleB=0', mutation_scale=4))
 
-# Add curved arrow from middle of rectangular arrow to CO2 label
+# Curved arrow from fast->slow transfer to CO2 label
 ax.annotate('', xy=(4.55, 7), xytext=(3.5, 7.25),
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=1, 
-                          connectionstyle='angle3,angleA=75,angleB=0', mutation_scale=5))
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0.6, 
+                          connectionstyle='angle3,angleA=75,angleB=0', mutation_scale=4))
 
-
+# Respiration from slow pool
 ax.annotate('', xy=(7, 5), xytext=(8, 5.5),
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=.75, 
-                          connectionstyle='angle3,angleA=90,angleB=0', mutation_scale=5))
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0.6, 
+                          connectionstyle='angle3,angleA=90,angleB=0', mutation_scale=4))
 
-
+# Curved arrow from slow->passive transfer to CO2 label
 ax.annotate('', xy=(6, 5), xytext=(5, 5.25),
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=.75, 
-                          connectionstyle='angle3,angleA=90,angleB=0', mutation_scale=5))
-
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0.6, 
+                          connectionstyle='angle3,angleA=90,angleB=0', mutation_scale=4))
 
 
 # Rectangular CO2 arrow from passive to fast pool with filled arrowheads on both ends
 # Draw the rectangular path as a line
-ax.plot([7.3, 8, 8, 7.3], [4, 4, 8, 8], 'k-', linewidth=1)
+ax.plot([7.3, 8, 8, 7.3], [4, 4, 8, 8], 'k-', linewidth=0.8)
 
 # Add filled arrowheads at both ends
-ax.annotate('', xy=(7, 4), xytext=(7.15, 4), 
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=20))
-ax.annotate('', xy=(7, 8), xytext=(7.15, 8), 
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=20))
+ax.annotate('', xy=(7, 4), xytext=(7.2, 4), 
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=7))
+ax.annotate('', xy=(7, 8), xytext=(7.2, 8), 
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=7))
 
 # Add curved arrow from middle of rectangular arrow to CO2 label
 ax.annotate('', xy=(8.5, 6), xytext=(8, 6),
-            arrowprops=dict(arrowstyle='-|>', color='black', lw=.75, 
-                          connectionstyle='angle3,angleA=90,angleB=25', mutation_scale=10))
+            arrowprops=dict(arrowstyle='-|>', color='black', lw=0.6, 
+                          connectionstyle='angle3,angleA=90,angleB=25', mutation_scale=4))
 
 # Add the CO2 label for the rectangular arrow
+ax.text(8.5, 6, 'CO$_2$', ha='left', va='center', rotation=0, fontsize=6)
 ax.text(8.5, 6, 'CO$_2$', ha='left', va='center', rotation=0, fontsize=6)
 
 # Panel B -- inputs over time
@@ -356,8 +359,8 @@ plt.savefig('figures/fig1.png', dpi=600)
 # %%
 # Make a presentation version of the above figure
 # five panels in a row showing only B, C, D, E, F from above
+print("Plotting presentation version of figure 1...")
 mosaic = 'ABC\nDEF'
-print('Plotting presentation version of figure 1...')
 fig, axs = plt.subplot_mosaic(mosaic, layout='constrained',
                               figsize=(4.25, 2.75), dpi=300)
 
