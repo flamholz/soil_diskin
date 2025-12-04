@@ -344,6 +344,14 @@ rule plot_fig2:
     script:
         "notebooks/fig2.py"
 
+rule fig3_calcs:
+    input:
+    output:
+        "results/fig3_calcs.csv",
+    script:
+        "notebooks/fig3_calcs.py"
+
+
 rule plot_fig3:
     input:
         'results/04_model_predictions/power_law.csv',
@@ -355,6 +363,7 @@ rule plot_fig3:
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
         'results/processed_balesdent_2018.csv',
+        'results/fig3_calcs.csv',
     output:
         "figures/fig3.png",
         "figures/figS3.png" # also make figS3 here
