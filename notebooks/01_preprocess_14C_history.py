@@ -1,8 +1,5 @@
-import numpy as np
 import pandas as pd
 
-from matplotlib import pyplot as plt
-from scipy.interpolate import interp1d
 
 """
 Annotates and preprocesses historical atmospheric 14C levels
