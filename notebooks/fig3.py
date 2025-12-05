@@ -8,10 +8,7 @@ import viz
 from permetrics.regression import RegressionMetric
 from sklearn.metrics import root_mean_squared_error
 from matplotlib.colors import LogNorm
-# %%
-import os
-if os.getcwd().endswith('notebooks'):
-    os.chdir('..')
+
 #%% Load the site data
 all_sites = pd.read_csv('results/processed_balesdent_2018.csv')
 
@@ -184,7 +181,7 @@ for ax, predictions, title, color in zip(my_axs, ESM_models,
 # Reduced complexity model predictions
 my_axs = [axs[c] for c in 'HIJ']
 for i, col in enumerate(RCM_predictions.columns):
-    title = col
+    title = col + ' (RC)'
     sc = plot_model_predictions_cmap(my_axs[i], RCM_predictions[col], title,
                                      clabel='Duration_labeling', cmap=cmap, norm=norm)
 
@@ -199,17 +196,6 @@ for c in 'FGHIJ':
 for c in 'AF':
     axs[c].set_ylabel('predicted F$_{new}$')
 
-# add labels to each subplot
-for i, c in enumerate("ABCDEFGHIJ"):
-    if c == 'A' or c == 'F':
-        axs[c].text(
-            -0.25, 1.1, c, transform=axs[c].transAxes,
-            fontsize=7, va='top', ha='left')
-    else:
-        axs[c].text(
-            -0.15, 1.1, c, transform=axs[c].transAxes,
-            fontsize=7, va='top', ha='left')
-
 # Load the bootstrapping calculation to plot KGE distribution in panel K as a boxplot
 metric_dists = pd.read_csv('results/fig3_calcs.csv')
 kge_data = metric_dists[metric_dists['metric'] == 'KGE']
@@ -221,24 +207,47 @@ order = ['Lognormal', 'Gamma', 'Power-law',
 xlabels = ['lognormal', 'gamma', 'power law',
            'gen. power law\n($\\beta = e^{-\\gamma}$)',
            'gen. power law\n($\\beta = e^{-\\gamma}/2$)',
-           'CLM4.5',  'JSBACH', 'CESM1', 'IPSL-CM5A-LR', 'MRI-ESM1']
+           'CLM4.5',  'JSBACH', 'CESM1 (RC)', 'IPSL-CM5A-LR (RC)', 'MRI-ESM1 (RC)']
 axs['K'].set_xticklabels(xlabels, rotation=45, ha='right', fontsize=6)
-sns.boxplot(data=kge_data, x='model', y='value', ax=axs['K'],
-            order=order)
+sns.violinplot(
+    data=kge_data, x='model', y='value',
+    ax=axs['K'], order=order)
+
 # add mean and standard deviation to each boxplot
 means = kge_data.groupby('model')['value'].mean()
 stds = kge_data.groupby('model')['value'].std()
-axs['K'].set_ylim(-1.55, 1.25)
+axs['K'].set_ylim(-1.55, 1.3)
 for i, model in enumerate(order):
     mean = means[model]
     std = stds[model]
-    axs['K'].text(i, 0.93, f'{mean:.2f}±{std:.2f}',
+    axs['K'].text(i, 0.95, f'{mean:.2f}±{std:.2f}',
                   ha='center', va='bottom', fontsize=5)
 # set y label
 axs['K'].set_ylabel('KGE value')
+axs['K'].set_xlabel('')
+
+# add labels to each subplot
+for i, c in enumerate("ABCDEFGHIJ"):
+    if c == 'A' or c == 'F':
+        axs[c].text(
+            -0.25, 1.2, c, transform=axs[c].transAxes,
+            fontsize=7, va='top', ha='left')
+    else:
+        axs[c].text(
+            -0.25, 1.2, c, transform=axs[c].transAxes,
+            fontsize=7, va='top', ha='left')
+
+# make the tick labels smaller
+for c in 'ABCDEFGHIJ':
+    axs[c].tick_params(axis='both', which='major', labelsize=5)
+    axs[c].set_xticks(np.arange(0, 1.1, 0.5))
+    axs[c].set_yticks(np.arange(0, 1.1, 0.5))
 # add subpanel label
-axs['K'].text(-0.06, 1.1, 'K', transform=axs['K'].transAxes,
+axs['K'].text(-0.04, 1.1, 'K', transform=axs['K'].transAxes,
              fontsize=7, va='top', ha='left')
+
+axs['K'].tick_params(axis='y', which='major', labelsize=5)
+axs['K'].set_yticks(np.arange(-1, 1.1, 1.0))
 
 out_fname = f'figures/figS3.png'
 plt.savefig(out_fname, dpi=300, bbox_inches='tight')
