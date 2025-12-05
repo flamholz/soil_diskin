@@ -90,8 +90,8 @@ rule preprocess_balesdent:
         "data/balesdent_2018/balesdent_2018_raw.xlsx"
     output:
         "results/processed_balesdent_2018.csv"
-    script:
-        "notebooks/01_preprocess_balesdent_data.py"
+    shell:
+        "python notebooks/01_preprocess_balesdent_data.py -i {input} -o {output} --no-backfill"
 
 rule preprocess_14C_data:
     output:
