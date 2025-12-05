@@ -35,12 +35,14 @@ def parse_he_data(model='CESM', file_names=None) -> xr.DataArray:
     return ds
 
 
-def process_balesdent_data(raw_data: pd.DataFrame) -> pd.DataFrame:
+def process_balesdent_data(raw_data: pd.DataFrame, keep_missing_soc: bool = False) -> pd.DataFrame:
     """
     Processes the raw Balesdent et al. 2018 data.
 
     Args:
         raw_data (pd.DataFrame): The raw data loaded from the Excel file.
+        keep_missing_soc (bool): If True, keep sites with missing SOC data for backfilling.
+                                If False (default), remove sites with missing SOC data.
 
     Returns:
         pd.DataFrame: The processed data.
@@ -88,16 +90,17 @@ def process_balesdent_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     layer_f_data = f_data.T.rolling(2).mean().T.values[:, 1:]
     all_sites.loc[:, 'total_fnew'] = np.nansum(layer_f_data * site_C_weights, axis=1)
 
-    # There are 11 sites with entirely missing C density data. 
-    # We could potentiall fill in from SoilGrids or other global datasets.
-    # For now we omit them. 
-    all_Ctotal_cols = cols_of_interest + ['Ctotal_0-100estim']
-    all_sites = all_sites[~(all_sites[all_Ctotal_cols].isna().all(axis=1))]
+    # Filter sites based on whether we want to keep those with missing SOC data
+    if not keep_missing_soc:
+        # There are 11 sites with entirely missing C density data. 
+        # By default, we omit them (can be backfilled from SoilGrids if keep_missing_soc=True)
+        all_Ctotal_cols = cols_of_interest + ['Ctotal_0-100estim']
+        all_sites = all_sites[~(all_sites[all_Ctotal_cols].isna().all(axis=1))]
 
-    # Note: in the real data, Ctotal_0-100estim is present when there 
-    # is some site level C density data, and absent when there is none.
-    # So this check will do nothing in practice, but is here for completeness.
-    all_sites = all_sites[~all_sites['Ctotal_0-100estim'].isna()]
+        # Note: in the real data, Ctotal_0-100estim is present when there 
+        # is some site level C density data, and absent when there is none.
+        # So this check will do nothing in practice, but is here for completeness.
+        all_sites = all_sites[~all_sites['Ctotal_0-100estim'].isna()]
 
     # Calculate data for unique sites 
     group_cols = ['Latitude','Longitude','Duration_labeling']
