@@ -11,13 +11,20 @@ TODO: add unit tests with a mocked Earth Engine interface.
 import ee
 import numpy as np
 import pandas as pd
+import yaml
+import os
 
+import yaml
 
+# Load configuration
+with open('config.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+    
 def initialize_earth_engine():
     """Initialize Earth Engine. Call this before using any EE functions."""
     try:
         ee.Authenticate()  # Authenticate Earth Engine
-        ee.Initialize(project='diskin')
+        ee.Initialize(project=config['earth_engine']['project'])
     except Exception as e:
         print("Earth Engine initialization failed. Attempting authentication...")
         ee.Authenticate()
@@ -109,8 +116,8 @@ def calculate_total_soc_0_100(soc_dict):
         # This could be improved by also fetching bulk density from SoilGrids
         bulk_density = 1.3  # g/cm³
         
-        # SOC (kg/m²) = SOC (g/kg) × bulk_density (g/cm³) × thickness (cm) / 1000
-        layer_soc = (soc_gkg / 1000.0) * bulk_density * thickness_cm
+        # SOC (kg/m²) = SOC (g/g) × bulk_density (g/cm³) × thickness (cm) * 1e4 (to convert m² to cm²) / 1e3 (to convert g to kg)
+        layer_soc = (soc_gkg / 1000.0) * bulk_density * thickness_cm * 1e4 / 1e3
         total_soc += layer_soc
     
     return total_soc
@@ -152,7 +159,7 @@ def get_soc_with_bulk_density(lat, lon, scale=250):
     
     total_soc = 0.0
     soc_conversion = 10.0  # from dg/kg to g/kg
-    bdod_conversion = 100.0  # from cg/cm3 to kg/dm
+    bdod_conversion = 100.0  # from cg/cm3 to g/cm3
     
     try:
         for soc_band, bdod_band, thickness in zip(soc_bands, bdod_bands, thicknesses):
@@ -170,8 +177,8 @@ def get_soc_with_bulk_density(lat, lon, scale=250):
             bulk_density_kgdm = bdod_value / bdod_conversion
             
             # Calculate SOC for this layer in kg/m²
-            # SOC (kg/m²) = SOC (g/kg) × bulk_density (kg/dm³) × thickness (cm) / 1000
-            layer_soc = (soc_gkg / 1000.0) * bulk_density_kgdm * thickness
+            # SOC (kg/m²) = SOC (g/g) × bulk_density (g/cm³) × thickness (cm) * 1e4 (to convert m² to cm²) / 1e3 (to convert g to kg)
+            layer_soc = (soc_gkg / 1000.0) * bulk_density_kgdm * thickness * 1e4 / 1e3
             total_soc += layer_soc
             
     except Exception as e:
@@ -263,4 +270,7 @@ def backfill_missing_soc(df, lat_col='Latitude', lon_col='Longitude',
     print(f"  {n_failed} locations failed")
     print(f"  Fill rate: {stats['fill_rate']:.1%}")
     
+    # remove point with missing data - YMB
+    df = df[~df[soc_col].isna()]
+
     return df, stats
