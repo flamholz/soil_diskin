@@ -9,10 +9,7 @@ TODO: add unit tests with a mocked Earth Engine interface.
 """
 
 import ee
-import numpy as np
-import pandas as pd
 import yaml
-import os
 
 import yaml
 
@@ -114,7 +111,7 @@ def calculate_total_soc_0_100(soc_dict):
         # Convert g/kg to kg/m²
         # Assuming typical bulk density of 1.3 g/cm³ = 1300 kg/m³
         # This could be improved by also fetching bulk density from SoilGrids
-        bulk_density = 1.3  # g/cm³
+        bulk_density = 1.3  # g/cm³ = kg/dm³
         
         # SOC (kg/m²) = SOC (g/g) × bulk_density (g/cm³) × thickness (cm) * 1e4 (to convert m² to cm²) / 1e3 (to convert g to kg)
         layer_soc = (soc_gkg / 1000.0) * bulk_density * thickness_cm * 1e4 / 1e3
@@ -171,6 +168,7 @@ def get_soc_with_bulk_density(lat, lon, scale=250):
             soc_gkg = soc_value / soc_conversion
             
             # Get bulk density in kg/dm³ (divide by 100)
+            # Note: kg/dm³ = g/cm³
             bdod_value = bdod_sample.get(bdod_band).getInfo()
             if bdod_value is None:
                 return None
