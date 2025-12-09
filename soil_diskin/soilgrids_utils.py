@@ -268,7 +268,7 @@ def backfill_missing_soc(df, lat_col='Latitude', lon_col='Longitude',
     print(f"  {n_failed} locations failed")
     print(f"  Fill rate: {stats['fill_rate']:.1%}")
     
-    # remove point with missing data - YMB
+    # Remove points with missing data
     df = df[~df[soc_col].isna()]
 
     return df, stats
