@@ -6,9 +6,8 @@ actual Google Earth Engine authentication or internet connectivity.
 """
 
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import pandas as pd
-import numpy as np
 
 from soil_diskin.soilgrids_utils import (
     initialize_earth_engine,
@@ -348,7 +347,7 @@ class TestBackfillMissingSoc(unittest.TestCase):
         # Second row should be removed since we failed to fill it
         # and then filtered out missing data
         self.assertEqual(len(result_df), 1)
-        
+
         # Check that the first value was filled
         self.assertEqual(result_df.loc[0, 'Ctotal_0-100estim'], 3.5)
 
