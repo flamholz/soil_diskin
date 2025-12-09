@@ -9,7 +9,10 @@ TODO: add unit tests with a mocked Earth Engine interface.
 """
 
 import ee
+import numpy as np
+import pandas as pd
 import yaml
+import os
 
 import yaml
 
@@ -63,6 +66,16 @@ def get_soc_at_point(lat, lon, scale=250):
                   'soc_30-60cm_mean', 'soc_60-100cm_mean', 'soc_100-200cm_mean']
     depth_names = ['0-5cm', '5-15cm', '15-30cm', '30-60cm', '60-100cm', '100-200cm']
     
+    # if you don't get a sample, try again with a larger scale
+    try:
+        soc_values.get(band_names[0]).getInfo()
+    except:
+        sample = soc_image.sample(
+        region=point,
+        scale=300,
+        geometries=True
+        ).first()
+
     soc_values = {}
     for band, depth in zip(band_names, depth_names):
         try:
@@ -158,6 +171,14 @@ def get_soc_with_bulk_density(lat, lon, scale=250):
     soc_conversion = 10.0  # from dg/kg to g/kg
     bdod_conversion = 100.0  # from cg/cm3 to g/cm3
     
+    # if you don't get a sample, try again with a larger scale
+    try:
+        soc_sample.get(soc_bands[0]).getInfo()
+    except:
+        new_scale = scale + 50  # increase scale
+        soc_sample = soc_image.sample(region=point, scale=new_scale).first()
+        bdod_sample = bdod_image.sample(region=point, scale=new_scale).first()
+
     try:
         for soc_band, bdod_band, thickness in zip(soc_bands, bdod_bands, thicknesses):
             # Get SOC in g/kg (divide by 10)
@@ -268,7 +289,7 @@ def backfill_missing_soc(df, lat_col='Latitude', lon_col='Longitude',
     print(f"  {n_failed} locations failed")
     print(f"  Fill rate: {stats['fill_rate']:.1%}")
     
-    # Remove points with missing data
+    # remove point with missing data - YMB
     df = df[~df[soc_col].isna()]
 
     return df, stats
