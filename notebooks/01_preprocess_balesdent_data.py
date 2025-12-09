@@ -1,4 +1,3 @@
-import os
 import argparse
 import pandas as pd
 from soil_diskin.data_wrangling import process_balesdent_data

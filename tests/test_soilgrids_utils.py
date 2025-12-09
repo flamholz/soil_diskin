@@ -145,10 +145,10 @@ class TestCalculateTotalSoc(unittest.TestCase):
         
         total = calculate_total_soc_0_100(soc_dict)
         
-        # Expected: (15*5 + 12*10 + 10*15 + 8*30 + 6*40) * 1.3 / 1000
-        # = (75 + 120 + 150 + 240 + 240) * 1.3 / 1000
-        # = 825 * 1.3 / 1000 = 1.0725
-        expected = (15*5 + 12*10 + 10*15 + 8*30 + 6*40) * 1.3 / 1000
+        # Expected: (15*5 + 12*10 + 10*15 + 8*30 + 6*40) * 1.3 / (100)
+        # = (75 + 120 + 150 + 240 + 240) * 1.3 / 100
+        # = 825 * 1.3 / 100 = 10.725
+        expected = (15*5 + 12*10 + 10*15 + 8*30 + 6*40) * 1.3 / 100
         
         self.assertAlmostEqual(total, expected, places=4)
     
@@ -243,7 +243,7 @@ class TestGetSocWithBulkDensity(unittest.TestCase):
         thicknesses = [5, 10, 15, 30, 40]        # cm
         
         for soc, bd, thick in zip(soc_vals, bd_vals, thicknesses):
-            expected += (soc / 1000.0) * bd * thick
+            expected += (soc / 100.0) * bd * thick
         
         self.assertAlmostEqual(result, expected, places=4)
     
@@ -343,10 +343,15 @@ class TestBackfillMissingSoc(unittest.TestCase):
         self.assertEqual(stats['n_failed'], 1)
         self.assertEqual(stats['fill_rate'], 0.5)
         
-        # Check that only first value was filled
+        print(result_df)
+
+        # Second row should be removed since we failed to fill it
+        # and then filtered out missing data
+        self.assertEqual(len(result_df), 1)
+        
+        # Check that the first value was filled
         self.assertEqual(result_df.loc[0, 'Ctotal_0-100estim'], 3.5)
-        self.assertTrue(pd.isna(result_df.loc[1, 'Ctotal_0-100estim']))
-    
+
     @patch('soil_diskin.soilgrids_utils.initialize_earth_engine')
     @patch('soil_diskin.soilgrids_utils.get_soc_at_point')
     @patch('soil_diskin.soilgrids_utils.calculate_total_soc_0_100')

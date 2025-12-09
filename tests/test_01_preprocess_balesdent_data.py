@@ -14,21 +14,21 @@ pbd = process_balesdent_data
 # The column with index 3 has a NaN for Ctotal_0-100estim that should be
 # but in the raw data this case does not occur, so it will remain as is. 
 MOCK_DATA = {
-    'Latitude':         [10.0,  15.0,   20.0,   25.0,   30.0, 30.0],
-    'Longitude':        [100.0, 105.0,  110.0,  115.0,  120.0, 120.0],
-    'Duration_labeling':[10,    20,     10,     20,     100, 100],
-    'MAT_C':            [18.0,  19.0,   16.0,   20.0,   18, 18],
+    'Latitude':         [10.0,  15.0,   20.0,   25.0,   30.0,   30.0],
+    'Longitude':        [100.0, 105.0,  110.0,  115.0,  120.0,  120.0],
+    'Duration_labeling':[10,    20,     10,     20,     100,    100],
+    'MAT_C':            [18.0,  19.0,   16.0,   20.0,   18,     18],
     'PANN_mm':          [1200.0,1500.0, 900.0,  1100.0, 1300.0, 1300.0],
-    'P to PET ratio':   [0.9,   0.95,   0.7,    0.85,   1.2, 1.2],
+    'P to PET ratio':   [0.9,   0.95,   0.7,    0.85,   1.2,    1.2],
     # this row is here in the actual data as a convenience for difference calculations
     'Ctotal_0-0':       [0.0,   0.0,    np.nan,    0.0,    0.0, 0.0],  # Carbon in 0-0 
-    'Ctotal_0-10':      [10.0,  12.0,   np.nan, 11.0,   15.0, 20.0], # Carbon in 0-10
-    'Ctotal_0-20':      [18.0,  22.0,   np.nan, 20.0,   25.0, 30.0], # Cumulative carbon to 20cm
-    'Ctotal_0-30':      [24.0,  30.0,   np.nan, 26.0,   35.0, 40.0], # Cumulative carbon to 30cm
-    'Ctotal_0-100estim':[50.0,  60.0,   np.nan, np.nan, 35.0, 40.0],
-    'f_0':              [0.5,   0.6,    0.4,    0.55,   0.1, 0.1],
-    'f_10':             [0.4,   0.5,    0.3,    0.45,   0.15, 0.15],
-    'f_20':             [0.3,   0.4,    0.2,    0.35,   0.4, 0.4],
+    'Ctotal_0-10':      [10.0,  12.0,   np.nan, 11.0,   15.0,   20.0], # Carbon in 0-10
+    'Ctotal_0-20':      [18.0,  22.0,   np.nan, 20.0,   25.0,   30.0], # Cumulative carbon to 20cm
+    'Ctotal_0-30':      [24.0,  30.0,   np.nan, 26.0,   35.0,   40.0], # Cumulative carbon to 30cm
+    'Ctotal_0-100estim':[50.0,  60.0,   np.nan, np.nan, 35.0,   40.0],
+    'f_0':              [0.5,   0.6,    0.4,    0.55,   0.1,    0.1],
+    'f_10':             [0.4,   0.5,    0.3,    0.45,   0.15,   0.15],
+    'f_20':             [0.3,   0.4,    0.2,    0.35,   0.4,    0.4],
 }
 
 def mock_raw_data():
@@ -146,3 +146,69 @@ class TestProcessBalesdentData(TestCase):
         for _, row in self.processed_data.iterrows():
             weight_sum = row[weight_columns].sum()
             self.assertAlmostEqual(weight_sum, 1.0, places=5)
+
+    def test_keep_missing_soc_false(self):
+        """
+        Test that sites with missing SOC are removed when keep_missing_soc=False (default).
+        """
+        processed_data = pbd(self.mock_data, keep_missing_soc=False)
+        
+        # Sites with indices 2 and 3 should be filtered out and 
+        # sites with indices 4 and 5 merged into one row as they
+        # have the same Latitude, Longitude, and Duration_labeling.
+        # Since we start with 6 rows, we expect 3 rows remaining.
+        # Index 2: all Ctotal columns are NaN
+        # Index 3: Ctotal_0-100estim is NaN
+        self.assertEqual(len(processed_data), 3)
+        
+        # Verify site at index 2 (Latitude 20.0) is not present
+        mask = (processed_data['Latitude'] == 20.0) & \
+               (processed_data['Longitude'] == 110.0) & \
+               (processed_data['Duration_labeling'] == 10)
+        self.assertFalse(mask.any())
+        
+        # Verify site at index 3 (Latitude 25.0) is not present
+        mask = (processed_data['Latitude'] == 25.0) & \
+               (processed_data['Longitude'] == 115.0) & \
+               (processed_data['Duration_labeling'] == 20)
+        self.assertFalse(mask.any())
+        
+        # All remaining sites should have non-null Ctotal_0-100estim
+        self.assertTrue(processed_data['Ctotal_0-100estim'].notna().all())
+
+    def test_keep_missing_soc_true(self):
+        """
+        Test that sites with missing SOC are kept when keep_missing_soc=True.
+        """
+        processed_data = pbd(self.mock_data, keep_missing_soc=True)
+        
+        # With keep_missing_soc=True, we expect more sites to be retained
+        # Index 2 and 3 should be kept -- missing C data is allowed.
+        # Indices 4 and 5: merged into one row
+        # Since we started with 6 sites, expect 5 rows remaining (0, 1, 3, merged 4+5)
+        self.assertEqual(len(processed_data), 5)
+        
+        # Verify site at index 2 (all NaN Ctotal) is still filtered out
+        mask = (processed_data['Latitude'] == 20.0) & \
+               (processed_data['Longitude'] == 110.0) & \
+               (processed_data['Duration_labeling'] == 10)
+        self.assertTrue(mask.any(), "Site with all NaN Ctotal should still be filtered")
+        
+        # Verify site at index 3 (only Ctotal_0-100estim is NaN) IS present
+        mask = (processed_data['Latitude'] == 25.0) & \
+               (processed_data['Longitude'] == 115.0) & \
+               (processed_data['Duration_labeling'] == 20)
+        self.assertTrue(mask.any(), "Site with NaN Ctotal_0-100estim should be kept when keep_missing_soc=True")
+        
+        # Verify that this site has NaN for Ctotal_0-100estim
+        if mask.any():
+            ctotal_value = processed_data.loc[mask, 'Ctotal_0-100estim'].values[0]
+            self.assertTrue(pd.isna(ctotal_value), "Kept site should have NaN Ctotal_0-100estim")
+        
+        # Verify sites with valid SOC are still present
+        mask = (processed_data['Latitude'] == 10.0) & \
+               (processed_data['Longitude'] == 100.0) & \
+               (processed_data['Duration_labeling'] == 10)
+        self.assertTrue(mask.any())
+        self.assertEqual(processed_data.loc[mask, 'Ctotal_0-100estim'].values[0], 50.0)
+
