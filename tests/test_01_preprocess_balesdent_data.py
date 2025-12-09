@@ -2,9 +2,6 @@ import pandas as pd
 import numpy as np
 from unittest import TestCase
 
-import sys
-print('\n'.join(sys.path))
-
 from soil_diskin.data_wrangling import process_balesdent_data
 pbd = process_balesdent_data
 
@@ -53,10 +50,8 @@ class TestProcessBalesdentData(TestCase):
     def setUp(self):
         self.mock_data = mock_raw_data()
         self.processed_data = pbd(self.mock_data)
-        print(self.processed_data)
-        print(self.processed_data.columns)
-        weight_cols = [f'weight_{i*10}' for i in range(0, 10)]
-        print(self.processed_data[weight_cols])
+        # weight_cols = [f'weight_{i*10}' for i in range(0, 10)]
+        # print(self.processed_data[weight_cols])
         
     def test_columns(self):
         """
