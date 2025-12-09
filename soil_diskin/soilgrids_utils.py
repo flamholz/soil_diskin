@@ -4,8 +4,6 @@ Utilities for accessing SoilGrids data via Google Earth Engine.
 SoilGrids provides global soil property predictions at 250m resolution.
 This module provides functions to query soil organic carbon (SOC) data
 for specific locations.
-
-TODO: add unit tests with a mocked Earth Engine interface.
 """
 
 import ee
