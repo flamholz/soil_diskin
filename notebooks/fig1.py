@@ -6,7 +6,6 @@ import matplotlib.patches as patches
 from soil_diskin.continuum_models import PowerLawDisKin
 from tqdm import tqdm
 
-
 import viz
 
 """
@@ -96,7 +95,7 @@ def plot_independent_decays(ax, J_t, ages2plot, my_sim, title='inputs decay inde
         plt.plot(ages2plot + i, decay_i, color=color_order[i], lw=1,
                 zorder=-1)
 
-    plt.xlabel('time')
+    plt.xlabel('time $t$')
     plt.ylabel(r'$J(t-\tau)\cdot s(\tau)$')
     plt.text(15.5, 5, '...', fontsize=12, fontweight='bold',
              ha='center', va='center')
@@ -388,3 +387,29 @@ plt.xlabel(r'age $\tau$')
 plt.ylabel(r'CDF of $p_A(\tau)$')
 
 plt.savefig('figures/fig1_presentation.png', dpi=600)
+
+# %%
+# Make a presentation version of the above figure
+# five panels in a row showing only B, C, D, E, F from above
+print("Plotting presentation version of figure 1...")
+mosaic = 'ABCD'
+fig, axs = plt.subplot_mosaic(mosaic, layout='constrained',
+                              figsize=(7.25, 1.75), dpi=300)
+
+plot_inputs(axs['A'], J_t, title=None)
+
+plot_survival_fn(axs['B'], ages2plot, title=None)
+
+plot_independent_decays(axs['C'], J_t, ages2plot, my_sim, title=None)
+
+plot_total_stocks(axs['D'], my_t=my_t, g_ts=g_ts,
+                  annotate_age_dist=False,
+                  title=None)
+
+# set font sizes for all axes and labels
+for ax in axs.values():
+    ax.tick_params(axis='both', which='major', labelsize=6)
+    ax.xaxis.label.set_size(8)
+    ax.yaxis.label.set_size(8)
+
+plt.savefig('figures/fig1_presentation2.png', dpi=600)
