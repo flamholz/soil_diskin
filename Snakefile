@@ -49,14 +49,14 @@ rule download_he_2016:
 
 rule download_CLM45_conf:
     output:        
-        "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
         "data/CLM5_global_simulation/global_demo_in.nc",
-        "data/CLM5_global_simulation/clm5_params.c171117.nc",
         "data/CLM5_global_simulation/soildepth.mat"
+    params:
+        zipfile="data/CLM5_global_simulation/gcb_matrix_supp_data.zip"
     shell:
         """
         mkdir -p data/CLM5_global_simulation/
-        curl -L -o {output} https://hs.pangaea.de/model/Huang-etal_2017/gcb_matrix_supp_data.zip
+        curl -L -o {params.zipfile} https://hs.pangaea.de/model/Huang-etal_2017/gcb_matrix_supp_data.zip
         pushd data/CLM5_global_simulation/ 
         unzip -j gcb_matrix_supp_data.zip
         popd
@@ -206,8 +206,8 @@ rule continuum_model_predictions:
 rule CLM45_model_predictions:
     input:
         "data/CLM5_global_simulation/soildepth.mat",
-        "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
         "data/CLM5_global_simulation/global_demo_in.nc",
+        "data/CLM5_global_simulation/clm5_params.c171117.nc",
         "results/processed_balesdent_2018.csv",
         "results/all_sites_14C_turnover.csv",
     output:
@@ -424,50 +424,6 @@ rule plot_figS6:
         "notebooks/figS6.py"
 
 
-# # Step 06: Sensitivity analysis
-# rule sensitivity_analysis_old:
-#     input:
-#         "results/model_predictions.csv"
-#     output:
-#         "results/sensitivity_old_results.html"
-#     shell:
-#         """
-#         jupyter nbconvert --to html --execute notebooks/06_sensitivity_analysis_old.ipynb
-#         mv notebooks/06_sensitivity_analysis_old.html {output}
-#         """
-
-# rule sensitivity_analysis_powerlaw:
-#     input:
-#         "results/powerlaw_model_params.csv"
-#     output:
-#         "results/sensitivity_powerlaw.csv"
-#     shell:
-#         """
-#         jupyter nbconvert --to html --execute notebooks/06a_sensitivity_analysis_powerlaw.ipynb
-#         touch {output}
-#         """
-
-# rule sensitivity_analysis_lognormal:
-#     input:
-#         "results/lognormal_model_params.csv"
-#     output:
-#         "results/sensitivity_lognormal.csv"
-#     shell:
-#         """
-#         jupyter nbconvert --to html --execute notebooks/06b_sensitivity_analysis_lognormal.ipynb
-#         touch {output}
-#         """
-
-# rule sensitivity_analysis_lognormal_julia:
-#     input:
-#         "results/lognormal_model_params.csv"
-#     output:
-#         "results/sensitivity_lognormal_julia.csv"
-#     shell:
-#         """
-#         julia notebooks/06b_sensitivity_analysis_lognormal.jl
-#         """
-
 
 # Clean up rule
 rule clean:
@@ -477,7 +433,9 @@ rule clean:
         rm -rf figures/*
         rm -rf results/*.html
         rm -rf data/balesdent_2018/*
-        rm -rf data/CLM5_global_simulation/*
+        rm -rf data/CLM5_global_simulation/global_demo_in.nc
+        rm -rf data/CLM5_global_simulation/soildepth.mat
+        rm -rf data/he_2016/*
         rm -rf data/kang_2023/*
         rm -rf data/shi_2020/*
         """
