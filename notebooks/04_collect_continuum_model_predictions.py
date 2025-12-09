@@ -40,7 +40,7 @@ predictions = []
 for i, row in power_law_params.iterrows():
     model = PowerLawDisKin(t_min=row['t_min'], t_max=row['t_max'])
     if not model.params_valid():
-        print(f"Invalid parameters for site {i}: t_min={row['tau_0']}, t_max={row['tau_inf']}")
+        print(f"Invalid parameters for site {i}: t_min={row['t_min']}, t_max={row['t_max']}")
     predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
 predictions = np.array(predictions)
 # Save the model predictions
