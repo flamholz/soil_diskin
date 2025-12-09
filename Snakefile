@@ -49,10 +49,10 @@ rule download_he_2016:
 
 rule download_CLM45_conf:
     output:        
-        "data/CLM5_global_simulation/gcb_matrix_supp_data.zip"
+        "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
         "data/CLM5_global_simulation/global_demo_in.nc",
         "data/CLM5_global_simulation/clm5_params.c171117.nc",
-        ""
+        "data/CLM5_global_simulation/soildepth.mat"
     shell:
         """
         mkdir -p data/CLM5_global_simulation/
@@ -346,6 +346,15 @@ rule plot_fig2:
 
 rule fig3_calcs:
     input:
+        'results/04_model_predictions/power_law.csv',
+        'results/04_model_predictions/lognormal.csv',
+        'results/04_model_predictions/gamma.csv',
+        'results/04_model_predictions/general_power_law.csv',
+        'results/04_model_predictions/general_power_law_beta_half.csv',
+        'results/04_model_predictions/CLM45_fnew.csv',
+        'results/04_model_predictions/JSBACH_fnew.csv',
+        'results/04_model_predictions/RCM.csv',
+        'results/processed_balesdent_2018.csv',
     output:
         "results/fig3_calcs.csv",
     script:
