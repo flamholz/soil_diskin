@@ -7,8 +7,14 @@ import xarray as xr
 import rioxarray as rio
 import geemap
 import ee
+import yaml
+
+# Load configuration
+with open('config.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+
 ee.Authenticate()  # Authenticate Earth Engine
-ee.Initialize(project='diskin')
+ee.Initialize(project=config['earth_engine']['project'])
 
 from soil_diskin.utils import download_file
 

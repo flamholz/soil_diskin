@@ -91,7 +91,7 @@ rule preprocess_balesdent:
     output:
         "results/processed_balesdent_2018.csv"
     shell:
-        "python notebooks/01_preprocess_balesdent_data.py -i {input} -o {output} --no-backfill"
+        "python notebooks/01_preprocess_balesdent_data.py -i {input} -o {output} --backfill"
 
 rule preprocess_14C_data:
     output:
