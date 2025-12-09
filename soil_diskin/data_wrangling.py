@@ -46,6 +46,13 @@ def process_balesdent_data(raw_data: pd.DataFrame, keep_missing_soc: bool = Fals
 
     Returns:
         pd.DataFrame: The processed data.
+            columns include:
+                - Latitude
+                - Longitude
+                - Duration_labeling
+                - total_fnew: total fraction of new carbon in the top 1 meter of soil
+                - weight_0, weight_10, ..., weight_90: weights for each 10 cm soil layer
+                - Ctotal_0-100estim: estimated total SOC in the top 1 meter of soil
     """
     # The Balesdent 2018 dataset has columns with names like Ctotal_0-10,
     # Ctotal_0-20, C_total_0-30, etc. that give the total carbon content in 
