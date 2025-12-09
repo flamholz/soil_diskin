@@ -1,0 +1,3 @@
+# Soil Grids Configuration
+earth_engine:
+  project: ee-land-sink
