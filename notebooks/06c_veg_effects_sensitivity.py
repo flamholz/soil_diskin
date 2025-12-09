@@ -89,7 +89,7 @@ def make_predictions(ts, veg_p, par1, par2, label_time, model, pA=None):
 # %%
 # # Power-law model predictions
 for i, row in tqdm(powerlaw_params.iterrows()):
-    conv_fnew, model_cdf = make_predictions(ts, veg_p, row.loc['tau_0'], row.loc['tau_inf'], site_data.loc[i, 'Duration_labeling'], PowerLawDisKin)
+    conv_fnew, model_cdf = make_predictions(ts, veg_p, row.loc['t_min'], row.loc['t_max'], site_data.loc[i, 'Duration_labeling'], PowerLawDisKin)
     site_data.loc[i, 'pred_conv'] = conv_fnew
     site_data.loc[i, 'pred_no_conv'] = model_cdf
 
