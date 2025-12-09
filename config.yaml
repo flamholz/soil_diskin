@@ -1,0 +1,10 @@
+# Configuration file for the soil_diskin project
+
+# Google Earth Engine project name
+earth_engine:
+  project: ee-land-sink
+
+# STAC API configuration
+stac:
+  openlandmap_url: https://stac.openlandmap.org
+  soil_carbon_collection: organic.carbon.stock_msa.kgm2

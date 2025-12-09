@@ -91,7 +91,7 @@ rule preprocess_balesdent:
     output:
         "results/processed_balesdent_2018.csv"
     shell:
-        "python notebooks/01_preprocess_balesdent_data.py -i {input} -o {output} --no-backfill"
+        "python notebooks/01_preprocess_balesdent_data.py -i {input} -o {output} --backfill"
 
 rule preprocess_14C_data:
     output:
@@ -346,6 +346,8 @@ rule plot_fig2:
 
 rule fig3_calcs:
     input:
+        "results/04_model_predictions/general_power_law_beta_half.csv",
+        "results/04_model_predictions/JSBACH_fnew.csv",
     output:
         "results/fig3_calcs.csv",
     script:
