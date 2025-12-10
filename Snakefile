@@ -124,6 +124,8 @@ rule lognormal_age_scan_mathematica:
         "data/14C_atm_annot.csv"
     output:
         "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_05.csv",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_95.csv"
     shell:
         """
         wolframscript --file notebooks/03b_lognormal_age_scan.wls
@@ -133,6 +135,8 @@ rule calibrate_lognormal_python:
     input:
         "results/all_sites_14C_turnover.csv",
         "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_05.csv",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_95.csv",
         "data/14C_atm_annot.csv"
     output:
         "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",

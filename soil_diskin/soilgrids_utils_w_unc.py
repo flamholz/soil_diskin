@@ -18,7 +18,6 @@ import yaml
 import geopandas as gpd
 from rasterio.io import MemoryFile
 import rioxarray
-from owslib.wcs import WebCoverageService
 
 
 _DEFAULT_WCS_CONFIG: Dict[str, object] = {

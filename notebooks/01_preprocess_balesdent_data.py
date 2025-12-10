@@ -1,7 +1,7 @@
 import argparse
 import pandas as pd
 from soil_diskin.data_wrangling import process_balesdent_data
-from soil_diskin.soilgrids_utils import backfill_missing_soc
+from soil_diskin.soilgrids_utils_w_unc import backfill_missing_soc
 
 """
 All scripts to be run from project root directory.
@@ -95,7 +95,8 @@ if __name__ == "__main__":
             lon_col='Longitude', 
             soc_col='Ctotal_0-100estim',
             source_col='C_data_source',
-            use_bulk_density=True
+            use_bulk_density=True,
+            calc_uncertainty=True
         )
     else:
         print("\nSkipping backfill (use --backfill to enable)")

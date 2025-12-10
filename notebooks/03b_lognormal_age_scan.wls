@@ -1,3 +1,6 @@
+#!/usr/bin/env wolframscript
+(* ::Package:: *)
+
 (*============================================================*)
 (*1. SETUP:Data Loading and Function Definitions*)
 (* ===================================================================*)
@@ -52,3 +55,27 @@ ScanAges[tau_] :=
 
 results = ParallelMap[ScanAges[#] &, data[[All, 1]]]
 Export["results/03_calibrate_models/03b_lognormal_model_age_scan.csv", results, "CSV"]
+
+(* add analysis for uncertainty bounds*)
+rawData=Import[csvFilePath,"Data"];
+
+(*2. Extract header and body*)
+header=First[rawData];
+body=Rest[rawData];
+
+(*3. Find the index of the specific column*)
+colIndex=Position[header,"turnover_q05"][[1,1]];
+
+(*4. Filter the body*)
+(*Keep rows where the specific column is not an empty string ""*)
+cleanBody=Select[body,#[[colIndex]]=!=""&];
+
+lowresults = ParallelMap[ScanAges[#] &, cleanBody[[All, colIndex]]];
+Export["results/03_calibrate_models/03b_lognormal_model_age_scan_05.csv", lowresults, "CSV"]
+
+highresults = ParallelMap[ScanAges[#] &, cleanBody[[All, colIndex + 1]]];
+Export["results/03_calibrate_models/03b_lognormal_model_age_scan_95.csv", highresults, "CSV"]
+
+
+
+
