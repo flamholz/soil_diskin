@@ -396,8 +396,11 @@ class CLM5(CompartmentalModel):
 
         
         # dX = I_t + (self.A @ K_t - self.V) @ X#.values
-        dX = X.copy()
-        dX.data = I_t + (self.A @ self.K_ts[t_ind, :, :] - self.V) @ X.values
+        if not isinstance(X, np.ndarray):
+            dX = X.copy()
+            dX.data = I_t + (self.A @ self.K_ts[t_ind, :, :] - self.V) @ X.values
+        else:
+            dX = I_t + (self.A @ self.K_ts[t_ind, :, :] - self.V) @ X
 
         return dX
     
