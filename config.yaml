@@ -8,3 +8,23 @@ earth_engine:
 stac:
   openlandmap_url: https://stac.openlandmap.org
   soil_carbon_collection: organic.carbon.stock_msa.kgm2
+
+# SoilGrids WCS configuration
+wcs:
+  base_url: https://maps.isric.org/mapserv
+  soc_map: /map/soc.map
+  bdod_map: /map/bdod.map
+  buffer_m: 125
+  projection_crs: +proj=igh +lat_0=0 +lon_0=0 +datum=WGS84 +units=m +no_defs
+  geographic_crs: EPSG:4326
+  subset_axes: [X, Y]
+  soc_prefix: soc
+  bdod_prefix: bdod
+  depths: ["0-5cm", "5-15cm", "15-30cm", "30-60cm", "60-100cm", "100-200cm"]
+  stock_depths: ["0-5cm", "5-15cm", "15-30cm", "30-60cm", "60-100cm"]
+  stats:
+    mean: mean
+    q05: Q0.05
+    q95: Q0.95
+  soc_scale: 0.1   # convert dg/kg to g/kg
+  bdod_scale: 0.01 # convert cg/cm3 to g/cm3
