@@ -9,6 +9,11 @@ from permetrics.regression import RegressionMetric
 from sklearn.metrics import root_mean_squared_error
 from matplotlib.colors import LogNorm
 
+import os 
+
+if os.getcwd().endswith('notebooks'):
+    os.chdir('..')
+
 #%% Load the site data
 all_sites = pd.read_csv('results/processed_balesdent_2018.csv')
 
@@ -31,9 +36,13 @@ RCM_predictions = pd.read_csv(f'results/04_model_predictions/RCM.csv')
 def plot_model_predictions(ax, predictions, model_name, color):
     ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
             label='y=x', zorder=-10, lw=1)
-    ax.scatter(all_sites['total_fnew'],
-               predictions, label=model_name, color=color,
-               edgecolor='k', lw=0.5, s=20, alpha=0.9)
+    # use a different marker shape when the data come from 
+    # soilgrids as opposed to the balesdent dataset
+    sns.scatterplot(data=all_sites, x='total_fnew', ax=ax,
+                    y=predictions, color=color,
+                    edgecolor='k', lw=0.5, s=20, alpha=0.9,
+                    style='C_data_source',
+                    markers={'Balesdent et al. 2018': 'o', 'SoilGrids backfill': 'D'})
 
     # calculate metrics
     true_vals = all_sites['total_fnew'].values
@@ -54,17 +63,29 @@ def plot_model_predictions(ax, predictions, model_name, color):
     ax.set_title(model_name)
     ax.set_xticks(np.arange(0, 1.1, 0.5))
     ax.set_yticks(np.arange(0, 1.1, 0.5))
+    ax.legend().remove()
 
 
 # Alternate version with colormap and color normalization
 def plot_model_predictions_cmap(ax, predictions, model_name, clabel, cmap, norm):
     ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
             label='y=x', zorder=-10, lw=1)
-    sc = ax.scatter(all_sites['total_fnew'],
-               predictions, label=model_name,
-               c=all_sites[clabel], cmap=cmap, norm=norm,
-               edgecolor='k', lw=0.5, s=20, alpha=0.9)
-
+    
+    # Plot with different markers for different data sources
+    balesdent_mask = all_sites['C_data_source'] == 'Balesdent et al. 2018'
+    soilgrids_mask = all_sites['C_data_source'] == 'SoilGrids backfill'
+    
+    # Plot Balesdent points with circles
+    sc = ax.scatter(all_sites.loc[balesdent_mask, 'total_fnew'],
+                    predictions[balesdent_mask], label=model_name,
+                    c=all_sites.loc[balesdent_mask, clabel], cmap=cmap, norm=norm,
+                    edgecolor='k', lw=0.5, s=20, alpha=0.9, marker='o')
+    
+    # Plot SoilGrids points with diamonds
+    ax.scatter(all_sites.loc[soilgrids_mask, 'total_fnew'],
+               predictions[soilgrids_mask],
+               c=all_sites.loc[soilgrids_mask, clabel], cmap=cmap, norm=norm,
+               edgecolor='k', lw=0.5, s=20, alpha=0.9, marker='D')
     # calculate metrics
     true_vals = all_sites['total_fnew'].values
     predictions = predictions.values
