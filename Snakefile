@@ -167,7 +167,9 @@ rule lognormal_predictions_julia:
     input:
         "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
     output:
-        "results/04_model_predictions/04b_lognormal_cdfs.csv"
+        "results/04_model_predictions/04b_lognormal_cdfs.csv",
+        "results/04_model_predictions/04b_lognormal_cdfs_05.csv",
+        "results/04_model_predictions/04b_lognormal_cdfs_95.csv"
     shell:
         """
         julia --project=./ notebooks/04b_lognormal_predictions.jl
@@ -198,11 +200,11 @@ rule continuum_model_predictions:
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
         "results/03_calibrate_models/gamma_model_optimization_results.csv"
     output:
-        "results/04_model_predictions/gamma.csv",
-        "results/04_model_predictions/power_law.csv",
-        "results/04_model_predictions/lognormal.csv",
-        "results/04_model_predictions/general_power_law.csv",
-        "results/04_model_predictions/general_power_law_beta_half.csv",
+        "results/04_model_predictions/gamma_model_predictions.csv",
+        "results/04_model_predictions/power_law_model_predictions.csv",
+        "results/04_model_predictions/lognormal_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions_beta_half.csv",
     script:
         "notebooks/04_collect_continuum_model_predictions.py"
 
@@ -350,11 +352,11 @@ rule plot_fig2:
 
 rule fig3_calcs:
     input:
-        'results/04_model_predictions/power_law.csv',
-        'results/04_model_predictions/lognormal.csv',
-        'results/04_model_predictions/gamma.csv',
-        'results/04_model_predictions/general_power_law.csv',
-        'results/04_model_predictions/general_power_law_beta_half.csv',
+        "results/04_model_predictions/gamma_model_predictions.csv",
+        "results/04_model_predictions/power_law_model_predictions.csv",
+        "results/04_model_predictions/lognormal_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions_beta_half.csv",
         'results/04_model_predictions/CLM45_fnew.csv',
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
@@ -367,11 +369,11 @@ rule fig3_calcs:
 
 rule plot_fig3:
     input:
-        'results/04_model_predictions/power_law.csv',
-        'results/04_model_predictions/lognormal.csv',
-        'results/04_model_predictions/gamma.csv',
-        'results/04_model_predictions/general_power_law.csv',
-        'results/04_model_predictions/general_power_law_beta_half.csv',
+        "results/04_model_predictions/gamma_model_predictions.csv",
+        "results/04_model_predictions/power_law_model_predictions.csv",
+        "results/04_model_predictions/lognormal_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions_beta_half.csv",
         'results/04_model_predictions/CLM45_fnew.csv',
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',

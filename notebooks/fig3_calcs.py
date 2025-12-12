@@ -11,11 +11,11 @@ all_sites = pd.read_csv('results/processed_balesdent_2018.csv')
 
 #%% Load the predictions
 print('Loading model predictions...')
-powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/power_law.csv',header=None, names=['prediction'])
-gen_powerlaw_preds_beta = pd.read_csv(f'results/04_model_predictions/general_power_law.csv', header=None, names=['prediction'])
-gen_powerlaw_preds_beta_half = pd.read_csv(f'results/04_model_predictions/general_power_law_beta_half.csv', header=None, names=['prediction'])
-lognormal_predictions = pd.read_csv(f'results/04_model_predictions/lognormal.csv',header=None, names=['prediction'])
-gamma_predictions = pd.read_csv(f'results/04_model_predictions/gamma.csv',header=None, names=['prediction'])    
+powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/power_law_model_predictions.csv')
+gen_powerlaw_preds_beta = pd.read_csv(f'results/04_model_predictions/general_power_law_model_predictions.csv')
+gen_powerlaw_preds_beta_half = pd.read_csv(f'results/04_model_predictions/general_power_law_model_predictions_beta_half.csv')
+lognormal_predictions = pd.read_csv(f'results/04_model_predictions/lognormal_model_predictions.csv')
+gamma_predictions = pd.read_csv(f'results/04_model_predictions/gamma_model_predictions.csv')    
 CLM45_predictions = pd.read_csv(f'results/04_model_predictions/CLM45_fnew.csv', header=None, names=['prediction'])
 JSBACH_predictions = pd.read_csv(f'results/04_model_predictions/JSBACH_fnew.csv', header=None, names=['prediction'])
 RCM_predictions = pd.read_csv(f'results/04_model_predictions/RCM.csv')
@@ -35,60 +35,43 @@ results = { 'Power-law': {'RMSE': [], 'KGE': []},
 for i, col in enumerate(RCM_predictions.columns):
     results[col] = {'RMSE': [], 'KGE': []}
 
+# Sample n_site random sites for n_iterations
+sample_indices = np.random.choice(all_sites.index, size=(n_sites, n_iterations), replace=True)
+true_values = all_sites['total_fnew'].values[sample_indices]
+
+
+def analyze_model(model_type, df, samples, true_vals):
+    """Helper function to analyze a model's predictions."""
+    print(f'Analyzing model: {model_type}')
+    for i in range(samples.shape[1]):
+        if model_type in ['CLM4.5', 'JSBACH']:
+            preds = df['prediction'].values[samples[:, i]]
+        elif model_type in RCM_predictions.columns:
+            preds = df.values[samples[:, i]]
+        else:
+            preds = df['predicted_fnew'].values[samples[:, i]]
+        evaluator = RegressionMetric(y_true=true_vals[:, i], y_pred=preds)
+        results[model_type]['RMSE'].append(root_mean_squared_error(true_vals[:, i], preds))
+        results[model_type]['KGE'].append(evaluator.kling_gupta_efficiency())
+
 # Run the bootstrap resampling
 print('Running bootstrap resampling to estimate RMSE and KGE distributions...')
-for i in tqdm(range(n_iterations)):
-    sample_indices = np.random.choice(all_sites.index, size=n_sites, replace=True)
-    true_values = all_sites.loc[sample_indices, 'total_fnew'].values
-
-    # Power-law
-    preds = powerlaw_predictions.loc[sample_indices, 'prediction'].values
-    evaluator = RegressionMetric(y_true=true_values, y_pred=preds)
-    results['Power-law']['RMSE'].append(root_mean_squared_error(true_values, preds))
-    results['Power-law']['KGE'].append(evaluator.kling_gupta_efficiency())
-
-    # Generalized Power-law (b=exp(-gamma))
-    preds = gen_powerlaw_preds_beta.loc[sample_indices, 'prediction'].values
-    evaluator = RegressionMetric(y_true=true_values, y_pred=preds)
-    results['Gen. Power-law (b=exp(-gamma))']['RMSE'].append(root_mean_squared_error(true_values, preds))
-    results['Gen. Power-law (b=exp(-gamma))']['KGE'].append(evaluator.kling_gupta_efficiency())
-
-    # Generalized Power-law (b=exp(-gamma)/2)
-    preds = gen_powerlaw_preds_beta_half.loc[sample_indices, 'prediction'].values
-    evaluator = RegressionMetric(y_true=true_values, y_pred=preds)
-    results['Gen. Power-law (b=exp(-gamma)/2)']['RMSE'].append(root_mean_squared_error(true_values, preds))
-    results['Gen. Power-law (b=exp(-gamma)/2)']['KGE'].append(evaluator.kling_gupta_efficiency())
-
-    # Lognormal
-    preds = lognormal_predictions.loc[sample_indices, 'prediction'].values
-    evaluator = RegressionMetric(y_true=true_values, y_pred=preds)
-    results['Lognormal']['RMSE'].append(root_mean_squared_error(true_values, preds))
-    results['Lognormal']['KGE'].append(evaluator.kling_gupta_efficiency())
-
-    # Gamma
-    preds = gamma_predictions.loc[sample_indices, 'prediction'].values
-    evaluator = RegressionMetric(y_true=true_values, y_pred=preds)
-    results['Gamma']['RMSE'].append(root_mean_squared_error(true_values, preds))
-    results['Gamma']['KGE'].append(evaluator.kling_gupta_efficiency())
-
-    # CLM4.5
-    preds = CLM45_predictions.loc[sample_indices, 'prediction'].values
-    evaluator = RegressionMetric(y_true=true_values, y_pred=preds)
-    results['CLM4.5']['RMSE'].append(root_mean_squared_error(true_values, preds))
-    results['CLM4.5']['KGE'].append(evaluator.kling_gupta_efficiency())
-
-    # JSBACH
-    preds = JSBACH_predictions.loc[sample_indices, 'prediction'].values
-    evaluator = RegressionMetric(y_true=true_values, y_pred=preds)
-    results['JSBACH']['RMSE'].append(root_mean_squared_error(true_values, preds))
-    results['JSBACH']['KGE'].append(evaluator.kling_gupta_efficiency())
-
-    # RCM
-    for i, col in enumerate(RCM_predictions.columns):
-        preds = RCM_predictions.loc[sample_indices, col].values
-        evaluator = RegressionMetric(y_true=true_values, y_pred=preds)
-        results[col]['RMSE'].append(root_mean_squared_error(true_values, preds))
-        results[col]['KGE'].append(evaluator.kling_gupta_efficiency())
+model_types = ['Power-law',
+                   'Gen. Power-law (b=exp(-gamma))',
+                   'Gen. Power-law (b=exp(-gamma)/2)',
+                   'Lognormal',
+                   'Gamma',
+                   'CLM4.5',
+                   'JSBACH'] + list(RCM_predictions.columns)
+prediction_dfs = [powerlaw_predictions,
+                      gen_powerlaw_preds_beta,
+                      gen_powerlaw_preds_beta_half,
+                      lognormal_predictions,
+                      gamma_predictions,
+                      CLM45_predictions,
+                      JSBACH_predictions] + [RCM_predictions[col] for col in RCM_predictions.columns]
+for mt, df in zip(model_types, prediction_dfs):
+    analyze_model(mt, df, sample_indices, true_values)
 
 # Make into a dataframe and save to CSV for later plotting. 
 print('Saving results to a long-form CSV...')

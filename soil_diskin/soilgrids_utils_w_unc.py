@@ -297,11 +297,14 @@ def get_soc_with_bulk_density_w_uncertainty(
 ) -> Optional[float]:
     cfg = _load_wcs_config()
     depth_list = list(depths) if depths is not None else list(cfg["stock_depths"])
+    depth_list_ocs = cfg['depths_ocs']
     thickness_map: Dict[str, float] = cfg["thickness_cm"]
 
     soc_stats = get_stats_at_point(lat, lon, buffer_m=buffer_m, depths=depth_list, stat_type='soc')
     bdod_vals = get_stats_at_point(lat, lon, buffer_m=buffer_m, depths=depth_list, stat_type='bdod')
-
+    ocs_stats = get_stats_at_point(lat, lon, buffer_m=buffer_m, depths=depth_list_ocs, stat_type='ocs')
+    cv = pd.Series([1, ocs_stats[depth_list_ocs[0]]['q05'] / ocs_stats[depth_list_ocs[0]]['mean'], 
+                     ocs_stats[depth_list_ocs[0]]['q95'] / ocs_stats[depth_list_ocs[0]]['mean']], index=['mean', 'q05', 'q95'])
     total_soc = pd.Series(0,index=['mean', 'q05', 'q95'])
     for depth in depth_list:
         soc_val = pd.Series(soc_stats.get(depth))# if soc_stats else None
@@ -310,6 +313,7 @@ def get_soc_with_bulk_density_w_uncertainty(
         if soc_val is None or bd_val is None or thickness_cm is None:
             return None
         layer_soc = (soc_val / 1000.0) * bd_val * thickness_cm * 10
+        layer_soc = layer_soc.loc['mean'] * cv
         total_soc += layer_soc
     return total_soc
 
