@@ -372,7 +372,6 @@ class CLM5(CompartmentalModel):
         Returns:
             dX: change in state matrix of C pools
         """
-
         assert tres in ['M','Y'], "tres must be 'M' or 'Y'"
         # print('t:', t)
         if tres == 'Y':
@@ -396,6 +395,10 @@ class CLM5(CompartmentalModel):
 
         
         # dX = I_t + (self.A @ K_t - self.V) @ X#.values
+        # This hack solves a problem that arises because X
+        # is a xarray object when called from our tests but 
+        # an np.ndarray when called from the model run. 
+        # TODO: make sure the unit tests cover both cases.
         if not isinstance(X, np.ndarray):
             dX = X.copy()
             dX.data = I_t + (self.A @ self.K_ts[t_ind, :, :] - self.V) @ X.values
