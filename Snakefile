@@ -308,14 +308,14 @@ rule steady_state_sensitivity_analysis_lognormal:
         "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
     output:
         "results/06_sensitivity_analysis/lognormal_input_data.csv",
-        "results/06_sensitivity_analysis/lognormal_tau_data.csv",
-        "results/06_sensitivity_analysis/lognormal_age_data.csv",
+        "results/06_sensitivity_analysis/lognormal_mu_data.csv",#"results/06_sensitivity_analysis/lognormal_tau_data.csv",
+        "results/06_sensitivity_analysis/lognormal_sigma_data.csv",#"results/06_sensitivity_analysis/lognormal_age_data.csv",
     shell:
         """
         julia --project=./ notebooks/06b_lognormal_steady_state_sensitivity.jl
         """
 # Step 06c: Vegetation effects sensitivity analysis
-rule vegetation_effects_sensitivity_analysis:
+rule vegetation_effects_sensitivity_analysis:s
     input:
         'data/balesdent_2018/balesdent_2018_raw.xlsx',
         'results/processed_balesdent_2018.csv',
@@ -414,8 +414,8 @@ rule plot_figS5:
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/gamma_model_optimization_results.csv",
         'results/06_sensitivity_analysis/lognormal_input_data.csv',
-        'results/06_sensitivity_analysis/lognormal_tau_data.csv',
-        'results/06_sensitivity_analysis/lognormal_age_data.csv',
+        'results/06_sensitivity_analysis/lognormal_mu_data.csv',#'results/06_sensitivity_analysis/lognormal_tau_data.csv',
+        'results/06_sensitivity_analysis/lognormal_sigma_data.csv',#'results/06_sensitivity_analysis/lognormal_age_data.csv',
     output:
         "figures/figS5.png"
     script:
