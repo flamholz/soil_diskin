@@ -35,6 +35,8 @@ results = { 'Power-law': {'RMSE': [], 'KGE': []},
 for i, col in enumerate(RCM_predictions.columns):
     results[col] = {'RMSE': [], 'KGE': []}
 
+# Run the bootstrap resampling
+print('Running bootstrap resampling to estimate RMSE and KGE distributions...')
 # Sample n_site random sites for n_iterations
 sample_indices = np.random.choice(all_sites.index, size=(n_sites, n_iterations), replace=True)
 true_values = all_sites['total_fnew'].values[sample_indices]

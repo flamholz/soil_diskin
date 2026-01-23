@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.special import exp1
 from soil_diskin.continuum_models import PowerLawDisKin, GammaDisKin
+from scipy.optimize import minimize_scalar
 
 # %%
 # Read the raw data and calculate the ratio in C stocks between the reference and the experiment sites.
@@ -76,8 +77,6 @@ ln_sigma_data = [ln_sigma_data.values[:,i] for i in range(ln_sigma_data.shape[1]
 
 # define optimization function to find the parameters that produce a specific change in turnover
 def find_param_change(model, param_name, target_change, base_params, param_range, tol=1e-3):
-    from scipy.optimize import minimize_scalar
-
     def objective(param_value):
         params = base_params.copy()
         params[param_name] = param_value
@@ -107,7 +106,7 @@ blue_colors = plt.cm.Blues(np.linspace(0.2, 0.8, 5))
 
 # for the power law model
 # for the power-law model, the derivative of the turnover time as a function if the parameter t_min is:
-# -1 + np.exo(t_min/t_max)*exp1(t_min/t_max) + (t_min * np.exp(t_min/t_max) * exp1(t_min/t_max])/t_max
+# -1 + np.exp(t_min/t_max)*exp1(t_min/t_max) + (t_min * np.exp(t_min/t_max) * exp1(t_min/t_max])/t_max
 
 # and the derivative of the turnover time as a function of t_max is:
 # a/b - (a^2 E^(a/b) ExpIntegralE[1, a/b])/b^2

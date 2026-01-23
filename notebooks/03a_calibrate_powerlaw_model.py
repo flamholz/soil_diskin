@@ -56,9 +56,12 @@ def parse_results(result,index):
     # Unpack the parameters into separate columns
     df[['t_min','t_max']] = df['params'].apply(lambda x: pd.Series(x,index = ['t_min','t_max']))
     df.drop(columns ='params',inplace=True)
-    df['modeled_tau'] = df.apply(lambda x: PowerLawDisKin(x['t_min'], x['t_max']).T, axis=1)
-    df['modeled_14C'] = df.apply(lambda x: quad(PowerLawDisKin(x['t_min'], x['t_max']).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
-    df['params_valid'] = df.apply(lambda x: PowerLawDisKin(x['t_min'], x['t_max']).params_valid(), axis=1)
+
+    model_x = lambda x: PowerLawDisKin(x['t_min'], x['t_max'])
+    df['modeled_tau'] = df.apply(lambda x: model_x(x).T, axis=1)
+    df['modeled_14C'] = df.apply(lambda x: quad(model_x(x).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
+    df['params_valid'] = df.apply(lambda x: model_x(x).params_valid(), axis=1)
+
     return df
 
 #%% Load the data
@@ -99,14 +102,6 @@ for i, row in tqdm(backfilled_sites.iterrows(), total=len(backfilled_sites)):
 
 result_df_05 = parse_results(results_05, backfilled_sites.index)
 result_df_95 = parse_results(results_95, backfilled_sites.index)
-
-# # Unpack the parameters into separate columns
-# result_df[['t_min','t_max']] = result_df['params'].apply(lambda x: pd.Series(x,index = ['t_min','t_max']))
-# result_df.drop(columns ='params',inplace=True)
-
-# result_df['modeled_tau'] = result_df.apply(lambda x: PowerLawDisKin(x['t_min'], x['t_max']).T, axis=1)
-# result_df['modeled_14C'] = result_df.apply(lambda x: quad(PowerLawDisKin(x['t_min'], x['t_max']).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
-# result_df['params_valid'] = result_df.apply(lambda x: PowerLawDisKin(x['t_min'], x['t_max']).params_valid(), axis=1)
 
 merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
 merged_result_df = pd.merge(merged_result_df, result_df_05.add_suffix('_05'), left_index=True, right_index=True, how='left')

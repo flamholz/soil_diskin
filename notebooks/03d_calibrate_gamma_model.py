@@ -103,14 +103,6 @@ for i, row in tqdm(backfilled_sites.iterrows(), total=len(backfilled_sites)):
 result_df_05 = parse_results(results_05, backfilled_sites.index)
 result_df_95 = parse_results(results_95, backfilled_sites.index)
 
-# Unpack the parameters into separate columns
-# result_df[['a','b']] = result_df['params'].apply(lambda x: pd.Series(x,index = ['a','b']))
-# result_df.drop(columns ='params',inplace=True)
-
-# result_df['modeled_tau'] = result_df.apply(lambda x: GammaDisKin(x['a'], x['b']).T, axis=1)
-# result_df['modeled_14C'] = result_df.apply(lambda x: quad(GammaDisKin(x['a'], x['b']).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
-# result_df['params_valid'] = result_df.apply(lambda x: GammaDisKin(x['a'], x['b']).params_valid(), axis=1)
-
 merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
 merged_result_df = pd.merge(merged_result_df, result_df_05.add_suffix('_05'), left_index=True, right_index=True, how='left')
 merged_result_df = pd.merge(merged_result_df, result_df_95.add_suffix('_95'), left_index=True, right_index=True, how='left')

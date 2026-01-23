@@ -5,6 +5,10 @@ import pandas as pd
 from scipy.interpolate import interp1d
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
+# The aim of this script is to use a calubration curve generated in Mathematica
+# between radiocarbon fraction (fm) and age for the lognormal DisKin model
+# to predict the mean age for each site based on its measured fm value
+
 # Read the age scan data and the radiocarbon data
 # the Mathematica script must be run first to generate the age scan
 # (notebooks/03b_calibrate_lognormal_model.wls)
@@ -22,12 +26,19 @@ ages = np.concatenate([ages, np.array([10**5.5])])
 # predict the mean age for each site by interpolating the age scan 
 # calibration curve generated in Mathematica
 def get_prediction(df, ascan):
+    '''
+    Interpolate the calibration curve for the relation between fm and age
+    
+    Inputs:
+    df: DataFrame with 'fm' column
+    ascan: DataFrame with age scan data, each row corresponds to a site, each column to an age and the values are the corresponding fm values
+    '''
+
     preds = []
-    for i,site in enumerate(df.index):
-        
-        smoothed = lowess(ascan.iloc[i], ages, frac=0.2)
-        calcurve = interp1d(smoothed[:,1], smoothed[:,0], fill_value="extrapolate")  
-        age_pred = calcurve(df.loc[site, 'fm'])
+    for i,site in enumerate(df.index):    
+        smoothed = lowess(ascan.iloc[i], ages, frac=0.2) # smooth the calibration curve using LOWESS
+        calcurve = interp1d(smoothed[:,1], smoothed[:,0], fill_value="extrapolate")  #interpolate the smoothed curve
+        age_pred = calcurve(df.loc[site, 'fm']) # predict the age based on the fm value
         preds.append(age_pred)
     return np.array(preds)
 

@@ -14,6 +14,23 @@ site_data = pd.read_csv('results/processed_balesdent_2018.csv')
 turnover_14C = pd.read_csv('results/all_sites_14C_turnover.csv')
 backfilled_sites = site_data[site_data['C_data_source'] == 'SoilGrids backfill']
 def generate_predictions(model_class, params_df, param_names):
+    """
+    Generate model predictions for each site based on the provided model class and parameters.
+    Parameters
+    ----------
+    model_class : class
+        The continuum model class to use for predictions.
+    params_df : pd.DataFrame
+        DataFrame containing the model parameters for each site.
+    param_names : list
+        List of parameter names corresponding to the model_class.
+    
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the model predictions for each site.
+    """
+    
     result = site_data.copy()
     print(f"Generating {model_class.__name__} model predictions...")
     for i, row in params_df.iterrows():
