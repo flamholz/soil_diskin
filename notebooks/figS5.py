@@ -65,9 +65,7 @@ J_ratio = raw_site_data['Cref_0-100estim'] / raw_site_data['Ctotal_0-100estim']
 # %%
 # load lognormal data
 ln_input_data = pd.read_csv('results/06_sensitivity_analysis/lognormal_input_data.csv')
-# ln_tau_data = pd.read_csv('results/06_sensitivity_analysis/lognormal_tau_data.csv')
 ln_mu_data = pd.read_csv('results/06_sensitivity_analysis/lognormal_mu_data.csv')
-# ln_age_data = pd.read_csv('results/06_sensitivity_analysis/lognormal_age_data.csv')
 ln_sigma_data = pd.read_csv('results/06_sensitivity_analysis/lognormal_sigma_data.csv')
 
 ts_ln = ln_input_data['time'].values
