@@ -107,9 +107,8 @@ def results_to_dataframe(results, beta, merged_site_data):
     result_df['modeled_T'] = result_df.apply(calc_modeled_T, axis=1)
     result_df['modeled_14C'] = result_df.apply(calc_modeled_14C, axis=1)
     result_df['params_valid'] = result_df.apply(calc_params_valid, axis=1)
-    merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
 
-    return merged_result_df
+    return result_df
 
 
 # Load the data
@@ -134,7 +133,35 @@ for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
     # Append the optimized parameters to the result list
     results.append([res.x, res.fun])
 
-merged_result_df = results_to_dataframe(results, beta, merged_site_data)
+result_df = results_to_dataframe(results, beta, merged_site_data)
+
+#%% Perform optimization for the 5% and 95% uncertainty bounds
+results_05 = []
+results_95 = []
+backfilled_sites = merged_site_data[merged_site_data['turnover_q05'].notna() & merged_site_data['turnover_q95'].notna()]
+for i, row in tqdm(backfilled_sites.iterrows(), total=len(backfilled_sites)):
+    row_05 = row.copy()
+    row_05['turnover'] = row.loc['turnover_q05']
+    row_95 = row.copy()
+    row_95['turnover'] = row.loc['turnover_q95']
+    my_args = (beta, row_05)
+    res = minimize(objective_function, initial_guess,
+                   args=my_args, method='L-BFGS-B',
+                   bounds=[(1e-10, None), (1e-10, None)])
+    results_05.append([res.x,res.fun])
+    my_args = (beta, row_95)
+    res = minimize(objective_function, initial_guess,
+                   args=my_args, method='L-BFGS-B',
+                   bounds=[(1e-10, None), (1e-10, None)])
+    results_95.append([res.x,res.fun])
+
+result_df_05 = results_to_dataframe(results_05, beta, backfilled_sites)
+result_df_95 = results_to_dataframe(results_95, beta, backfilled_sites)
+
+merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
+merged_result_df = pd.merge(merged_result_df, result_df_05.add_suffix('_05'), left_index=True, right_index=True, how='left')
+merged_result_df = pd.merge(merged_result_df, result_df_95.add_suffix('_95'), left_index=True, right_index=True, how='left')
+
 print(f'the Maximum objective value is {merged_result_df["objective_value"].max():.3f}')
 
 
@@ -155,7 +182,24 @@ for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
     # Append the optimized parameters to the result list
     results_2.append([res.x,res.fun])
 
-merged_result_df_2 = results_to_dataframe(results_2, beta, merged_site_data)
+result_df_2 = results_to_dataframe(results_2, beta, merged_site_data)
+
+backfilled_sites = merged_site_data[merged_site_data['turnover_q05'].notna() & merged_site_data['turnover_q95'].notna()]
+merged_result_df_2 = pd.concat([result_df_2, merged_site_data[['fm', 'turnover']]], axis=1)
+for col_name in ['05', '95']:
+    results_unc = []
+    for i, row in tqdm(backfilled_sites.iterrows(), total=len(backfilled_sites)):    
+        row_copy = row.copy()
+        row_copy['turnover'] = row.loc['turnover_q'+col_name]
+        my_args = (beta, row_copy)
+        res = minimize(objective_function, initial_guess,
+                args=my_args, method='L-BFGS-B',
+                bounds=[(1e-10, None), (1e-10, None)])
+        results_unc.append([res.x,res.fun])
+        result_unc_df = results_to_dataframe(results_unc, beta, backfilled_sites)
+
+        merged_result_df_2 = pd.merge(merged_result_df_2, result_unc_df.add_suffix('_'+col_name), left_index=True, right_index=True, how='left')
+
 print(f'the Maximum objective value is {merged_result_df_2["objective_value"].max():.3f}')
 
 # Save the two sets of results to different CSV files

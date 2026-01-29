@@ -124,6 +124,8 @@ rule lognormal_age_scan_mathematica:
         "data/14C_atm_annot.csv"
     output:
         "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_05.csv",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_95.csv"
     shell:
         """
         wolframscript --file notebooks/03b_lognormal_age_scan.wls
@@ -133,6 +135,8 @@ rule calibrate_lognormal_python:
     input:
         "results/all_sites_14C_turnover.csv",
         "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_05.csv",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_95.csv",
         "data/14C_atm_annot.csv"
     output:
         "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
@@ -163,7 +167,9 @@ rule lognormal_predictions_julia:
     input:
         "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
     output:
-        "results/04_model_predictions/04b_lognormal_cdfs.csv"
+        "results/04_model_predictions/04b_lognormal_cdfs.csv",
+        "results/04_model_predictions/04b_lognormal_cdfs_05.csv",
+        "results/04_model_predictions/04b_lognormal_cdfs_95.csv"
     shell:
         """
         julia --project=./ notebooks/04b_lognormal_predictions.jl
@@ -194,11 +200,11 @@ rule continuum_model_predictions:
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
         "results/03_calibrate_models/gamma_model_optimization_results.csv"
     output:
-        "results/04_model_predictions/gamma.csv",
-        "results/04_model_predictions/power_law.csv",
-        "results/04_model_predictions/lognormal.csv",
-        "results/04_model_predictions/general_power_law.csv",
-        "results/04_model_predictions/general_power_law_beta_half.csv",
+        "results/04_model_predictions/gamma_model_predictions.csv",
+        "results/04_model_predictions/power_law_model_predictions.csv",
+        "results/04_model_predictions/lognormal_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions_beta_half.csv",
     script:
         "notebooks/04_collect_continuum_model_predictions.py"
 
@@ -302,14 +308,14 @@ rule steady_state_sensitivity_analysis_lognormal:
         "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
     output:
         "results/06_sensitivity_analysis/lognormal_input_data.csv",
-        "results/06_sensitivity_analysis/lognormal_tau_data.csv",
-        "results/06_sensitivity_analysis/lognormal_age_data.csv",
+        "results/06_sensitivity_analysis/lognormal_mu_data.csv",
+        "results/06_sensitivity_analysis/lognormal_sigma_data.csv",
     shell:
         """
         julia --project=./ notebooks/06b_lognormal_steady_state_sensitivity.jl
         """
 # Step 06c: Vegetation effects sensitivity analysis
-rule vegetation_effects_sensitivity_analysis:
+rule vegetation_effects_sensitivity_analysis:s
     input:
         'data/balesdent_2018/balesdent_2018_raw.xlsx',
         'results/processed_balesdent_2018.csv',
@@ -346,11 +352,11 @@ rule plot_fig2:
 
 rule fig3_calcs:
     input:
-        'results/04_model_predictions/power_law.csv',
-        'results/04_model_predictions/lognormal.csv',
-        'results/04_model_predictions/gamma.csv',
-        'results/04_model_predictions/general_power_law.csv',
-        'results/04_model_predictions/general_power_law_beta_half.csv',
+        "results/04_model_predictions/gamma_model_predictions.csv",
+        "results/04_model_predictions/power_law_model_predictions.csv",
+        "results/04_model_predictions/lognormal_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions_beta_half.csv",
         'results/04_model_predictions/CLM45_fnew.csv',
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
@@ -363,11 +369,11 @@ rule fig3_calcs:
 
 rule plot_fig3:
     input:
-        'results/04_model_predictions/power_law.csv',
-        'results/04_model_predictions/lognormal.csv',
-        'results/04_model_predictions/gamma.csv',
-        'results/04_model_predictions/general_power_law.csv',
-        'results/04_model_predictions/general_power_law_beta_half.csv',
+        "results/04_model_predictions/gamma_model_predictions.csv",
+        "results/04_model_predictions/power_law_model_predictions.csv",
+        "results/04_model_predictions/lognormal_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions_beta_half.csv",
         'results/04_model_predictions/CLM45_fnew.csv',
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
@@ -408,8 +414,8 @@ rule plot_figS5:
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/gamma_model_optimization_results.csv",
         'results/06_sensitivity_analysis/lognormal_input_data.csv',
-        'results/06_sensitivity_analysis/lognormal_tau_data.csv',
-        'results/06_sensitivity_analysis/lognormal_age_data.csv',
+        'results/06_sensitivity_analysis/lognormal_mu_data.csv',
+        'results/06_sensitivity_analysis/lognormal_sigma_data.csv',
     output:
         "figures/figS5.png"
     script:

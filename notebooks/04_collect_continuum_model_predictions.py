@@ -1,3 +1,4 @@
+#%%
 import numpy as np
 import pandas as pd
 
@@ -11,40 +12,62 @@ Collects the continuum model predictions for all sites and saves them to CSV fil
 # Load the site data
 site_data = pd.read_csv('results/processed_balesdent_2018.csv')
 turnover_14C = pd.read_csv('results/all_sites_14C_turnover.csv')
+backfilled_sites = site_data[site_data['C_data_source'] == 'SoilGrids backfill']
+def generate_predictions(model_class, params_df, param_names):
+    """
+    Generate model predictions for each site based on the provided model class and parameters.
+    Parameters
+    ----------
+    model_class : class
+        The continuum model class to use for predictions.
+    params_df : pd.DataFrame
+        DataFrame containing the model parameters for each site.
+    param_names : list
+        List of parameter names corresponding to the model_class.
+    
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the model predictions for each site.
+    """
+    
+    result = site_data.copy()
+    print(f"Generating {model_class.__name__} model predictions...")
+    for i, row in params_df.iterrows():
+        model_params = {name: row[name] for name in param_names}
+        model = model_class(**model_params)
+        if not model.params_valid():
+            print(f"Invalid parameters for site {i}: {model_params}")
+        result.loc[i, 'predicted_fnew'] = model.cdfA(site_data.loc[i, 'Duration_labeling'])
+        if all(f"{name}_05" in row and f"{name}_95" in row for name in param_names):
+            model_05_params = {name: row[f"{name}_05"] for name in param_names}
+            model_95_params = {name: row[f"{name}_95"] for name in param_names}
+            model_05 = model_class(**model_05_params)
+            model_95 = model_class(**model_95_params)
+            result.loc[i, 'predicted_fnew_05'] = model_05.cdfA(site_data.loc[i, 'Duration_labeling'])
+            result.loc[i, 'predicted_fnew_95'] = model_95.cdfA(site_data.loc[i, 'Duration_labeling'])
+    return result
 
 #%% Gamma model
 
 # load the gamma model parameters to generate predictions
 fname = 'gamma_model_optimization_results.csv'
 gamma_params = pd.read_csv(f'results/03_calibrate_models/{fname}')
+result = site_data.copy()
 
 print("Generating gamma model predictions...")
-predictions = []
-for i, row in gamma_params.iterrows():
-    model = GammaDisKin(a=row['a'], b=row['b'])
-    if not model.params_valid():
-        print(f"Invalid parameters for site {i}: a={row['a']}, b={row['b']}")
-    predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
-predictions = np.array(predictions)
-# Save the model predictions
-np.savetxt(f'results/04_model_predictions/gamma.csv', predictions)
+
+result = generate_predictions(GammaDisKin, gamma_params, ['a', 'b'])
+result.to_csv('results/04_model_predictions/gamma_model_predictions.csv', index=False)
 
 #%% Power-law model
 
 # load the power-law parameters
 fname = 'powerlaw_model_optimization_results.csv'
 power_law_params = pd.read_csv(f'results/03_calibrate_models/{fname}')
-
 print("Generating power-law model predictions...")
-predictions = []
-for i, row in power_law_params.iterrows():
-    model = PowerLawDisKin(t_min=row['t_min'], t_max=row['t_max'])
-    if not model.params_valid():
-        print(f"Invalid parameters for site {i}: t_min={row['t_min']}, t_max={row['t_max']}")
-    predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
-predictions = np.array(predictions)
-# Save the model predictions
-np.savetxt(f'results/04_model_predictions/power_law.csv', predictions)
+result = generate_predictions(PowerLawDisKin, power_law_params, ['t_min', 't_max'])
+result.to_csv('results/04_model_predictions/power_law_model_predictions.csv', index=False)
 
 #%% Generalized Power-law model with beta = np.exp(-GAMMA)
 
@@ -53,16 +76,8 @@ fname = 'general_powerlaw_model_optimization_results.csv'
 general_power_law_params = pd.read_csv(f'results/03_calibrate_models/{fname}')
 
 print("Generating generalized power-law model predictions...")
-predictions = []
-for i, row in general_power_law_params.iterrows():
-    model = GeneralPowerLawDisKin(t_min=row['t_min'], t_max=row['t_max'], beta=row['beta'])
-    if not model.params_valid():
-        print(f"Invalid parameters for site {i}: t_min={row['t_min']}, t_max={row['t_max']}, beta={row['beta']}")
-    
-    predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
-predictions = np.array(predictions)
-# Save the model predictions
-np.savetxt(f'results/04_model_predictions/general_power_law.csv', predictions)
+result = generate_predictions(GeneralPowerLawDisKin, general_power_law_params, ['t_min', 't_max', 'beta'])
+result.to_csv('results/04_model_predictions/general_power_law_model_predictions.csv', index=False)
 
 #%% Generalized Power-law model with beta = np.exp(-GAMMA) / 2
 
@@ -71,29 +86,35 @@ fname = 'general_powerlaw_model_optimization_results_beta_half.csv'
 general_power_law_params = pd.read_csv(f'results/03_calibrate_models/{fname}')
 
 print("Generating generalized power-law model predictions...")
-predictions = []
-for i, row in general_power_law_params.iterrows():
-    model = GeneralPowerLawDisKin(t_min=row['t_min'], t_max=row['t_max'], beta=row['beta'])
-    if not model.params_valid():
-        print(f"Invalid parameters for site {i}: t_min={row['t_min']}, t_max={row['t_max']}, beta={row['beta']}")
-    
-    predictions.append(model.cdfA(site_data.loc[i, 'Duration_labeling']))
-predictions = np.array(predictions)
-
-# Save the model predictions
-np.savetxt(f'results/04_model_predictions/general_power_law_beta_half.csv', predictions)
+result = generate_predictions(GeneralPowerLawDisKin, general_power_law_params, ['t_min', 't_max', 'beta'])
+result.to_csv('results/04_model_predictions/general_power_law_model_predictions_beta_half.csv', index=False)
 
 #%% Lognormal model
 
 # read lognormal cdfs that were generated by the julia script - 04b_lognormal_predictions.jl
 print("Generating lognormal model predictions...")
 fname = '04b_lognormal_cdfs.csv'
+fname_05 = '04b_lognormal_cdfs_05.csv'
+fname_95 = '04b_lognormal_cdfs_95.csv'
 lognormal_cdfs = pd.read_csv(f'results/04_model_predictions/{fname}')
+lognormal_cdfs_05 = pd.read_csv(f'results/04_model_predictions/{fname_05}')
+lognormal_cdfs_95 = pd.read_csv(f'results/04_model_predictions/{fname_95}')
+
 ts = lognormal_cdfs.columns.astype(float).values
 predictions = []
 for i, row in site_data.iterrows():
     site_cdf = interp1d(ts, lognormal_cdfs.loc[i, :].values / turnover_14C.loc[i, 'turnover'])
     predictions.append(site_cdf(row['Duration_labeling']))
 predictions = np.array(predictions)
+
+result = site_data.copy()
+result['predicted_fnew'] = predictions
+
+for i in range(backfilled_sites.shape[0]):
+    site_cdf_05 = interp1d(ts, lognormal_cdfs_05.loc[i, :].values / turnover_14C.loc[backfilled_sites.index[i], 'turnover_q05'])
+    site_cdf_95 = interp1d(ts, lognormal_cdfs_95.loc[i, :].values / turnover_14C.loc[backfilled_sites.index[i], 'turnover_q95'])
+    result.loc[backfilled_sites.index[i], 'predicted_fnew_05'] = site_cdf_05(backfilled_sites.iloc[i]['Duration_labeling'])
+    result.loc[backfilled_sites.index[i], 'predicted_fnew_95'] = site_cdf_95(backfilled_sites.iloc[i]['Duration_labeling'])
+
 # Save the model predictions
-np.savetxt(f'results/04_model_predictions/lognormal.csv', predictions)
+result.to_csv('results/04_model_predictions/lognormal_model_predictions.csv', index=False)

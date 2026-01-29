@@ -46,6 +46,24 @@ def objective_function(params, merged_site_data):
     # Return the sum of squared relative differences 
     return relative_diff_14C**2 + relative_diff_turnover**2
 
+
+def parse_results(result,index):
+    """Convert optimization results to a DataFrame and compute additional metrics."""
+
+    # Convert the result list to a DataFrame
+    df = pd.DataFrame(result,columns=['params','objective_value'],index=index)
+
+    # Unpack the parameters into separate columns
+    df[['t_min','t_max']] = df['params'].apply(lambda x: pd.Series(x,index = ['t_min','t_max']))
+    df.drop(columns ='params',inplace=True)
+
+    model_x = lambda x: PowerLawDisKin(x['t_min'], x['t_max'])
+    df['modeled_tau'] = df.apply(lambda x: model_x(x).T, axis=1)
+    df['modeled_14C'] = df.apply(lambda x: quad(model_x(x).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
+    df['params_valid'] = df.apply(lambda x: model_x(x).params_valid(), axis=1)
+
+    return df
+
 #%% Load the data
 
 merged_site_data = pd.read_csv('results/all_sites_14C_turnover.csv')
@@ -55,7 +73,8 @@ initial_guess = [0.5, 10000]
 
 # optimize the parameters using a simple optimization method
 result = []
-
+        
+#%% Perform optimization for each site
 # iterate over each row in the merged_site_data DataFrame
 for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
     # Minimize the objective function for each site
@@ -65,17 +84,28 @@ for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
     result.append([res.x,res.fun])
 
 # Convert the result list to a DataFrame
-result_df = pd.DataFrame(result,columns=['params','objective_value'],index=merged_site_data.index)
+result_df = parse_results(result, merged_site_data.index)
 
-# Unpack the parameters into separate columns
-result_df[['t_min','t_max']] = result_df['params'].apply(lambda x: pd.Series(x,index = ['t_min','t_max']))
-result_df.drop(columns ='params',inplace=True)
+#%% Perform optimization for the 5% and 95% uncertainty bounds
+results_05 = []
+results_95 = []
+backfilled_sites = merged_site_data[merged_site_data['turnover_q05'].notna() & merged_site_data['turnover_q95'].notna()]
+for i, row in tqdm(backfilled_sites.iterrows(), total=len(backfilled_sites)):
+    row_05 = row.copy()
+    row_05['turnover'] = row.loc['turnover_q05']
+    row_95 = row.copy()
+    row_95['turnover'] = row.loc['turnover_q95']
+    res = minimize(objective_function, initial_guess, args=(row_05,), method='Nelder-Mead')
+    results_05.append([res.x,res.fun])
+    res = minimize(objective_function, initial_guess, args=(row_95,), method='Nelder-Mead')
+    results_95.append([res.x,res.fun])
 
-result_df['modeled_tau'] = result_df.apply(lambda x: PowerLawDisKin(x['t_min'], x['t_max']).T, axis=1)
-result_df['modeled_14C'] = result_df.apply(lambda x: quad(PowerLawDisKin(x['t_min'], x['t_max']).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
-result_df['params_valid'] = result_df.apply(lambda x: PowerLawDisKin(x['t_min'], x['t_max']).params_valid(), axis=1)
+result_df_05 = parse_results(results_05, backfilled_sites.index)
+result_df_95 = parse_results(results_95, backfilled_sites.index)
 
 merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
+merged_result_df = pd.merge(merged_result_df, result_df_05.add_suffix('_05'), left_index=True, right_index=True, how='left')
+merged_result_df = pd.merge(merged_result_df, result_df_95.add_suffix('_95'), left_index=True, right_index=True, how='left')
 
 print(f'the Maximum objective value is {result_df["objective_value"].max():.3f}')
 

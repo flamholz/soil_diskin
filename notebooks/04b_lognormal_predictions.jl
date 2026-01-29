@@ -11,6 +11,11 @@ tmax = 100_000; # maximum time for the ODE solution
 ts_size = 1000; # size of the time series
 # create a matrix the size of the number of rows in params and with 100_000 columns
 results = Matrix{Float64}(undef, size(params, 1), ts_size);
+results_05 = Matrix{Float64}(undef, size(params, 1), ts_size);
+results_95 = Matrix{Float64}(undef, size(params, 1), ts_size);
+
+# filter rows with nonmissing turnover_q05 values
+backfilled_params = filter(row -> !ismissing(row.turnover_q05), params);
 
 using ProgressBars
 for i in ProgressBar(1:size(params, 1))
@@ -20,9 +25,21 @@ for i in ProgressBar(1:size(params, 1))
     results[i,:] = reduce(vcat, result);
 end
 
+for i in ProgressBar(1:size(backfilled_params, 1))
+        # run the diskin model for each row in params
+    result = run_diskin(backfilled_params[i,:turnover_q05], backfilled_params[i,:pred_05], 1, true, tmax, ts_size);
+    result2 = run_diskin(backfilled_params[i,:turnover_q95], backfilled_params[i,:pred_95], 1, true, tmax, ts_size);
+    results_95[i,:] = reduce(vcat, result2);
+    results_05[i,:] = reduce(vcat, result);
+end
+
+
+
 # TODO: would be great to calculate and save mu and sigma for later inspection
 ts = 10 .^ range(-1,log10(tmax),ts_size);
 CSV.write("results/04_model_predictions/04b_lognormal_cdfs.csv",  Tables.table(results, header = ts));
+CSV.write("results/04_model_predictions/04b_lognormal_cdfs_05.csv",  Tables.table(results_05, header = ts));
+CSV.write("results/04_model_predictions/04b_lognormal_cdfs_95.csv",  Tables.table(results_95, header = ts));
 
 # @btime cont = run_diskin(17,1000,0.25,true,false);
 # @btime noncont = run_diskin(17,1000,0.25,true,true);

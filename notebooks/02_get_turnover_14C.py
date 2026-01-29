@@ -94,7 +94,8 @@ merged_site_data = unique_coords[['Latitude','Longitude']].reset_index().merge(
 # for downstream analysis. 
 merged_site_data = all_sites.merge(
     merged_site_data, on=['Latitude','Longitude'], how='left')
-cols2keep = ['Latitude','Longitude','14C','NPP','Ctotal_0-100estim']
+cols2keep = ['Latitude','Longitude','14C','NPP','Ctotal_0-100estim','Ctotal_0-100estim_q05',
+             'Ctotal_0-100estim_q95']
 merged_site_data = merged_site_data[cols2keep]
 
 # fm is the fraction of modern carbon. to get this value we convert
@@ -103,5 +104,7 @@ merged_site_data['fm'] = merged_site_data['14C'] / 1e3 + 1;
 
 # turnover is SOC/NPP, so we convert NPP from kgC/m2/year to gC/m2/year
 merged_site_data['turnover'] = merged_site_data['Ctotal_0-100estim'] * 1e3 / merged_site_data['NPP'] 
+merged_site_data['turnover_q05'] = merged_site_data['Ctotal_0-100estim_q05'] * 1e3 / merged_site_data['NPP'] 
+merged_site_data['turnover_q95'] = merged_site_data['Ctotal_0-100estim_q95'] * 1e3 / merged_site_data['NPP']
 
 merged_site_data.to_csv('results/all_sites_14C_turnover.csv', index=False)
