@@ -315,7 +315,7 @@ rule steady_state_sensitivity_analysis_lognormal:
         julia --project=./ notebooks/06b_lognormal_steady_state_sensitivity.jl
         """
 # Step 06c: Vegetation effects sensitivity analysis
-rule vegetation_effects_sensitivity_analysis:s
+rule vegetation_effects_sensitivity_analysis:
     input:
         'data/balesdent_2018/balesdent_2018_raw.xlsx',
         'results/processed_balesdent_2018.csv',
