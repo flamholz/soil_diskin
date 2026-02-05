@@ -13,11 +13,13 @@ def main() -> None:
 		description="Annotate and preprocess atmospheric 14C history data."
 	)
 	parser.add_argument(
+		"-i",
 		"--input",
 		default="data/14C_atm.csv",
 		help="Path to input CSV containing year and Delta_14C columns.",
 	)
 	parser.add_argument(
+		"-o",
 		"--output",
 		default="data/14C_atm_annot.csv",
 		help="Path to output annotated CSV.",
