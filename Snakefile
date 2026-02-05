@@ -97,7 +97,7 @@ rule preprocess_14C_data:
     output:
         "data/14C_atm_annot.csv"
     script:
-        "notebooks/01_preprocess_14C_data.py"
+        "notebooks/01_preprocess_14C_history.py"
 
 # Step 02: Get 14C turnover data for the Balesdent sites
 rule turnover_14C:
