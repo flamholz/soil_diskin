@@ -122,6 +122,7 @@ rule calibrate_powerlaw:
 rule lognormal_age_scan_mathematica:
     input:
         "data/14C_atm_annot.csv"
+        "results/all_sites_14C_turnover.csv",
     output:
         "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
         "results/03_calibrate_models/03b_lognormal_model_age_scan_05.csv",

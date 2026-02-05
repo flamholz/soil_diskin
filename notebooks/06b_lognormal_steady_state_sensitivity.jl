@@ -31,6 +31,17 @@ function f_new(J1, J2, tau1, tau2, age1, age2, tmax, ts_size)
     f_new = J2 * labeled ./ (J2 * labeled .+ J1 .* unlabeled);
     return f_new
 end
+
+function f_new_mu_sigma(J1, J2, mu1, mu2, sigma1, sigma2, tmax, ts_size)
+    tau1 = exp(-mu1 + 0.5 * sigma1^2);
+    age1 = tau1 * exp(sigma1^2);
+    tau2 = exp(-mu2 + 0.5 * sigma2^2);
+    age2 = tau2 * exp(sigma2^2);
+    labeled = run_diskin(tau2, age2, 1, true, tmax, ts_size);
+    unlabeled = tau1 .- run_diskin(tau1, age1, 1, false, tmax);
+    f_new = J2 * labeled ./ (J2 * labeled .+ J1 .* unlabeled);
+    return f_new
+end
 # using ProgressBars
 # for i in ProgressBar(1:size(params, 1))
 #         # run the diskin model for each row in params
@@ -41,36 +52,44 @@ end
 # end
 
 input_data = []
-tau_data = []
-age_data = []
+mu_data = []
+sigma_data = []
+
+
+
 for ratio in J_ratio
+    old_mu = -log(sqrt(mean_turnover^3/mean_age));
+    old_sigma = sqrt(log(mean_age/mean_turnover));
+    new_mu = -log(ratio) + old_mu;
+    new_sigma = sqrt(2 * log(ratio) + old_sigma^2); 
+    
     fnew_input = f_new(1, ratio, mean_turnover, mean_turnover, mean_age, mean_age, tmax, ts_size);
-    fnew_tau = f_new(1, 1, mean_turnover, mean_turnover * ratio, mean_age, mean_age, tmax, ts_size);
-    fnew_age = f_new(1, 1, mean_turnover, mean_turnover, mean_age, mean_age * ratio, tmax, ts_size);
+    fnew_mu = f_new_mu_sigma(1, 1, old_mu, new_mu, old_sigma, old_sigma, tmax, ts_size);
+    fnew_sigma = f_new_mu_sigma(1, 1, old_mu, old_mu, old_sigma, new_sigma, tmax, ts_size);
 
     push!(input_data, reduce(vcat, fnew_input));
-    push!(tau_data, reduce(vcat, fnew_tau));
-    push!(age_data, reduce(vcat, fnew_age));
+    push!(mu_data, reduce(vcat, fnew_mu));
+    push!(sigma_data, reduce(vcat, fnew_sigma));
 end
 col_names =string.(round.(J_ratio, digits=2));
 ts = 10 .^ range(-1,log10(tmax),ts_size);
 
 input_data = hcat(input_data...);
-tau_data = hcat(tau_data...);
-age_data = hcat(age_data...);
+mu_data = hcat(mu_data...);
+sigma_data = hcat(sigma_data...);
 
 input_df = DataFrame(input_data, col_names);
-tau_df = DataFrame(tau_data, col_names);
-age_df = DataFrame(age_data, col_names);
+mu_df = DataFrame(mu_data, col_names);
+sigma_df = DataFrame(sigma_data, col_names);
 
 input_df[!, :time] = ts;
-tau_df[!, :time] = ts;
-age_df[!, :time] = ts;
+mu_df[!, :time] = ts;
+sigma_df[!, :time] = ts;
 
 # Save the dataframes to CSV files
 CSV.write("results/06_sensitivity_analysis/lognormal_input_data.csv", input_df);
-CSV.write("results/06_sensitivity_analysis/lognormal_tau_data.csv", tau_df);
-CSV.write("results/06_sensitivity_analysis/lognormal_age_data.csv", age_df);
+CSV.write("results/06_sensitivity_analysis/lognormal_mu_data.csv", mu_df);
+CSV.write("results/06_sensitivity_analysis/lognormal_sigma_data.csv", sigma_df);
 
 
 
