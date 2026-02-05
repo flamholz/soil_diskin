@@ -93,7 +93,10 @@ rule preprocess_balesdent:
     shell:
         "python notebooks/01_preprocess_balesdent_data.py -i {input} -o {output} --backfill"
 
+# Step 01b: Preprocess 14C atmospheric history data
 rule preprocess_14C_data:
+    input:
+        "data/14C_atm.csv"
     output:
         "data/14C_atm_annot.csv"
     script:
