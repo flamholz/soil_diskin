@@ -196,9 +196,9 @@ for col_name in ['05', '95']:
                 args=my_args, method='L-BFGS-B',
                 bounds=[(1e-10, None), (1e-10, None)])
         results_unc.append([res.x,res.fun])
-        result_unc_df = results_to_dataframe(results_unc, beta, backfilled_sites)
-
-        merged_result_df_2 = pd.merge(merged_result_df_2, result_unc_df.add_suffix('_'+col_name), left_index=True, right_index=True, how='left')
+        
+    result_unc_df = results_to_dataframe(results_unc, beta, backfilled_sites)
+    merged_result_df_2 = pd.merge(merged_result_df_2, result_unc_df.add_suffix('_'+col_name), left_index=True, right_index=True, how='left')
 
 print(f'the Maximum objective value is {merged_result_df_2["objective_value"].max():.3f}')
 

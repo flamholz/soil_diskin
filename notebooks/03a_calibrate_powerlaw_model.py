@@ -78,8 +78,11 @@ result = []
 # iterate over each row in the merged_site_data DataFrame
 for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
     # Minimize the objective function for each site
-    res = minimize(objective_function, initial_guess, args=(row,), method='Nelder-Mead')
+    res = minimize(objective_function, initial_guess, args=(row,), method='L-BFGS-B',  bounds=[(0, None), (0, None)], tol = 1e-16)
     
+    if res.fun == 0:
+        print(f'Optimization converged to zero objective value for site index {i}. Rerunnig with Nelder-Mead method for better convergence.')
+        res = minimize(objective_function, initial_guess, args=(row,), method='Nelder-Mead', bounds=[(0, None), (0, None)])
     # Append the optimized parameters to the result list
     result.append([res.x,res.fun])
 
