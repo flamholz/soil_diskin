@@ -1,214 +1,305 @@
-import pandas as pd
+import warnings
 import numpy as np
+import pandas as pd
+
 from os import path
-from scipy.integrate import quad
-from scipy.optimize import minimize
+from scipy.integrate import IntegrationWarning
+from scipy.optimize import least_squares
 from soil_diskin.constants import GAMMA
+from soil_diskin.constants import INTERP_R_14C, LAMBDA_14C
 from soil_diskin.continuum_models import GeneralPowerLawDisKin
 from tqdm import tqdm
 
 """
 Script should be run from the project root directory.
 
-Calibrates the Generalized Power Law model from Rothman, PNAS 2025.
+Calibrates the generalized power law model from Rothman, PNAS 2025.
 """
 
-# Define the objective function for optimization
-# optimize the two parameters of the model to match the turnover and 14C data
-def objective_function(params, beta, merged_site_data):
-    """
-    Objective function to minimize the difference between model predictions and observations.
+DATA_PATH = 'results/all_sites_14C_turnover.csv'
+OUTPUT_DIR = 'results/03_calibrate_models/'
+OBJECTIVE_THRESHOLD = 1e-4
+QUAD_LIMIT = 2000
+QUAD_EPSABS = 1e-6
+LARGE_RESIDUAL = 1e6
+LOWER_BOUNDS = np.array([-8.0, -8.0])
+UPPER_BOUNDS = np.array([8.0, 8.0])
+FAST_INTEGRATION_AGES = np.unique(
+    np.concatenate(
+        [
+            np.array([0.0]),
+            np.geomspace(1e-8, 1e-2, 300),
+            np.geomspace(1e-2, 1.0, 300),
+            np.geomspace(1.0, 100.0, 600),
+            np.geomspace(100.0, 5000.0, 1000),
+            np.geomspace(5000.0, 60000.0, 1500),
+        ]
+    )
+)
+FAST_INTEGRATION_WEIGHTS = INTERP_R_14C(FAST_INTEGRATION_AGES) * np.exp(
+    -LAMBDA_14C * FAST_INTEGRATION_AGES
+)
 
-    Note: 'beta' is the power law exponent parameter in the GeneralPowerLawDisKin model.
-    We do not alter it during optimization, but pass it in for model instantiation.
-    
-    Parameters
-    ----------
-    params : list
-        List of parameters [a, b] for the PowerLawDisKin model.
-    beta : float
-        The beta parameter for the GeneralPowerLawDisKin model.
-    merged_site_data : pd.DataFrame
-        DataFrame containing the observed data for each site, including 'fm' (14C ratio) and 'turnover'.
-    
-    Returns
-    -------
-    float
-        The sum of squared differences between the predicted and observed data.
-    """
-    # Unpack the parameters
-    t_min, t_max = params
+# Optimize in log space to improve scaling and parameter hierarchy:
+# x[0] = log10(t_min), x[1] = log10(t_max - t_min)
+DEFAULT_INITIAL_GUESSES = (
+    (-4.0, -1.0),
+    (-3.5, 3.0),
+    (-2.0, 1.0),
+    (-1.0, 2.0),
+    (0.0, 2.5),
+    (0.5, 3.0),
+    (1.0, 3.0),
+)
 
-    # Create an instance of the GeneralPowerLawDisKin model with the given parameters
+BETA_RUNS = (
+    {
+        'beta': float(np.exp(-GAMMA)),
+        'label': 'np.exp(-GAMMA)',
+        'output_name': 'general_powerlaw_model_optimization_results.csv',
+    },
+    {
+        'beta': float(np.exp(-GAMMA) / 2),
+        'label': 'np.exp(-GAMMA) / 2',
+        'output_name': 'general_powerlaw_model_optimization_results_beta_half.csv',
+    },
+)
+
+
+def unpack_optimization_params(params):
+    """Convert optimization-space parameters into physical model parameters."""
+    log10_t_min, log10_t_gap = params
+    t_min = 10 ** log10_t_min
+    t_gap = 10 ** log10_t_gap
+    t_max = t_min + t_gap
+    return t_min, t_max
+
+
+def pack_optimization_params(t_min, t_max):
+    """Convert physical model parameters into optimization-space parameters."""
+    t_min = max(float(t_min), 1e-8)
+    t_gap = max(float(t_max) - float(t_min), 1e-8)
+    return np.array([np.log10(t_min), np.log10(t_gap)], dtype=float)
+
+
+def approximate_radiocarbon_ratio(model):
+    """Fast radiocarbon approximation used inside the optimizer."""
+    integrand_values = FAST_INTEGRATION_WEIGHTS * model.pA(FAST_INTEGRATION_AGES)
+    return float(np.trapezoid(integrand_values, FAST_INTEGRATION_AGES))
+
+
+def get_model_predictions(t_min, t_max, beta, use_fast_14c=False):
+    """Return the model, predicted turnover, and steady-state radiocarbon."""
     model = GeneralPowerLawDisKin(t_min=t_min, t_max=t_max, beta=beta)
-    
-    # Calculate the predicted 14C ratio and turnover
-    predicted_14C_ratio = quad(model.radiocarbon_age_integrand, 0,
-                               np.inf, limit=1500,epsabs=1e-3)[0]
-    
-    # Calculate the relative difference between the predicted and observed data
-    diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm']))
-    total_14C = np.nansum(merged_site_data['fm'] + 1e-6)
-    relative_diff_14C = diff_14C / total_14C
-    diff_turnover = np.nansum((model.T - merged_site_data['turnover']))
-    total_turnover = np.nansum(merged_site_data['turnover'] + 1e-6)
-    relative_diff_turnover = diff_turnover / total_turnover
-    
-    # Return the sum of squared differences
-    return relative_diff_14C**2 + relative_diff_turnover**2
+    if use_fast_14c:
+        predicted_14c_ratio = approximate_radiocarbon_ratio(model)
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", IntegrationWarning)
+            predicted_14c_ratio = model.calc_radiocarbon_ratio_ss(
+                quad_limit=QUAD_LIMIT,
+                quad_epsabs=QUAD_EPSABS,
+            )[0]
+    return model, predicted_14c_ratio
 
 
-# Helper functions to calculate values on DataFrame rows
-def calc_modeled_T(row):
-    """Calculate the modeled turnover time T from a row of parameters."""
-    model = GeneralPowerLawDisKin(row['t_min'], row['t_max'], row['beta'])
-    return model.T
+def residuals_function(params, beta, site_data):
+    """Return normalized residuals for turnover and radiocarbon at one site."""
+    try:
+        t_min, t_max = unpack_optimization_params(params)
+        model, predicted_14c_ratio = get_model_predictions(
+            t_min=t_min,
+            t_max=t_max,
+            beta=beta,
+            use_fast_14c=True,
+        )
+    except (ArithmeticError, OverflowError, ValueError, ZeroDivisionError):
+        return np.array([LARGE_RESIDUAL, LARGE_RESIDUAL], dtype=float)
+
+    if (
+        not model.params_valid()
+        or not np.isfinite(model.T)
+        or not np.isfinite(predicted_14c_ratio)
+    ):
+        return np.array([LARGE_RESIDUAL, LARGE_RESIDUAL], dtype=float)
+
+    turnover_scale = max(abs(site_data['turnover']), 1e-6)
+    fm_scale = max(abs(site_data['fm']), 1e-6)
+    turnover_residual = (model.T - site_data['turnover']) / turnover_scale
+    fm_residual = (predicted_14c_ratio - site_data['fm']) / fm_scale
+    return np.array([turnover_residual, fm_residual], dtype=float)
 
 
-def calc_modeled_14C(row):
-    """Numerically integrate to get the modeled 14C ratio from a row of parameters."""
-    model = GeneralPowerLawDisKin(row['t_min'], row['t_max'], row['beta'])
-    return quad(model.radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0]
+def build_initial_guesses(warm_start=None):
+    """Return a de-duplicated list of starting points."""
+    initial_guesses = []
+    if warm_start is not None:
+        initial_guesses.append(tuple(np.asarray(warm_start, dtype=float)))
+    initial_guesses.extend(DEFAULT_INITIAL_GUESSES)
+
+    unique_guesses = []
+    seen = set()
+    for guess in initial_guesses:
+        rounded_guess = tuple(np.round(guess, 12))
+        if rounded_guess in seen:
+            continue
+        seen.add(rounded_guess)
+        unique_guesses.append(np.asarray(guess, dtype=float))
+
+    return unique_guesses
 
 
-def calc_params_valid(row):
-    """Returns True if the model parameters are valid for this DataFrame row."""
-    model = GeneralPowerLawDisKin(row['t_min'], row['t_max'], row['beta'])
-    return model.params_valid()
+def fit_single_site(site_data, beta, warm_start=None):
+    """Fit one site using multiple starting points and keep the best result."""
+    best_result = None
+    best_objective = np.inf
+    best_start = None
+
+    for start in build_initial_guesses(warm_start=warm_start):
+        fit_result = least_squares(
+            residuals_function,
+            x0=start,
+            args=(beta, site_data),
+            bounds=(LOWER_BOUNDS, UPPER_BOUNDS),
+            xtol=1e-12,
+            ftol=1e-12,
+            gtol=1e-12,
+            max_nfev=150,
+        )
+        objective_value = float(np.sum(fit_result.fun ** 2))
+        if objective_value < best_objective:
+            best_objective = objective_value
+            best_result = fit_result
+            best_start = start
+
+    t_min, t_max = unpack_optimization_params(best_result.x)
+    model, predicted_14c_ratio = get_model_predictions(
+        t_min=t_min,
+        t_max=t_max,
+        beta=beta,
+        use_fast_14c=False,
+    )
+    turnover_scale = max(abs(site_data['turnover']), 1e-6)
+    fm_scale = max(abs(site_data['fm']), 1e-6)
+    exact_objective_value = float(
+        ((model.T - site_data['turnover']) / turnover_scale) ** 2
+        + ((predicted_14c_ratio - site_data['fm']) / fm_scale) ** 2
+    )
+    return {
+        'objective_value': exact_objective_value,
+        'fit_success': best_result.success,
+        'fit_status': best_result.status,
+        'fit_message': best_result.message,
+        'n_function_evaluations': best_result.nfev,
+        'initial_log10_t_min': float(best_start[0]),
+        'initial_log10_t_gap': float(best_start[1]),
+        't_min': t_min,
+        't_max': t_max,
+        'beta': beta,
+        'modeled_T': model.T,
+        'modeled_14C': predicted_14c_ratio,
+        'params_valid': model.params_valid(),
+    }
 
 
-def results_to_dataframe(results, beta, merged_site_data):
-    """
-    Convert optimization results to a DataFrame.
-    
-    Parameters
-    ----------
-    results : list
-        List of optimization results.
-    beta : float
-        The beta parameter used in the model optimization.
-    merged_site_data : pd.DataFrame
-        DataFrame containing the observed data for each site.
-    
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing the optimization results.
-    """
-    result_df = pd.DataFrame(results, columns=['params','objective_value'],
-                             index=merged_site_data.index)
+def fit_sites(site_data, beta, description, initialization_df=None):
+    """Run the per-site calibration for all rows in a DataFrame."""
+    results = []
+    for idx, row in tqdm(site_data.iterrows(), total=len(site_data), desc=description):
+        warm_start = None
+        if initialization_df is not None and idx in initialization_df.index:
+            init_row = initialization_df.loc[idx]
+            warm_start = pack_optimization_params(init_row['t_min'], init_row['t_max'])
+        results.append(fit_single_site(row, beta=beta, warm_start=warm_start))
 
-    # Unpack the parameters into separate columns
-    index_names = 't_min,t_max'.split(',')
-    result_df[index_names] = result_df['params'].apply(lambda x: pd.Series(x, index=index_names))
-    result_df.drop(columns ='params',inplace=True)
+    return results_to_dataframe(results, site_data)
 
-    result_df['beta'] = beta
-    result_df['modeled_T'] = result_df.apply(calc_modeled_T, axis=1)
-    result_df['modeled_14C'] = result_df.apply(calc_modeled_14C, axis=1)
-    result_df['params_valid'] = result_df.apply(calc_params_valid, axis=1)
 
+def results_to_dataframe(results, site_data):
+    """Attach modeled values and relative errors to the fit results."""
+    result_df = pd.DataFrame(results, index=site_data.index)
+    turnover_scale = site_data['turnover'].abs().clip(lower=1e-6)
+    fm_scale = site_data['fm'].abs().clip(lower=1e-6)
+    result_df['relative_turnover_error'] = (
+        result_df['modeled_T'] - site_data['turnover']
+    ) / turnover_scale
+    result_df['relative_14C_error'] = (
+        result_df['modeled_14C'] - site_data['fm']
+    ) / fm_scale
     return result_df
 
 
-# Load the data
-merged_site_data = pd.read_csv('results/all_sites_14C_turnover.csv')
-
-# initial guess for the parameters
-beta = np.exp(-GAMMA) # gamma is the Euler-Mascheroni constant
-initial_guess = [0.0005, 1000]
-
-# optimize the parameters using a simple optimization method
-results = []
-
-# iterate over each row in the merged_site_data DataFrame
-print('Running optimization for generalized power law with b = np.exp(-GAMMA)...')
-for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
-    # Minimize the objective function for each site
-    my_args = (beta, row)
-    res = minimize(objective_function, initial_guess,
-                   args=my_args, method='L-BFGS-B',
-                   bounds=[(1e-10, None), (1e-10, None)])
-    
-    # Append the optimized parameters to the result list
-    results.append([res.x, res.fun])
-
-result_df = results_to_dataframe(results, beta, merged_site_data)
-
-#%% Perform optimization for the 5% and 95% uncertainty bounds
-results_05 = []
-results_95 = []
-backfilled_sites = merged_site_data[merged_site_data['turnover_q05'].notna() & merged_site_data['turnover_q95'].notna()]
-for i, row in tqdm(backfilled_sites.iterrows(), total=len(backfilled_sites)):
-    row_05 = row.copy()
-    row_05['turnover'] = row.loc['turnover_q05']
-    row_95 = row.copy()
-    row_95['turnover'] = row.loc['turnover_q95']
-    my_args = (beta, row_05)
-    res = minimize(objective_function, initial_guess,
-                   args=my_args, method='L-BFGS-B',
-                   bounds=[(1e-10, None), (1e-10, None)])
-    results_05.append([res.x,res.fun])
-    my_args = (beta, row_95)
-    res = minimize(objective_function, initial_guess,
-                   args=my_args, method='L-BFGS-B',
-                   bounds=[(1e-10, None), (1e-10, None)])
-    results_95.append([res.x,res.fun])
-
-result_df_05 = results_to_dataframe(results_05, beta, backfilled_sites)
-result_df_95 = results_to_dataframe(results_95, beta, backfilled_sites)
-
-merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
-merged_result_df = pd.merge(merged_result_df, result_df_05.add_suffix('_05'), left_index=True, right_index=True, how='left')
-merged_result_df = pd.merge(merged_result_df, result_df_95.add_suffix('_95'), left_index=True, right_index=True, how='left')
-
-print(f'the Maximum objective value is {merged_result_df["objective_value"].max():.3f}')
+def summarize_fit(result_df, label):
+    """Print a compact summary of fit quality."""
+    successful_fits = int(result_df['fit_success'].sum())
+    below_threshold = int((result_df['objective_value'] < OBJECTIVE_THRESHOLD).sum())
+    print(f'{label}:')
+    print(f'  Successful fits: {successful_fits}/{len(result_df)}')
+    print(f'  Median objective value: {result_df["objective_value"].median():.6e}')
+    print(f'  Maximum objective value: {result_df["objective_value"].max():.6e}')
+    print(f'  Sites below {OBJECTIVE_THRESHOLD:.1e}: {below_threshold}/{len(result_df)}')
 
 
-# Now run it all again, but with b = np.exp(-GAMMA) / 2
-results_2 = []
-beta = np.exp(-GAMMA) / 2
-initial_guess = [0.0005, 1000]
+def build_uncertainty_frame(site_data, turnover_column):
+    """Return a copy of the site data with a substituted turnover column."""
+    uncertainty_df = site_data.copy()
+    uncertainty_df['turnover'] = uncertainty_df[turnover_column]
+    return uncertainty_df
 
-# iterate over each row in the merged_site_data DataFrame
-print('Running optimization for generalized power law with b = np.exp(-GAMMA) / 2...')
-for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
-    # Minimize the objective function for each site
-    my_args = (beta, row)
-    res = minimize(objective_function, initial_guess,
-                   args=my_args, method='L-BFGS-B',
-                   bounds=[(1e-10, None), (1e-10, None)])
-    
-    # Append the optimized parameters to the result list
-    results_2.append([res.x,res.fun])
 
-result_df_2 = results_to_dataframe(results_2, beta, merged_site_data)
+def run_single_beta_calibration(merged_site_data, beta_config, backfilled_sites):
+    """Run central, q05, and q95 fits for one fixed beta value."""
+    beta = beta_config['beta']
+    label = beta_config['label']
 
-backfilled_sites = merged_site_data[merged_site_data['turnover_q05'].notna() & merged_site_data['turnover_q95'].notna()]
-merged_result_df_2 = pd.concat([result_df_2, merged_site_data[['fm', 'turnover']]], axis=1)
-for col_name in ['05', '95']:
-    results_unc = []
-    for i, row in tqdm(backfilled_sites.iterrows(), total=len(backfilled_sites)):    
-        row_copy = row.copy()
-        row_copy['turnover'] = row.loc['turnover_q'+col_name]
-        my_args = (beta, row_copy)
-        res = minimize(objective_function, initial_guess,
-                args=my_args, method='L-BFGS-B',
-                bounds=[(1e-10, None), (1e-10, None)])
-        results_unc.append([res.x,res.fun])
-        
-    result_unc_df = results_to_dataframe(results_unc, beta, backfilled_sites)
-    merged_result_df_2 = pd.merge(merged_result_df_2, result_unc_df.add_suffix('_'+col_name), left_index=True, right_index=True, how='left')
+    print(f'Running optimization for generalized power law with beta = {label}...')
+    result_df = fit_sites(
+        merged_site_data,
+        beta=beta,
+        description=f'beta={label}',
+    )
+    summarize_fit(result_df, f'Central fit summary for beta = {label}')
 
-print(f'the Maximum objective value is {merged_result_df_2["objective_value"].max():.3f}')
+    results_by_suffix = {}
+    for suffix in ('05', '95'):
+        uncertainty_df = build_uncertainty_frame(backfilled_sites, f'turnover_q{suffix}')
+        results_by_suffix[suffix] = fit_sites(
+            uncertainty_df,
+            beta=beta,
+            description=f'beta={label} q{suffix}',
+            initialization_df=result_df.loc[backfilled_sites.index],
+        )
 
-# Save the two sets of results to different CSV files
-output_dir = 'results/03_calibrate_models/'
+    merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
+    for suffix, uncertainty_result_df in results_by_suffix.items():
+        merged_result_df = pd.merge(
+            merged_result_df,
+            uncertainty_result_df.add_suffix(f'_{suffix}'),
+            left_index=True,
+            right_index=True,
+            how='left',
+        )
 
-fname1 = 'general_powerlaw_model_optimization_results.csv'
-output_path = path.join(output_dir, fname1)
-merged_result_df.to_csv(output_path, index=False)
+    output_path = path.join(OUTPUT_DIR, beta_config['output_name'])
+    merged_result_df.to_csv(output_path, index=False)
+    print(f'Saved results to {output_path}')
 
-fname2 = 'general_powerlaw_model_optimization_results_beta_half.csv'
-output_path = path.join(output_dir, fname2)
-merged_result_df_2.to_csv(output_path, index=False)
+    return merged_result_df
+
+
+def main():
+    merged_site_data = pd.read_csv(DATA_PATH)
+    backfilled_sites = merged_site_data[
+        merged_site_data['turnover_q05'].notna() & merged_site_data['turnover_q95'].notna()
+    ]
+
+    for beta_config in BETA_RUNS:
+        run_single_beta_calibration(
+            merged_site_data=merged_site_data,
+            beta_config=beta_config,
+            backfilled_sites=backfilled_sites,
+        )
+
+
+if __name__ == '__main__':
+    main()

@@ -177,6 +177,7 @@ for i, (ax, label) in enumerate(zip(axs, "ABCDEFGH")):
 # %% Save the figure
 out_fname = f'figures/fig3.png'
 plt.savefig(out_fname, dpi=300, bbox_inches='tight')
+plt.savefig('figures/fig3.svg', dpi=300, bbox_inches='tight')
 
 # %% make a supplementary version of the above plot where the points are colored by the
 # timing of the land use change event. Using a log color scale. Also, we now include the 
