@@ -1,10 +1,19 @@
 import numpy as np
 
 from scipy.integrate import quad
-from scipy.special import exp1, gammaincc, gamma
+from scipy.special import exp1, gamma, gammaincc, log_ndtr
 from scipy.stats import lognorm
 from soil_diskin.constants import LAMBDA_14C, INTERP_R_14C, GAMMA
 from tqdm import tqdm
+
+
+def expint(n, x):
+    """Generalized exponential integral E_n(x) for real n < 1 and x > 0.
+
+    Uses the identity E_n(x) = x^(n-1) * Γ(1-n, x), where the upper
+    incomplete gamma function is computed as gammaincc(1-n, x) * gamma(1-n).
+    """
+    return x ** (n - 1) * gammaincc(1 - n, x) * gamma(1 - n)
 
 
 # TODO: PowerLawDisKin is poorly named, the variant with t^{-alpha} is also power laws.
@@ -217,7 +226,6 @@ class GammaDisKin(AbstractDiskinModel):
         cdf = (-1 + (1 + self.b * t) ** (1 - self.a)) / (self.b * (1 - self.a)) / self.T
         return cdf
 
-
 class GeneralPowerLawDisKin(AbstractDiskinModel):
     """A model where rates of decay are proportional to 1/t between two bounding timescales.
 
@@ -231,7 +239,7 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         t_max: float
             The long time scale
         beta: float
-            The exponent of the power law decay with age. Must be in the range (0, 1].
+            The exponent of the power law decay with age. Must be positive.
         interp_r_14c: callable
             An interpolator for the estimated historical radiocarbon concentration.
             Takes a single argument, the number of years before a reference time (e.g. 2000).
@@ -241,31 +249,22 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         """
         super().__init__(interp_r_14c=interp_r_14c)
 
-        if beta <= 0 or beta > 1:
-            raise ValueError("Beta parameter must be in the range (0, 1].")
+        if beta <= 0:
+            raise ValueError("Beta parameter must be positive.")
 
         self.t_min = t_min  # short time scale
         self.t_max = t_max  # long time scale
         self.I = I
         self.beta = beta
 
-        # En function - take real part to avoid complex number artifacts
-        self.En = lambda n, x: np.real(x ** (n-1) * gammaincc(1 - n, x) * gamma(1 - n)) if n < 1 else exp1(x)
+        tratio = t_min / t_max
+        self.tratio = tratio
 
         # steady-state transit time
-        tratio = (t_min * beta) / t_max
-        en_term = self.En(beta, tratio)
-        prod = t_min * beta
-        self.T = prod * np.exp(tratio) * en_term
+        self.T = t_min * np.exp(tratio) * expint(self.beta, tratio)
 
         # mean age at steady-state
-        A_num = prod * (-np.exp(-tratio) + (beta + tratio - 1) * self.En(beta-1, tratio))
-        A_denom = (beta - 1) * en_term
-        self.A = A_num / A_denom
-
-        # Save these for shorthand in other methods
-        self.product = prod  # vague name... 
-        self.tratio = tratio
+        self.A = t_min * (expint(self.beta - 1, tratio) / expint(self.beta, tratio) - 1)
 
     def params_valid(self):
         """Returns True if the parameters are valid, False otherwise.
@@ -275,28 +274,26 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         t_min_valid = self.t_min > 0
         t_max_valid = self.t_max > 0
         t_hierarchy_valid = self.t_max > self.t_min
-        beta_valid = (0 < self.beta <= 1)
+        beta_valid = self.beta > 0
         return t_min_valid and t_max_valid and t_hierarchy_valid and beta_valid
 
     def s(self, t):
         """The survival function at age t.
-        
+
         The survival function gives the fraction of input remaining at age t.
 
         The expression for s(t) is
-            s(t) = ( (t_min * β)^β * exp(- t / t_max) ) / ( (t_min * β + t)^β )
+            s(t) = exp(- t / t_max) * ( t_min / (t_min + t) )^β
 
         Args:
             t: float
                 The age at which to evaluate the survival function.
-        
+
         Returns:
             float
                 The fraction of input remaining at age t.
         """
-        num = self.product ** self.beta * np.exp(- t / self.t_max)
-        denom = (self.product + t) ** self.beta
-        return num / denom
+        return np.exp(-t / self.t_max) * (self.t_min / (self.t_min + t)) ** self.beta
     
     def impulse(self, t, X):
         """Calculate the change in state of the system at time t.
@@ -319,9 +316,7 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
     
     def cdfA(self, a):
         """Calculate the cumulative distribution function of the age distribution."""
-        # The CDF is the integral of the PDF from 0 to a
-        cdf = 1 - (self.product / (self.product + a)) ** (self.beta - 1) * self.En(self.beta, (self.product + a) / self.t_max) / self.En(self.beta, self.tratio)
-        return cdf
+        return 1 - (self.t_min / (self.t_min + a)) ** (self.beta - 1) * expint(self.beta, (self.t_min + a) / self.t_max) / expint(self.beta, self.tratio)
 
 
 class PowerLawDisKin(AbstractDiskinModel):
