@@ -93,11 +93,14 @@ rule preprocess_balesdent:
     shell:
         "python notebooks/01_preprocess_balesdent_data.py -i {input} -o {output} --backfill"
 
+# Step 01b: Preprocess 14C atmospheric history data
 rule preprocess_14C_data:
+    input:
+        "data/14C_atm.csv"
     output:
         "data/14C_atm_annot.csv"
-    script:
-        "notebooks/01_preprocess_14C_data.py"
+    shell:
+        "python notebooks/01_preprocess_14C_history.py -i {input} -o {output}"
 
 # Step 02: Get 14C turnover data for the Balesdent sites
 rule turnover_14C:
@@ -124,12 +127,28 @@ rule lognormal_age_scan_mathematica:
         "data/14C_atm_annot.csv",
         "results/all_sites_14C_turnover.csv",
     output:
+        "results/03_calibrate_models/03b_lognormal_model_age_scan.h5",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_05.h5",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_95.h5"
+    shell:
+        """
+        wolframscript --file notebooks/03b_lognormal_age_scan.wls
+        """
+
+rule lognormal_age_scan_h52csv:
+    input:
+        "results/03_calibrate_models/03b_lognormal_model_age_scan.h5",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_05.h5",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_95.h5"
+    output:
         "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
         "results/03_calibrate_models/03b_lognormal_model_age_scan_05.csv",
         "results/03_calibrate_models/03b_lognormal_model_age_scan_95.csv"
     shell:
         """
-        wolframscript --file notebooks/03b_lognormal_age_scan.wls
+        python notebooks/03b_scan2csv.py -i results/03_calibrate_models/03b_lognormal_model_age_scan.h5 -o results/03_calibrate_models/03b_lognormal_model_age_scan.csv
+        python notebooks/03b_scan2csv.py -i results/03_calibrate_models/03b_lognormal_model_age_scan_05.h5 -o results/03_calibrate_models/03b_lognormal_model_age_scan_05.csv
+        python notebooks/03b_scan2csv.py -i results/03_calibrate_models/03b_lognormal_model_age_scan_95.h5 -o results/03_calibrate_models/03b_lognormal_model_age_scan_95.csv
         """
 
 rule calibrate_lognormal_python:
