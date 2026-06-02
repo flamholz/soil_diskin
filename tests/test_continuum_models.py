@@ -327,10 +327,14 @@ class TestGeneralPowerLawDisKin(unittest.TestCase):
             self.assertFalse(model.params_valid(),
                              msg=f"Invalid parameters t_min={t_min}, t_max={t_max}, beta={beta} marked as valid.")
         
-        # Beta must be between 0 and 1
-        with self.assertRaises(ValueError):
-            GeneralPowerLawDisKin(t_min=10, t_max=1000, beta=1.5)  # beta > 1
-        
+        # Beta is required to be positive (constructor enforces > 0).
+        # Beta > 1 is allowed under the new behavior; it should construct
+        # and be considered valid by `params_valid`.
+        model = GeneralPowerLawDisKin(t_min=10, t_max=1000, beta=1.5)  # beta > 1 should construct
+        self.assertTrue(model.params_valid(),
+                        msg=f"beta > 1 should be valid for params_valid() (beta=1.5)")
+
+        # Negative beta should still raise
         with self.assertRaises(ValueError):
             GeneralPowerLawDisKin(t_min=10, t_max=1000, beta=-0.1)  # beta < 0
 
