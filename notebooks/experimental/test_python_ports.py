@@ -19,7 +19,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).parent))
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from notebooks.experimental.diskin_utils_fast import run_diskin_fast as run_diskin_fast_py  # noqa: E402
 from notebooks.experimental.lognormal_radiocarbon import load_atm14c, scan_ages  # noqa: E402

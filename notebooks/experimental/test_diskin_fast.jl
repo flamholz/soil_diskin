@@ -3,7 +3,7 @@ Pkg.instantiate()
 
 using Printf
 
-include("diskin_utils.jl")
+include("../diskin_utils.jl")
 include("diskin_utils_fast.jl")
 
 # Compare the closed-form/quadrature implementation against the original

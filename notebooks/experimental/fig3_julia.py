@@ -3,7 +3,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import viz
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import notebooks.viz as viz
 
 from permetrics.regression import RegressionMetric
 from sklearn.metrics import root_mean_squared_error

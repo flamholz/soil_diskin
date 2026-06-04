@@ -34,6 +34,11 @@ from joblib import Parallel, delayed
 from scipy.interpolate import interp1d
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
+# Allow running this file directly (`uv run .../03b_lognormal_age_scan.py`):
+# add the repo root to sys.path so the `notebooks` package is importable.
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from notebooks.experimental.lognormal_radiocarbon import AtmC14, load_atm14c, scan_ages
 
 SITES_PATH = Path("results/all_sites_14C_turnover.csv")

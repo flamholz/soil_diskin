@@ -26,8 +26,7 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-sys.path.insert(0, str(Path(__file__).parent))
-
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from notebooks.experimental.diskin_utils_fast import run_diskin_fast  # noqa: E402
 
 PARAMS_PATH = Path("results/03_calibrate_models/03b_lognormal_predictions_calcurve_julia.csv")
