@@ -7,7 +7,12 @@ import pandas as pd
 from scipy.integrate import IntegrationWarning
 from scipy.optimize import least_squares, minimize_scalar
 from soil_diskin.constants import INTERP_R_14C, LAMBDA_14C
-from soil_diskin.continuum_models import GaussianDisKin, LogUniformRateDisKin
+# Allow running this file directly (`uv run .../03b_lognormal_age_scan.py`):
+# add the repo root to sys.path so the `notebooks` package is importable.
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from notebooks.experimental.continuum_models_experimental import GaussianDisKin, LogUniformRateDisKin
 from tqdm import tqdm
 
 """

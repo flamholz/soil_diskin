@@ -33,7 +33,9 @@ from joblib import Parallel, delayed
 from scipy.interpolate import interp1d
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
-sys.path.insert(0, str(Path(__file__).parent))
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from notebooks.experimental.lognormal_radiocarbon import load_atm14c, lognormal_radiocarbon, scan_ages  # noqa: E402
 
 # --- Experiment configuration ---
