@@ -18,7 +18,7 @@ first-order pools, with decay rate $k > 0$ distributed according to a
 lognormal density
 
 $$
-f(k) = \frac{1}{k\,\sigma\sqrt{2\pi}}\exp\!\Bigl(-\frac{(\log k - \mu)^2}{2\sigma^2}\Bigr),
+f(k) = \frac{1}{k\\,\sigma\sqrt{2\pi}}\exp\\!\Bigl(-\frac{(\log k - \mu)^2}{2\sigma^2}\Bigr),
 $$
 
 where $(\mu, \sigma)$ are determined from the system's transit time $\tau$ and
@@ -26,7 +26,7 @@ mean age $\bar a$ via
 
 $$
 \sigma = \sqrt{\log(\bar a / \tau)},\qquad
-\mu    = -\log\!\sqrt{\tau^3/\bar a}.
+\mu    = -\log\\!\sqrt{\tau^3/\bar a}.
 $$
 
 For each pool $k$ at steady state under constant input, the carbon's age
@@ -36,18 +36,18 @@ more carbon at steady state), the predicted bulk-pool radiocarbon activity
 ratio is
 
 $$
-\boxed{\;
+\boxed{\\;
 r(\tau, \bar a)
-\;=\; \frac{1}{\mathbb{E}[1/k]}
-\int_0^\infty\!\!\int_0^\infty
-R(a)\, e^{-a/8267}\, f(k)\, e^{-k a}\, dk\, da
-\;}
+\\;=\\; \frac{1}{\mathbb{E}[1/k]}
+\int_0^\infty\\!\\!\int_0^\infty
+R(a)\\, e^{-a/8267}\\, f(k)\\, e^{-k a}\\, dk\\, da
+\\;}
 $$
 
 where:
-- $R(a)$ is the atmospheric $^{14}\!C/^{12}\!C$ activity ratio $a$ years before
+- $R(a)$ is the atmospheric $^{14}\\!C/^{12}\\!C$ activity ratio $a$ years before
   the reference epoch (year 2000 in this dataset),
-- $8267\;\mathrm{yr}$ is the $^{14}\!C$ mean life (so $e^{-a/8267}$ is the
+- $8267\\;\mathrm{yr}$ is the $^{14}\\!C$ mean life (so $e^{-a/8267}$ is the
   radioactive-decay factor),
 - $\mathbb{E}[1/k] = e^{-\mu + \sigma^2/2}$ is the lognormal first inverse
   moment, normalizing the mass-weighted age distribution.
@@ -63,7 +63,7 @@ from its measured fraction modern.
 
 The Wolfram script implements $R(a)$ as Mathematica's
 `Interpolation[..., InterpolationOrder -> 0]` — i.e. a piecewise-constant
-lookup over ~55 000 annual atmospheric $^{14}\!C$ measurements.
+lookup over ~55 000 annual atmospheric $^{14}\\!C$ measurements.
 
 ---
 
@@ -108,7 +108,7 @@ The key observation is that $R(a)$ is **piecewise constant**, so the inner
 integral has an exact closed form. Define
 
 $$
-I(k) \;\equiv\; \int_0^\infty R(a)\, e^{-(1/8267 + k)\, a}\, da .
+I(k) \\;\equiv\\; \int_0^\infty R(a)\\, e^{-(1/8267 + k)\\, a}\\, da .
 $$
 
 If $R(a) = c_i$ on the segment $[a_i, a_{i+1})$, with a constant tail
@@ -116,13 +116,13 @@ $c_\infty$ beyond $a_N$ (Mathematica's `ExtrapolationHandler` returns the
 mean of the last 50 000 values), then with $\alpha \equiv 1/8267 + k$,
 
 $$
-\boxed{\;
+\boxed{\\;
 I(k)
-= \frac{1}{\alpha}\!\left[
-    \sum_{i} c_i\,\bigl(e^{-\alpha a_i} - e^{-\alpha a_{i+1}}\bigr)
-    \;+\; c_\infty\, e^{-\alpha a_N}
+= \frac{1}{\alpha}\\!\left[
+    \sum_{i} c_i\\,\bigl(e^{-\alpha a_i} - e^{-\alpha a_{i+1}}\bigr)
+    \\;+\\; c_\infty\\, e^{-\alpha a_N}
 \right]
-\;}
+\\;}
 $$
 
 This is exact in $a$ — no quadrature needed for that direction.
@@ -131,22 +131,22 @@ What remains is a **1-D outer integral** over $k$:
 
 $$
 r(\tau, \bar a)
-= \frac{1}{\mathbb{E}[1/k]} \int_0^\infty f(k)\, I(k)\, dk .
+= \frac{1}{\mathbb{E}[1/k]} \int_0^\infty f(k)\\, I(k)\\, dk .
 $$
 
 The outer integrand pairs a smooth $f(k)$ (lognormal density) with the smooth
 $I(k)$ (a Laplace-transform-like average). Switching to log-rate coordinates
-$u = \log k$ uses the identity $f(k)\,dk = \varphi_\mathcal{N}(u; \mu, \sigma)\,du$
+$u = \log k$ uses the identity $f(k)\\,dk = \varphi_\mathcal{N}(u; \mu, \sigma)\\,du$
 to put the outer integral in a Gaussian-weighted form perfect for adaptive
 quadrature:
 
 $$
-\boxed{\;
+\boxed{\\;
 r(\tau, \bar a)
 = e^{\mu - \sigma^2/2}
 \int_{-\infty}^{\infty}
-\varphi_\mathcal{N}(u; \mu, \sigma)\, I(e^u)\, du
-\;}
+\varphi_\mathcal{N}(u; \mu, \sigma)\\, I(e^u)\\, du
+\\;}
 $$
 
 In code we truncate the outer integration to $[\mu - 10\sigma,\ \mu + 10\sigma]$
@@ -171,7 +171,7 @@ more reliable because the hard direction was eliminated, not approximated.
 ### Files
 
 - [`notebooks/lognormal_radiocarbon.jl`](lognormal_radiocarbon.jl) — the math:
-  - `AtmC14` struct: piecewise-constant atmospheric $^{14}\!C$ lookup with a
+  - `AtmC14` struct: piecewise-constant atmospheric $^{14}\\!C$ lookup with a
     constant tail.
   - `load_atm14c(path)`: matches Wolfram's data-loading behavior — keeps
     columns `years_before_2000` and `R_14C`, sorts ascending in age, drops
