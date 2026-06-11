@@ -21,14 +21,14 @@ where:
 For the lognormal variant, $f$ is the lognormal density
 
 $$
-f(k) \\,=\\, \frac{1}{k\\,\sigma\sqrt{2\pi}}\exp\!\Bigl(-\frac{(\log k - \mu)^2}{2\sigma^2}\Bigr),
+f(k) \\,=\\, \frac{1}{k\\,\sigma\sqrt{2\pi}}\exp\\!\Bigl(-\frac{(\log k - \mu)^2}{2\sigma^2}\Bigr),
 $$
 
 with $\mu, \sigma$ determined from the transit time $\tau$ and mean age $\bar a$ via
 
 $$
 \sigma = \sqrt{\log(\bar a / \tau)}, \qquad
-\mu = -\log\!\sqrt{\tau^3/\bar a}.
+\mu = -\log\\!\sqrt{\tau^3/\bar a}.
 $$
 
 The total carbon stock is
@@ -67,11 +67,11 @@ This is the pool-resolved closed form: no ODE integration required.
 Integrating over $k$:
 
 $$
-C(t) \\,=\\, I\!\int_0^\infty \frac{f(k)}{k}\\,\bigl(1 - e^{-kt}\bigr)\\,dk.
+C(t) \\,=\\, I\\!\int_0^\infty \frac{f(k)}{k}\\,\bigl(1 - e^{-kt}\bigr)\\,dk.
 $$
 
 The integrand picks up an extra $1/k$ on top of $f(k)$, which is a problem if
-we try to discretize $k$ uniformly: $f(k)/k$ is sharply peaked near $k\!\to\!0$
+we try to discretize $k$ uniformly: $f(k)/k$ is sharply peaked near $k\\!\to\\!0$
 when $\mu$ is small. The cure is to integrate in **log-rate space**.
 
 ### Change of variables $u = \log k$
@@ -84,7 +84,7 @@ f(k)\\,dk \\,=\\, \varphi_{\mathcal{N}}(u;\\,\mu,\sigma)\\,du,
 $$
 
 where $\varphi_{\mathcal{N}}(\cdot;\mu,\sigma)$ is the Gaussian density of $u$ —
-in other words, the log of a lognormal-$\!(\mu,\sigma)$ variable is normal-$\!(\mu,\sigma)$.
+in other words, the log of a lognormal-$\\!(\mu,\sigma)$ variable is normal-$\\!(\mu,\sigma)$.
 
 Therefore
 
@@ -98,7 +98,7 @@ Substituting:
 
 $$
 \boxed{\\,
-C(t) \\,=\\, I\!\int_{-\infty}^{\infty}
+C(t) \\,=\\, I\\!\int_{-\infty}^{\infty}
 e^{-u}\\,\varphi_{\mathcal{N}}(u;\\,\mu,\sigma)\\,
 \bigl(1 - e^{-e^{u}\\,t}\bigr)\\,du.
 \\,}
@@ -112,15 +112,15 @@ one smooth 1-D integral per time point — no ODE solver.
 ### Domain truncation
 
 The Gaussian factor $\varphi_{\mathcal{N}}(u;\mu,\sigma)$ decays like
-$\exp\!\bigl(-(u-\mu)^2/(2\sigma^2)\bigr)$, which kills the $e^{-u}$ factor at
+$\exp\\!\bigl(-(u-\mu)^2/(2\sigma^2)\bigr)$, which kills the $e^{-u}$ factor at
 $\pm\infty$. Combining the two log-weights,
 
 $$
 e^{-u}\\,\varphi_{\mathcal{N}}(u;\mu,\sigma)
-\\,\propto\\, \exp\!\Bigl(-u - \frac{(u-\mu)^2}{2\sigma^2}\Bigr),
+\\,\propto\\, \exp\\!\Bigl(-u - \frac{(u-\mu)^2}{2\sigma^2}\Bigr),
 $$
 
-so the integrand peaks where $\frac{d}{du}\!\bigl[-u-(u-\mu)^2/(2\sigma^2)\bigr] = 0$,
+so the integrand peaks where $\frac{d}{du}\\!\bigl[-u-(u-\mu)^2/(2\sigma^2)\bigr] = 0$,
 i.e. at
 
 $$
@@ -157,7 +157,7 @@ When $I$ depends on time, the linear ODE still solves analytically via the
 integrating-factor argument:
 
 $$
-C_k(t) \\,=\\, f(k)\!\int_0^t I(s)\\,e^{-k(t-s)}\\,ds.
+C_k(t) \\,=\\, f(k)\\!\int_0^t I(s)\\,e^{-k(t-s)}\\,ds.
 $$
 
 Integrating over $k$ and swapping the order:
@@ -171,4 +171,4 @@ $$
 where $G$ is the Laplace transform of $f$ — also a smooth 1-D integral, which
 can be precomputed once on the output time grid and then convolved with
 $I(s)$. This recovers the constant-input case when $I(s) \equiv I$, since
-$\int_0^t G(t-s)\\,ds = \int_0^\infty f(k)\\,k^{-1}\!\bigl(1-e^{-kt}\bigr)\\,dk$.
+$\int_0^t G(t-s)\\,ds = \int_0^\infty f(k)\\,k^{-1}\\!\bigl(1-e^{-kt}\bigr)\\,dk$.
