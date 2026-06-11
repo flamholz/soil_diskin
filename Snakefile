@@ -84,6 +84,21 @@ rule download_kang_data:
         popd
         """
 
+# ISRaD database
+rule download_israd_data:
+    output:
+        "data/ISRaD/.israd_download_complete"
+    params:
+        url="https://github.com/International-Soil-Radiocarbon-Database/ISRaD/raw/main/ISRaD_data_files/database/ISRaD_database_files.zip"
+    shell:
+        """
+        mkdir -p data/ISRaD
+        curl -L -o israd_database_files.zip {params.url}
+        unzip -o israd_database_files.zip -d data/ISRaD
+        rm -f israd_database_files.zip
+        touch {output}
+        """
+
 # Step 01: Preprocess Balesdent data
 rule preprocess_balesdent:
     input:
@@ -464,6 +479,7 @@ rule clean:
         rm -rf data/he_2016/*
         rm -rf data/kang_2023/*
         rm -rf data/shi_2020/*
+        rm -rf data/ISRaD/*
         """
 
 rule clean_results:
