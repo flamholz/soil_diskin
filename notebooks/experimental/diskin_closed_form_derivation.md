@@ -8,7 +8,7 @@ The Diskin model represents soil carbon as a continuum of pools indexed by a
 first-order decay rate $k > 0$. Each pool $C_k(t)$ evolves under
 
 $$
-\frac{\partial C_k}{\partial t} \;=\; I(t)\,f(k) \;-\; k\,C_k(t),
+\frac{\partial C_k}{\partial t} \,=\, I(t)\,f(k) \,-\, k\,C_k(t),
 \qquad C_k(0)=0,
 $$
 
@@ -21,7 +21,7 @@ where:
 For the lognormal variant, $f$ is the lognormal density
 
 $$
-f(k) \;=\; \frac{1}{k\,\sigma\sqrt{2\pi}}\exp\!\Bigl(-\frac{(\log k - \mu)^2}{2\sigma^2}\Bigr),
+f(k) \,=\, \frac{1}{k\,\sigma\sqrt{2\pi}}\exp\!\Bigl(-\frac{(\log k - \mu)^2}{2\sigma^2}\Bigr),
 $$
 
 with $\mu, \sigma$ determined from the transit time $\tau$ and mean age $\bar a$ via
@@ -34,7 +34,7 @@ $$
 The total carbon stock is
 
 $$
-C(t) \;=\; \int_0^\infty C_k(t)\,dk.
+C(t) \,=\, \int_0^\infty C_k(t)\,dk.
 $$
 
 ## 2. Closed form for constant input
@@ -43,7 +43,7 @@ Assume $I(t) \equiv I$ (constant). The ODE for $C_k$ is linear first-order with
 constant coefficients:
 
 $$
-\dot C_k + k\,C_k \;=\; I\,f(k).
+\dot C_k + k\,C_k \,=\, I\,f(k).
 $$
 
 Multiplying by the integrating factor $e^{kt}$ gives
@@ -51,13 +51,13 @@ $\frac{d}{dt}\bigl(e^{kt}\,C_k\bigr) = I\,f(k)\,e^{kt}$, and integrating from
 $0$ to $t$ with $C_k(0)=0$:
 
 $$
-e^{kt}\,C_k(t) \;=\; I\,f(k)\,\frac{e^{kt}-1}{k}.
+e^{kt}\,C_k(t) \,=\, I\,f(k)\,\frac{e^{kt}-1}{k}.
 $$
 
 Hence
 
 $$
-\boxed{\;C_k(t) \;=\; \frac{I\,f(k)}{k}\,\bigl(1 - e^{-kt}\bigr)\;}
+\boxed{\,C_k(t) \,=\, \frac{I\,f(k)}{k}\,\bigl(1 - e^{-kt}\bigr)\,}
 $$
 
 This is the pool-resolved closed form: no ODE integration required.
@@ -67,7 +67,7 @@ This is the pool-resolved closed form: no ODE integration required.
 Integrating over $k$:
 
 $$
-C(t) \;=\; I\!\int_0^\infty \frac{f(k)}{k}\,\bigl(1 - e^{-kt}\bigr)\,dk.
+C(t) \,=\, I\!\int_0^\infty \frac{f(k)}{k}\,\bigl(1 - e^{-kt}\bigr)\,dk.
 $$
 
 The integrand picks up an extra $1/k$ on top of $f(k)$, which is a problem if
@@ -80,7 +80,7 @@ Let $u = \log k$, so $k = e^u$ and $dk = e^u\,du$. The lognormal density has
 the convenient property
 
 $$
-f(k)\,dk \;=\; \varphi_{\mathcal{N}}(u;\,\mu,\sigma)\,du,
+f(k)\,dk \,=\, \varphi_{\mathcal{N}}(u;\,\mu,\sigma)\,du,
 $$
 
 where $\varphi_{\mathcal{N}}(\cdot;\mu,\sigma)$ is the Gaussian density of $u$ —
@@ -90,18 +90,18 @@ Therefore
 
 $$
 \frac{f(k)}{k}\,dk
-\;=\; \frac{1}{k}\,\varphi_{\mathcal{N}}(u;\,\mu,\sigma)\,du
-\;=\; e^{-u}\,\varphi_{\mathcal{N}}(u;\,\mu,\sigma)\,du.
+\,=\, \frac{1}{k}\,\varphi_{\mathcal{N}}(u;\,\mu,\sigma)\,du
+\,=\, e^{-u}\,\varphi_{\mathcal{N}}(u;\,\mu,\sigma)\,du.
 $$
 
 Substituting:
 
 $$
-\boxed{\;
-C(t) \;=\; I\!\int_{-\infty}^{\infty}
+\boxed{\,
+C(t) \,=\, I\!\int_{-\infty}^{\infty}
 e^{-u}\,\varphi_{\mathcal{N}}(u;\,\mu,\sigma)\,
 \bigl(1 - e^{-e^{u}\,t}\bigr)\,du.
-\;}
+\,}
 $$
 
 This is the form used in [`diskin_utils_fast.jl`](diskin_utils_fast.jl#L42):
@@ -117,14 +117,14 @@ $\pm\infty$. Combining the two log-weights,
 
 $$
 e^{-u}\,\varphi_{\mathcal{N}}(u;\mu,\sigma)
-\;\propto\; \exp\!\Bigl(-u - \frac{(u-\mu)^2}{2\sigma^2}\Bigr),
+\,\propto\, \exp\!\Bigl(-u - \frac{(u-\mu)^2}{2\sigma^2}\Bigr),
 $$
 
 so the integrand peaks where $\frac{d}{du}\!\bigl[-u-(u-\mu)^2/(2\sigma^2)\bigr] = 0$,
 i.e. at
 
 $$
-u^\star \;=\; \mu - \sigma^2.
+u^\star \,=\, \mu - \sigma^2.
 $$
 
 The implementation truncates to $[\mu - \sigma^2 - 10\sigma,\ \mu + 10\sigma]$,
@@ -137,7 +137,7 @@ For $kt \ll 1$ the term $1 - e^{-kt}$ loses precision through catastrophic
 cancellation. We use the standard library identity
 
 $$
-1 - e^{-x} \;=\; -\mathrm{expm1}(-x),
+1 - e^{-x} \,=\, -\mathrm{expm1}(-x),
 $$
 
 which is accurate to machine precision down to $x \to 0$. This matters at the
@@ -157,15 +157,15 @@ When $I$ depends on time, the linear ODE still solves analytically via the
 integrating-factor argument:
 
 $$
-C_k(t) \;=\; f(k)\!\int_0^t I(s)\,e^{-k(t-s)}\,ds.
+C_k(t) \,=\, f(k)\!\int_0^t I(s)\,e^{-k(t-s)}\,ds.
 $$
 
 Integrating over $k$ and swapping the order:
 
 $$
-C(t) \;=\; \int_0^t I(s)\,G(t-s)\,ds,
+C(t) \,=\, \int_0^t I(s)\,G(t-s)\,ds,
 \qquad
-G(\tau) \;=\; \int_0^\infty f(k)\,e^{-k\tau}\,dk,
+G(\tau) \,=\, \int_0^\infty f(k)\,e^{-k\tau}\,dk,
 $$
 
 where $G$ is the Laplace transform of $f$ — also a smooth 1-D integral, which
