@@ -16,7 +16,7 @@ rule all:
         # "figures/model_predictions.png",
         "figures/fig1.png",
         "figures/fig2.png",
-        "figures/fig3.png",
+        "figures/fig4.png",
         "figures/figS1.png",
         "figures/figS3.png",
         "figures/figS4.png",
@@ -187,6 +187,22 @@ rule calibrate_generalized_powerlaw:
     script:
         "notebooks/03c_calibrate_generalized_powerlaw_model.py"
 
+# Run the end-to-end Python lognormal calibration (experimental port)
+rule run_lognormal_calibration_python:
+    input:
+        sites="results/all_sites_14C_turnover.csv",
+        atm="data/14C_atm_annot.csv",
+    output:
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_python.csv",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_05_python.csv",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_95_python.csv",
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+    shell:
+        """
+        mkdir -p results/03_calibrate_models
+        python notebooks/03b_lognormal_calibration.py
+        """
+
 # Step 03d: Calibrate gamma model
 rule calibrate_gamma:
     input:
@@ -210,6 +226,18 @@ rule lognormal_predictions_julia:
         julia --project=./ notebooks/04b_lognormal_predictions.jl
         """
 
+rule lognormal_predictions_python:
+    input:
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+    output:
+        "results/04_model_predictions/04b_lognormal_cdfs_python.csv",
+        "results/04_model_predictions/04b_lognormal_cdfs_05_python.csv",
+        "results/04_model_predictions/04b_lognormal_cdfs_95_python.csv"
+    shell:
+        """
+        python notebooks/04b_lognormal_predictions_fast.py --params-path {input}
+        """
+
 # Download JSBACH files for parameterization of other models
 rule download_jsbach_data:
     output:
@@ -230,7 +258,7 @@ rule continuum_model_predictions:
         "results/processed_balesdent_2018.csv",
         "results/all_sites_14C_turnover.csv",
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
-        "results/04_model_predictions/04b_lognormal_cdfs.csv",
+        "results/04_model_predictions/04b_lognormal_cdfs_python.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
         "results/03_calibrate_models/gamma_model_optimization_results.csv"
@@ -340,7 +368,7 @@ rule turnover_sensitivity_analysis_lognormal_julia:
 rule steady_state_sensitivity_analysis_lognormal:
     input:
         "data/balesdent_2018/balesdent_2018_raw.xlsx",
-        "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
     output:
         "results/06_sensitivity_analysis/lognormal_input_data.csv",
         "results/06_sensitivity_analysis/lognormal_mu_data.csv",
@@ -385,7 +413,7 @@ rule plot_fig2:
     script:
         "notebooks/fig2.py"
 
-rule fig3_calcs:
+rule fig4_calcs:
     input:
         "results/04_model_predictions/gamma_model_predictions.csv",
         "results/04_model_predictions/power_law_model_predictions.csv",
@@ -397,12 +425,12 @@ rule fig3_calcs:
         'results/04_model_predictions/RCM.csv',
         'results/processed_balesdent_2018.csv',
     output:
-        "results/fig3_calcs.csv",
+        "results/fig4_calcs.csv",
     script:
-        "notebooks/fig3_calcs.py"
+        "notebooks/fig4_calcs.py"
 
 
-rule plot_fig3:
+rule plot_fig4:
     input:
         "results/04_model_predictions/gamma_model_predictions.csv",
         "results/04_model_predictions/power_law_model_predictions.csv",
@@ -413,12 +441,12 @@ rule plot_fig3:
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
         'results/processed_balesdent_2018.csv',
-        'results/fig3_calcs.csv',
+        'results/fig4_calcs.csv',
     output:
-        "figures/fig3.png",
+        "figures/fig4.png",
         "figures/figS3.png" # also make figS3 here
     script:
-        "notebooks/fig3.py"
+        "notebooks/fig4.py"
 
 rule plot_figS1:
     input:

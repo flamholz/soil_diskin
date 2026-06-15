@@ -84,5 +84,5 @@ for model_name, metrics in results.items():
             results_df.append({'model': model_name, 'metric': metric_name, 'value': value})
 
 results_df = pd.DataFrame(results_df)
-results_df.to_csv('results/fig3_calcs.csv', index=False)
+results_df.to_csv('results/fig4_calcs.csv', index=False)
 # %%

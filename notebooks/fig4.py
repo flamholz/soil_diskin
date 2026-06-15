@@ -175,9 +175,9 @@ for i, (ax, label) in enumerate(zip(axs, "ABCDEFGH")):
             -0.15, 1.1, label, transform=ax.transAxes,
             fontsize=7, va='top', ha='left')
 # %% Save the figure
-out_fname = f'figures/fig3.png'
+out_fname = f'figures/fig4.png'
 plt.savefig(out_fname, dpi=300, bbox_inches='tight')
-plt.savefig('figures/fig3.svg', dpi=300, bbox_inches='tight')
+plt.savefig('figures/fig4.svg', dpi=300, bbox_inches='tight')
 
 # %% make a supplementary version of the above plot where the points are colored by the
 # timing of the land use change event. Using a log color scale. Also, we now include the 
@@ -228,7 +228,7 @@ for c in 'AF':
     axs[c].set_ylabel('predicted F$_{new}$')
 
 # Load the bootstrapping calculation to plot KGE distribution in panel K as a boxplot
-metric_dists = pd.read_csv('results/fig3_calcs.csv')
+metric_dists = pd.read_csv('results/fig4_calcs.csv')
 kge_data = metric_dists[metric_dists['metric'] == 'KGE']
 # Order -- continuum, then ESM, then reduced complexity
 order = ['Lognormal', 'Gamma', 'Power-law',
@@ -308,7 +308,7 @@ for ax in axs:
 axs[0].set_ylabel('predicted F$_{new}$')
 
 # %% Save the presentation figure
-out_fname = f'figures/fig3_presentation.png'
+out_fname = f'figures/fig4_presentation.png'
 plt.savefig(out_fname, dpi=300, bbox_inches='tight')
 
 # Make a version of the presentation figure where the points are colored by the
@@ -336,6 +336,6 @@ for ax, predictions, title, color in zip(axs[3:5], ESM_models,
 colorbar_label = 'time since transition (yrs)'
 cbar = plt.colorbar(sc, ax=axs, orientation='vertical', label=colorbar_label, pad=0.01)
 
-plt.savefig('figures/fig3_presentation_colored_by_labeling_duration.png', dpi=300, bbox_inches='tight')
+plt.savefig('figures/fig4_presentation_colored_by_labeling_duration.png', dpi=300, bbox_inches='tight')
 
 # %%
