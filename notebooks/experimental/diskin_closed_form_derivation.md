@@ -178,9 +178,9 @@ $I(s) \equiv I$ in the expression above:
 $$
 \begin{aligned}
 C_k(t)
-&= f(k)\\!\int_0^t I\,e^{-k(t-s)}\\,ds \\
+&= f(k)\\!\int_0^t I\\,e^{-k(t-s)}\\,ds \\
 &= I\\,f(k)\\!\int_0^t e^{-k(t-s)}\\,ds \\
-&= \frac{I\\,f(k)}{k}\,\bigl(1-e^{-kt}\bigr),
+&= \frac{I\\,f(k)}{k}\\,\bigl(1-e^{-kt}\bigr),
 \end{aligned}
 $$
 
