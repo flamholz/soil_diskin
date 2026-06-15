@@ -136,8 +136,8 @@ fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(7.24, 3.5),
 axs = axs.flatten()
 
 continuum_model_colors = [pal['dark_blue'], pal['blue'], pal['light_blue']]
-continuum_models = [powerlaw_predictions, lognormal_predictions, gamma_predictions]
-continuum_model_titles = ['power law model', 'lognormal model', 'gamma model']
+continuum_models = [lognormal_predictions, powerlaw_predictions, gen_powerlaw_preds_beta]
+continuum_model_titles = ['lognormal model', 'power law model ($\\beta = 1$)', 'gen. power law ($\\beta = e^{-\\gamma}$)']
 
 for ax, predictions, title, color in zip(axs[:3], continuum_models,
                                          continuum_model_titles, continuum_model_colors):
