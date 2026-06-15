@@ -1,6 +1,6 @@
 # Porting `03b_lognormal_age_scan.wls` to Julia and Python
 
-This document records the port of [`notebooks/03b_lognormal_age_scan.wls`](03b_lognormal_age_scan.wls)
+This document records the port of [`notebooks/03b_lognormal_age_scan.wls`](../../../notebooks/03b_lognormal_age_scan.wls)
 (Wolfram Language) to Python: the mathematical setup, the
 algorithmic improvement that the port applies, the implementation choices, the
 validation strategy, and the resulting performance.
@@ -166,49 +166,11 @@ more reliable because the hard direction was eliminated, not approximated.
 
 ---
 
-## 4. Julia implementation
-
-### Files
-
-- [`notebooks/lognormal_radiocarbon.jl`](lognormal_radiocarbon.jl) — the math:
-  - `AtmC14` struct: piecewise-constant atmospheric $^{14}\\!C$ lookup with a
-    constant tail.
-  - `load_atm14c(path)`: matches Wolfram's data-loading behavior — keeps
-    columns `years_before_2000` and `R_14C`, sorts ascending in age, drops
-    negative ages, computes `mean_R` from the last 50 000 file rows.
-  - `inner_integral(atm, α)`: $O(N)$ allocation-free evaluation of $I(k)$;
-    runs through knots, accumulating the segment contributions.
-  - `lognormal_radiocarbon(atm, τ, ā; rtol)`: outer 1-D quadrature in log-$k$
-    via `QuadGK.quadgk`.
-- [`notebooks/03b_lognormal_age_scan.jl`](03b_lognormal_age_scan.jl) — driver
-  that mirrors the Wolfram script:
-  1. Loads `data/14C_atm_annot.csv` once.
-  2. Reads `results/all_sites_14C_turnover.csv`.
-  3. Calls `lognormal_radiocarbon` for each (site, age) on the fixed
-     `agelist = 10 .^ range(3, 5.5, length=101)`.
-  4. Writes the three matrix CSVs that downstream scripts expect.
-
-### Parallelism
-
-The driver parallelizes over sites with `Threads.@threads`. Each site is
-independent, atm14C is read-only, and `inner_integral` is allocation-free, so
-threading scales nearly linearly. With `julia --threads=auto` (12 threads on
-this machine), the full 99 × 101 main scan + the smaller q05 / q95 scans
-together take ≈ 35 s.
-
-### Numerical tolerances
-
-`quadgk` is called with `rtol = 1e-4` per cell. Internal self-consistency
-across `rtol = 1e-6` vs `rtol = 1e-10` agrees to ~ $10^{-9}$, well below the
-~$10^{-3}$ accuracy that Wolfram targets.
-
----
-
 ## 5. Python implementation
 
 ### Files
 
-- [`notebooks/lognormal_radiocarbon.py`](lognormal_radiocarbon.py) — the math:
+- [`soil_diskin/lognormal.py`](../../../soil_diskin/lognormal.py) — the math:
   - `AtmC14`: same role as the Julia struct.
   - `load_atm14c(path)`: same loading behavior.
   - `inner_integral(atm, α)`: vectorized in NumPy
@@ -216,10 +178,10 @@ across `rtol = 1e-6` vs `rtol = 1e-10` agrees to ~ $10^{-9}$, well below the
     Goes via compiled NumPy code for the 55 000-element loop.
   - `lognormal_radiocarbon(atm, τ, ā, rtol)`: outer 1-D quadrature in log-$k$
     via `scipy.integrate.quad`.
-- [`notebooks/03b_lognormal_age_scan.py`](03b_lognormal_age_scan.py) — driver,
+- [`notebooks/experimental/03b_lognormal_age_scan.py`](../../../notebooks/experimental/03b_lognormal_age_scan.py) — driver,
   one-to-one with the Julia driver. Outputs go to `*_python.csv` paths so the
   Julia outputs are preserved alongside.
-- [`notebooks/03b_lognormal_calibration.py`](03b_lognormal_calibration.py) —
+- [`notebooks/03b_lognormal_calibration.py`](../../../notebooks/03b_lognormal_calibration.py) —
   unified end-to-end pipeline: forward age scan + LOWESS calibration in a
   single run, no CSV round-trip between the two phases.
 
@@ -323,17 +285,15 @@ which closes the gap.
 
 ## 8. Downstream calibration
 
-The original Wolfram script generates the calibration matrices that
-[`notebooks/03b_calibrate_lognormal_model.py`](03b_calibrate_lognormal_model.py)
-later inverts (per-row LOWESS smoothing + interpolation) to predict each
+The original Wolfram script generates the calibration matrices that were later 
+inverted in Python (per-row LOWESS smoothing + interpolation) to predict each
 site's mean age from its measured fraction modern.
 
 The unified Python driver
-[`notebooks/03b_lognormal_calibration.py`](03b_lognormal_calibration.py)
+[`notebooks/03b_lognormal_calibration.py`](../../../notebooks/03b_lognormal_calibration.py)
 collapses the two stages into one process, passing the in-memory matrices
 directly into LOWESS rather than round-tripping through CSV. End-to-end
-predicted ages from the unified script agree with the original two-step
-(Julia age scan + Python LOWESS) pipeline to:
+predicted ages from the unified script agree with the original two-step pipeline to:
 
 | Column | median rel diff | max rel diff | max abs diff |
 |---|---:|---:|---:|
@@ -350,19 +310,12 @@ The unified-Python pipeline is the more reliable end-to-end calibration.
 
 ## 9. Files produced (summary)
 
-### Julia
-- [`notebooks/lognormal_radiocarbon.jl`](lognormal_radiocarbon.jl)
-- [`notebooks/03b_lognormal_age_scan.jl`](03b_lognormal_age_scan.jl)
-
 ### Python
-- [`notebooks/lognormal_radiocarbon.py`](lognormal_radiocarbon.py)
-- [`notebooks/03b_lognormal_age_scan.py`](03b_lognormal_age_scan.py)
-- [`notebooks/03b_lognormal_calibration.py`](03b_lognormal_calibration.py) — end-to-end
+- [`soil_diskin/lognormal.py`](../../../soil_diskin/lognormal.py)
+- [`notebooks/03b_lognormal_calibration.py`](../../../notebooks/03b_lognormal_calibration.py) — end-to-end
 
 ### Validation / benchmarking
-- [`notebooks/test_lognormal_radiocarbon.jl`](test_lognormal_radiocarbon.jl) — Julia ↔ Wolfram CSV comparison on a subset
-- [`notebooks/verify_full_scan.jl`](verify_full_scan.jl) — Julia ↔ Wolfram comparison on the full grid, with Wolfram-failure detection
-- [`notebooks/test_python_ports.py`](test_python_ports.py) — Julia ↔ Python comparison + benchmark
+- [`notebooks/experimental/test_lognormal_radiocarbon.jl`](../../../notebooks/experimental/test_lognormal_radiocarbon.jl) — Julia ↔ Wolfram CSV comparison on a subset
+- [`notebooks/experimental/verify_full_scan.jl`](../../../notebooks/experimental/verify_full_scan.jl) — Julia ↔ Wolfram comparison on the full grid, with Wolfram-failure detection
+- [`notebooks/experimental/test_python_ports.py`](../../../notebooks/experimental/test_python_ports.py) — Julia ↔ Python comparison + benchmark
 
-### Reference data preserved
-- [`results/03_calibrate_models/_wolfram_reference/`](../results/03_calibrate_models/_wolfram_reference/) — original Wolfram-generated age-scan and predictions CSVs, kept as a regression baseline.
