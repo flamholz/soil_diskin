@@ -1,13 +1,13 @@
 # Porting `03b_lognormal_age_scan.wls` to Julia and Python
 
 This document records the port of [`notebooks/03b_lognormal_age_scan.wls`](03b_lognormal_age_scan.wls)
-(Wolfram Language) to both Julia and Python: the mathematical setup, the
+(Wolfram Language) to Python: the mathematical setup, the
 algorithmic improvement that the port applies, the implementation choices, the
 validation strategy, and the resulting performance.
 
 For the underlying math of the lognormal Diskin model and the closed-form
 solution used here, see also
-[`notebooks/diskin_closed_form_derivation.md`](diskin_closed_form_derivation.md).
+[`docs/notes/modeling/lognormal_diskin_closed_form_derivation.md`](lognormal_diskin_closed_form_derivation.md).
 
 ---
 

@@ -1,6 +1,7 @@
 # Closed-form derivation for the lognormal Diskin model (fixed input)
 
-Companion to [`diskin_utils_fast.jl`](diskin_utils_fast.jl).
+Companion to [soil_diskin/lognormal.py](../../soil_diskin/lognormal.py), especially
+[diskin_C_of_t](../../soil_diskin/lognormal.py#L77).
 
 ## 1. Model
 
