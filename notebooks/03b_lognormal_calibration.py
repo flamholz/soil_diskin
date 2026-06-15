@@ -1,16 +1,14 @@
 """End-to-end lognormal-Diskin calibration in Python.
 
-Merges:
-  - notebooks/03b_lognormal_age_scan.py           (forward age scan)
-  - notebooks/03b_calibrate_lognormal_model.py    (LOWESS inversion)
+Merges a forward age scan and a LOWESS inversion, which were in separate scripts. 
 
 Pipeline:
   1. Build the atmospheric ¹⁴C lookup from data/14C_atm_annot.csv.
   2. For each (turnover, age) combination, predict the bulk-pool ¹⁴C ratio
-     using the analytical-inner / 1-D quadrature lognormal Diskin model
-     (`lognormal_radiocarbon`). This produces three matrices: main, q05, q95.
-  3. Optionally write those matrices as age-scan CSVs (matches the Julia/
-     Wolfram convention; useful for inspection and for cross-language tools).
+     using the analytical-inner / 1-D quadrature lognormal model. 
+     This produces three matrices: main, q05, q95.
+  3. Optionally write those matrices as age-scan CSVs (matches the mathematica
+     convention; useful for inspection and for cross-language tools).
   4. For each site, take its row of the relevant age scan as a calibration
      curve fm(age), smooth it with LOWESS (frac=0.2), invert to get age(fm),
      and look up the site's measured `fm` to predict the mean age.
