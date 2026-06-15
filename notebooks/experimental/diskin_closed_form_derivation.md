@@ -186,9 +186,3 @@ $$
 
 which is exactly
 $\boxed{\\,C_k(t) = \frac{I\\,f(k)}{k}\\,\bigl(1 - e^{-kt}\bigr)\\,}$.
-
-Integrating this over $k$ then recovers Section 3:
-
-$$
-C(t)\\,=\\, I\\!\int_0^\infty \frac{f(k)}{k}\\,\bigl(1 - e^{-kt}\bigr)\\,dk.
-$$
