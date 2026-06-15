@@ -1,4 +1,4 @@
-"""Compare prior (golden) and new Python calibration-curve prediction CSVs.
+"""Compare prior (golden) and new outputs for calibration curves and age scans.
 
 Usage:
   python notebooks/03b_compare_calcurves.py
@@ -7,11 +7,18 @@ Defaults:
   prior: results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv
   new:   results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv
 
-This script aligns rows by index and compares shared prediction columns:
-  pred, pred_05, pred_95
+This script performs two comparisons:
+    1) Calibration-curve prediction CSVs (pred, pred_05, pred_95).
+    2) Python age-scan matrices versus reference age-scan matrices.
 
-It writes a JSON summary to:
-  results/03_calibrate_models/compare_calcurves_report.json
+For age scans, disagreements are split into:
+    - expected numeric differences (kept in post-filter error summaries), and
+    - likely reference mis-convergence cells, detected by a local smoothness
+      heuristic on the reference row.
+
+It writes JSON summaries to:
+    results/03_calibrate_models/compare_calcurves_report.json
+    results/03_calibrate_models/compare_age_scans_report.json
 """
 from __future__ import annotations
 
@@ -29,7 +36,152 @@ REPO = Path(__file__).resolve().parents[1]
 DEFAULT_PRIOR = REPO / "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv"
 DEFAULT_NEW = REPO / "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv"
 DEFAULT_OUT = REPO / "results/03_calibrate_models/compare_calcurves_report.json"
+DEFAULT_OUT_AGE = REPO / "results/03_calibrate_models/compare_age_scans_report.json"
 COMPARE_COLS = ("pred", "pred_05", "pred_95")
+AGE_SCAN_FILES = (
+    ("main", REPO / "results/03_calibrate_models/03b_lognormal_model_age_scan_python.csv", REPO / "results/03_calibrate_models/03b_lognormal_model_age_scan.csv"),
+    ("q05", REPO / "results/03_calibrate_models/03b_lognormal_model_age_scan_05_python.csv", REPO / "results/03_calibrate_models/03b_lognormal_model_age_scan_05.csv"),
+    ("q95", REPO / "results/03_calibrate_models/03b_lognormal_model_age_scan_95_python.csv", REPO / "results/03_calibrate_models/03b_lognormal_model_age_scan_95.csv"),
+)
+
+
+def _load_age_scan_numeric(path: Path) -> np.ndarray:
+    """Load an age-scan CSV and return numeric matrix (rows=sites, cols=ages).
+
+    Handles both styles present in this repo:
+    - headered CSVs with a `site_index` metadata column,
+    - headerless pure numeric matrices.
+    """
+    df = pd.read_csv(path)
+
+    # Most age-scan files include a metadata index column.
+    if "site_index" in df.columns:
+        df = df.drop(columns=["site_index"])
+
+    df = df.apply(pd.to_numeric, errors="coerce")
+
+    # Fallback for headerless numeric files.
+    if np.isnan(df.to_numpy(dtype=float)).all():
+        df = pd.read_csv(path, header=None)
+        df = df.apply(pd.to_numeric, errors="coerce")
+
+    # If a leading index-like column slipped through, drop it.
+    if df.shape[1] > 1:
+        first = df.iloc[:, 0].to_numpy(dtype=float)
+        idx0 = np.arange(len(first), dtype=float)
+        idx1 = idx0 + 1.0
+        if np.allclose(first, idx0) or np.allclose(first, idx1):
+            df = df.iloc[:, 1:]
+
+    return df.to_numpy(dtype=float)
+
+
+def _is_wolfram_smooth_local(row: np.ndarray, j: int, rel_jump: float = 0.01) -> bool:
+        """Return True when reference cell ``row[j]`` is locally smooth in age.
+
+        Heuristic:
+        - Build a robust local baseline from non-adjacent anchors at offsets
+            ``{-5, -3, +3, +5}`` around ``j``.
+        - Use the median of available anchors as the baseline.
+        - Mark the point smooth when relative jump to baseline is below
+            ``rel_jump``.
+
+        Rationale:
+        Adjacent cells can belong to the same short mis-converged run, so
+        non-adjacent anchors reduce sensitivity to spike clusters.
+        """
+        offsets = (-5, -3, 3, 5)
+        anchors: list[float] = []
+        n = len(row)
+
+        for off in offsets:
+                k = j + off
+                if 0 <= k < n:
+                        anchors.append(float(row[k]))
+
+        if not anchors:
+                return True
+
+        baseline = float(np.median(np.asarray(anchors, dtype=float)))
+        return abs(float(row[j]) - baseline) / max(abs(baseline), 1e-12) < rel_jump
+
+
+def _compare_age_scan_matrix(
+    name: str,
+    new_path: Path,
+    ref_path: Path,
+    rel_err_thresh: float = 5e-3,
+    rel_jump: float = 0.01,
+) -> dict:
+    """Compare one Python/reference age-scan pair with spike-aware filtering.
+
+    A cell is classified as a likely reference failure when BOTH are true:
+    1) relative error exceeds `rel_err_thresh`, and
+    2) the reference value fails the local smoothness test.
+
+    The report contains both:
+    - overall error statistics (all cells), and
+    - post-filter statistics (excluding likely reference-failure cells).
+    """
+    if not new_path.exists():
+        raise FileNotFoundError(f"Missing Python age-scan file: {new_path}")
+    if not ref_path.exists():
+        raise FileNotFoundError(f"Missing reference age-scan file: {ref_path}")
+
+    new = _load_age_scan_numeric(new_path)
+    ref = _load_age_scan_numeric(ref_path)
+    if new.shape != ref.shape:
+        raise ValueError(
+            f"Shape mismatch for {name}: python={new.shape}, reference={ref.shape}"
+        )
+
+    nrows, ncols = ref.shape
+    all_rel = []
+    agree_rel = []
+    wolfram_failures = []
+
+    for i in range(nrows):
+        ref_row = ref[i, :]
+        for j in range(ncols):
+            rel_err = abs(float(new[i, j]) - float(ref[i, j])) / max(abs(float(ref[i, j])), 1e-12)
+            all_rel.append(rel_err)
+            if rel_err > rel_err_thresh and not _is_wolfram_smooth_local(ref_row, j, rel_jump=rel_jump):
+                wolfram_failures.append((i + 1, j + 1, rel_err))
+            else:
+                agree_rel.append(rel_err)
+
+    all_rel_arr = np.asarray(all_rel, dtype=float)
+    agree_rel_arr = np.asarray(agree_rel, dtype=float)
+    total_cells = int(nrows * ncols)
+    n_fail = int(len(wolfram_failures))
+
+    report = {
+        "name": name,
+        "python_path": str(new_path),
+        "reference_path": str(ref_path),
+        "shape": [int(nrows), int(ncols)],
+        "n_cells": total_cells,
+        "overall_median_rel_err": float(np.median(all_rel_arr)),
+        "overall_p99_rel_err": float(np.quantile(all_rel_arr, 0.99)),
+        "wolfram_failures_detected": n_fail,
+        "wolfram_failures_pct": float(100.0 * n_fail / max(total_cells, 1)),
+        "post_filter_max_rel_err": float(np.max(agree_rel_arr)) if agree_rel_arr.size else None,
+        "post_filter_p99_rel_err": float(np.quantile(agree_rel_arr, 0.99)) if agree_rel_arr.size else None,
+        "post_filter_median_rel_err": float(np.median(agree_rel_arr)) if agree_rel_arr.size else None,
+        "failure_examples": [
+            {"row": int(r), "col": int(c), "rel_err": float(e)}
+            for (r, c, e) in wolfram_failures[:20]
+        ],
+    }
+    return report
+
+
+def compare_age_scans() -> dict:
+    """Run matrix comparison for main, q05, and q95 age-scan products."""
+    scans = []
+    for name, py_path, ref_path in AGE_SCAN_FILES:
+        scans.append(_compare_age_scan_matrix(name, py_path, ref_path))
+    return {"scans": scans}
 
 
 def _series_metrics(prior: pd.Series, new: pd.Series) -> dict:
@@ -151,6 +303,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--prior", type=Path, default=DEFAULT_PRIOR, help="Path to prior/golden CSV")
     p.add_argument("--new", type=Path, default=DEFAULT_NEW, help="Path to new CSV")
     p.add_argument("--out", type=Path, default=DEFAULT_OUT, help="Path to output JSON report")
+    p.add_argument(
+        "--out-age",
+        type=Path,
+        default=DEFAULT_OUT_AGE,
+        help="Path to output JSON report for age-scan comparison",
+    )
     return p.parse_args()
 
 
@@ -192,6 +350,29 @@ def main() -> int:
             f"{stats['mean_abs_err']:12.4e} {stats['p99_abs_err']:12.4e} {stats['max_abs_err']:12.4e} "
             f"{stats['median_rel_err']:12.4e} {stats['max_rel_err']:12.4e}"
         )
+
+    age_report = compare_age_scans()
+    args.out_age.parent.mkdir(parents=True, exist_ok=True)
+    with open(args.out_age, "w") as f:
+        json.dump(age_report, f, indent=2)
+
+    print(f"Wrote age-scan report: {args.out_age}")
+    for scan in age_report["scans"]:
+        print(f"=== {scan['name']} ===")
+        print(
+            f"grid: {scan['shape'][0]} x {scan['shape'][1]} ({scan['n_cells']} cells)"
+        )
+        print(f"overall median rel err: {scan['overall_median_rel_err']:.3e}")
+        print(f"overall 99th pctile:    {scan['overall_p99_rel_err']:.3e}")
+        print(
+            "Wolfram failures detected: "
+            f"{scan['wolfram_failures_detected']} cells ({scan['wolfram_failures_pct']:.2f}%)"
+        )
+        if scan["post_filter_median_rel_err"] is not None:
+            print("After removing Wolfram failures:")
+            print(f"  max rel err:  {scan['post_filter_max_rel_err']:.3e}")
+            print(f"  99th pctile:  {scan['post_filter_p99_rel_err']:.3e}")
+            print(f"  median:       {scan['post_filter_median_rel_err']:.3e}")
 
     return 0
 
