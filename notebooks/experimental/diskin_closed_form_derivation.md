@@ -170,5 +170,25 @@ $$
 
 where $G$ is the Laplace transform of $f$ — also a smooth 1-D integral, which
 can be precomputed once on the output time grid and then convolved with
-$I(s)$. This recovers the constant-input case when $I(s) \equiv I$, since
-$\int_0^t G(t-s)\\,ds = \int_0^\infty f(k)\\,k^{-1}\\!\bigl(1-e^{-kt}\bigr)\\,dk$.
+$I(s)$.
+
+To connect explicitly with the boxed pool-resolved formula in Section 2, set
+$I(s) \equiv I$ in the expression above:
+
+$$
+\begin{aligned}
+C_k(t)
+&= f(k)\\!\int_0^t I\,e^{-k(t-s)}\\,ds \\
+&= I\\,f(k)\\!\int_0^t e^{-k(t-s)}\\,ds \\
+&= \frac{I\\,f(k)}{k}\,\bigl(1-e^{-kt}\bigr),
+\end{aligned}
+$$
+
+which is exactly
+$\boxed{\\,C_k(t) = \frac{I\\,f(k)}{k}\\,\bigl(1 - e^{-kt}\bigr)\\,}$.
+
+Integrating this over $k$ then recovers Section 3:
+
+$$
+C(t)\\,=\\, I\\!\int_0^\infty \frac{f(k)}{k}\\,\bigl(1 - e^{-kt}\bigr)\\,dk.
+$$
