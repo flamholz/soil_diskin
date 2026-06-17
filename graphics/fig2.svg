@@ -6,7 +6,7 @@
    version="1.1"
    id="svg396"
    sodipodi:docname="fig2.svg"
-   inkscape:version="1.4 (e7c3feb1, 2024-10-09)"
+   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
    xml:space="preserve"
    inkscape:export-filename="fig2.png"
    inkscape:export-xdpi="300"
@@ -25,16 +25,17 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="pt"
-     inkscape:zoom="1.6973745"
-     inkscape:cx="206.78996"
-     inkscape:cy="178.51099"
+     inkscape:zoom="2.9574681"
+     inkscape:cx="150.29748"
+     inkscape:cy="133.053"
      inkscape:window-width="1784"
-     inkscape:window-height="1027"
+     inkscape:window-height="1022"
      inkscape:window-x="0"
-     inkscape:window-y="25"
+     inkscape:window-y="30"
      inkscape:window-maximized="0"
      inkscape:current-layer="svg396"
-     inkscape:export-bgcolor="#ffffffff" /><defs
+     inkscape:export-bgcolor="#ffffffff"
+     showguides="false" /><defs
      id="defs50"><marker
        style="overflow:visible"
        id="marker52"
@@ -355,7 +356,7 @@
      preserveAspectRatio="none"
      xlink:href="../figures/fig2.png"
      id="image1-4"
-     x="0"
+     x="-1.5"
      y="-1.110223e-16" /><g
      fill="#231f20"
      fill-opacity="1"
@@ -1216,8 +1217,8 @@
        y="153.32666">D</tspan></text><text
      xml:space="preserve"
      style="font-size:6px;line-height:0.9;font-family:'Lucida Sans OT';-inkscape-font-specification:'Lucida Sans OT';text-align:center;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#367d5f;fill-opacity:1;stroke:none;stroke-width:0.75;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:fill markers stroke"
-     x="239.27312"
-     y="164.99025"
+     x="242.29208"
+     y="163.72227"
      id="text401-1-79-3-3"
      inkscape:export-filename="fig2.png"
      inkscape:export-xdpi="300"
@@ -1225,73 +1226,59 @@
        sodipodi:role="line"
        id="tspan401-5-6-1-9"
        style="font-size:6px;fill:#367d5f;fill-opacity:1;stroke-width:0.75"
-       x="239.27312"
-       y="164.99025">T=1 yr, <tspan
+       x="242.29208"
+       y="163.72227">T=32 yr, <tspan
    style="font-size:65%;baseline-shift:super;fill:#367d5f;fill-opacity:1"
    id="tspan404">14</tspan>C/<tspan
    style="font-size:65%;baseline-shift:super;fill:#367d5f;fill-opacity:1"
-   id="tspan405">12</tspan>C=1.05</tspan></text><text
+   id="tspan405">12</tspan>C=1.09</tspan></text><text
      xml:space="preserve"
      style="font-size:6px;line-height:0.9;font-family:'Lucida Sans OT';-inkscape-font-specification:'Lucida Sans OT';text-align:center;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#6c4a6d;fill-opacity:1;stroke:none;stroke-width:0.75;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:fill markers stroke"
-     x="240.84212"
-     y="173.28827"
+     x="242.31607"
+     y="172.74576"
      id="text401-1-79-3-3-3"><tspan
        sodipodi:role="line"
        id="tspan401-5-6-1-9-6"
        style="font-size:6px;fill:#6c4a6d;fill-opacity:1;stroke-width:0.75"
-       x="240.84212"
-       y="173.28827">T=3 yr, <tspan
+       x="242.31607"
+       y="172.74576">T=34 yr, <tspan
    style="font-size:65%;baseline-shift:super;fill:#6c4a6d;fill-opacity:1"
    id="tspan404-3">14</tspan>C/<tspan
    style="font-size:65%;baseline-shift:super;fill:#6c4a6d;fill-opacity:1"
-   id="tspan405-2">12</tspan>C=1.0</tspan></text><text
-     xml:space="preserve"
-     style="font-size:6px;line-height:0.9;font-family:'Lucida Sans OT';-inkscape-font-specification:'Lucida Sans OT';text-align:center;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#89341f;fill-opacity:1;stroke:none;stroke-width:0.75;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:fill markers stroke"
-     x="238.95512"
-     y="181.58627"
-     id="text401-1-79-3-3-3-5"><tspan
-       sodipodi:role="line"
-       id="tspan401-5-6-1-9-6-8"
-       style="font-size:6px;fill:#89341f;fill-opacity:1;stroke-width:0.75"
-       x="238.95512"
-       y="181.58627">T=10 yr, <tspan
-   style="font-size:65%;baseline-shift:super"
-   id="tspan404-3-0">14</tspan>C/<tspan
-   style="font-size:65%;baseline-shift:super"
-   id="tspan405-2-3">12</tspan>C=.89</tspan></text><text
+   id="tspan405-2">12</tspan>C=1.04</tspan></text><text
      xml:space="preserve"
      style="font-size:6px;line-height:0.9;font-family:'Lucida Sans OT';-inkscape-font-specification:'Lucida Sans OT';text-align:center;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#404a76;fill-opacity:1;stroke:none;stroke-width:0.75;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:fill markers stroke"
-     x="238.95512"
-     y="189.88429"
+     x="244.49107"
+     y="181.76924"
      id="text401-1-79-3-3-3-5-3"><tspan
        sodipodi:role="line"
        id="tspan401-5-6-1-9-6-8-7"
        style="font-size:6px;fill:#404a76;fill-opacity:1;stroke-width:0.75"
-       x="238.95512"
-       y="189.88429">T=49 yr, <tspan
+       x="244.49107"
+       y="181.76924">T=36 yr, <tspan
    style="font-size:65%;baseline-shift:super;fill:#404a76;fill-opacity:1"
    id="tspan404-3-0-2">14</tspan>C/<tspan
    style="font-size:65%;baseline-shift:super;fill:#404a76;fill-opacity:1"
-   id="tspan405-2-3-4">12</tspan>C=.79</tspan></text><text
+   id="tspan405-2-3-4">12</tspan>C=.92</tspan></text><text
      xml:space="preserve"
      style="font-size:6px;line-height:0.9;font-family:'Lucida Sans OT';-inkscape-font-specification:'Lucida Sans OT';text-align:center;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.75;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:fill markers stroke"
-     x="373.50665"
-     y="191.09279"
+     x="384.7193"
+     y="168.60306"
      id="text401-1-79-3-3-3-5-7"><tspan
        sodipodi:role="line"
        style="font-size:6px;fill:#000000;fill-opacity:1;stroke-width:0.75"
-       x="373.50665"
-       y="191.09279"
+       x="384.7193"
+       y="168.60306"
        id="tspan1">independent</tspan><tspan
        sodipodi:role="line"
        style="font-size:6px;fill:#000000;fill-opacity:1;stroke-width:0.75"
-       x="373.50665"
-       y="196.49278"
+       x="384.7193"
+       y="174.00305"
        id="tspan52">point estimate</tspan><tspan
        sodipodi:role="line"
        style="font-size:6px;fill:#000000;fill-opacity:1;stroke-width:0.75"
-       x="373.50665"
-       y="201.89279"
+       x="384.7193"
+       y="179.40306"
        id="tspan53">of CDF</tspan></text><text
      xml:space="preserve"
      style="font-size:8.00002px;line-height:0.9;font-family:'Lucida Sans OT';-inkscape-font-specification:'Lucida Sans OT';text-align:center;writing-mode:lr-tb;direction:ltr;text-anchor:middle;fill:#ffffff;fill-opacity:0.659674;stroke:none;stroke-width:0.75;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:fill markers stroke"
@@ -1304,11 +1291,11 @@
        x="321.81219"
        y="156.42374">E</tspan></text><path
      style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.75;stroke-miterlimit:0;stroke-opacity:1;marker-end:url(#marker52);paint-order:fill markers stroke"
-     d="m 370.70358,204.54754 c -0.56842,6.08682 0.32682,12.30528 2.58915,17.98457 1.53581,3.85544 3.69453,7.46197 6.36693,10.63709"
+     d="m 367.61057,208.63324 c -0.18218,3.60858 1.0527,7.26998 3.3832,10.03111 1.91312,2.26662 4.54215,3.91978 7.41389,4.66191 2.87173,0.74213 5.97254,0.56971 8.74429,-0.48623"
      id="path51"
      inkscape:path-effect="#path-effect51"
-     inkscape:original-d="m 370.70358,204.54754 c -1.37104,2.36388 3.15787,12.52887 2.58915,17.98457 -0.30912,2.96542 8.87264,9.40788 6.36693,10.63709"
-     transform="translate(1.9856583,-0.14183274)"
+     inkscape:original-d="m 367.61057,208.63324 c -1.37104,2.36388 -0.42561,6.08383 3.3832,10.03111 4.99319,5.17471 17.76729,3.03611 16.15818,4.17568"
+     transform="translate(16.206554,-27.537083)"
      sodipodi:nodetypes="csc" /><g
      clip-path="url(#clip-14)"
      id="g175"
