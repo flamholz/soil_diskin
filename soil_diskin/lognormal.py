@@ -37,17 +37,27 @@ def inner_integral(atm: AtmC14, alpha: float) -> float:
     return (body.sum() + atm.mean_R * e[-1]) / alpha
 
 
-def lognormal_radiocarbon(atm: AtmC14, tau: float, age: float, rtol: float = 1e-4) -> float:
+def lognormal_radiocarbon(
+    atm: AtmC14,
+    tau: float,
+    age: float,
+    rtol: float = 1e-4,
+) -> float:
     """Predicted bulk-pool 14C activity ratio for the lognormal Diskin model.
+
+    Computed as a normalized double integral:
+    fm = exp(mu - 0.5*sigma^2) * integral_u[ phi(u; mu, sigma) * I(lambda + exp(u)) du ],
+    with inner term I(alpha) = integral_a[ atm14C(a) * exp(-alpha*a) da ].
+    Here u = ln(k), k = exp(u), and lambda = 1 / C14_MEAN_LIFE.
 
     Parameters
     ----------
     atm: AtmC14
         Atmospheric lookup
     tau: float
-        Turnover parameter
+        Turnover time (mean residence time) of the bulk pool
     age: float
-        Mass-weighted mean age
+        Mass-weighted mean age at steady state
     rtol: float
         Relative tolerance passed to the outer quadrature
     """
@@ -55,6 +65,7 @@ def lognormal_radiocarbon(atm: AtmC14, tau: float, age: float, rtol: float = 1e-
     mu = -log(sqrt(tau ** 3 / age))
     u_lo = mu - 10.0 * sigma
     u_hi = mu + 10.0 * sigma
+
     inv_sigma = 1.0 / sigma
 
     def integrand(u):
@@ -63,6 +74,8 @@ def lognormal_radiocarbon(atm: AtmC14, tau: float, age: float, rtol: float = 1e-
         return phi * inner_integral(atm, 1.0 / C14_MEAN_LIFE + np.exp(u))
 
     val, _ = quad(integrand, u_lo, u_hi, epsrel=rtol, limit=200)
+    # Normalize by bulk C_ss via 1 / E[1/k] for lognormal k, i.e. exp(mu - 0.5*sigma^2).
+    # This computes the activity ratio under the standard trace-isotope assumption (14C << 12C).
     return val * exp(mu - 0.5 * sigma * sigma)
 
 
