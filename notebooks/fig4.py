@@ -137,7 +137,7 @@ axs = axs.flatten()
 
 continuum_model_colors = [pal['dark_blue'], pal['blue'], pal['light_blue']]
 continuum_models = [lognormal_predictions, powerlaw_predictions, gen_powerlaw_preds_beta]
-continuum_model_titles = ['lognormal model', 'power law model ($\\alpha = 1$)', 'gen. power law ($\\alpha = e^{-\\gamma}$)']
+continuum_model_titles = ['lognormal model', 'power law model ($\\alpha = 1$)', 'power law model ($\\alpha = e^{-\\gamma}$)']
 
 for ax, predictions, title, color in zip(axs[:3], continuum_models,
                                          continuum_model_titles, continuum_model_colors):
@@ -195,8 +195,8 @@ continuum_model_colors = [pal[c] for c in cnames] + ['grey']
 continuum_models = [lognormal_predictions, gamma_predictions, powerlaw_predictions,
                     gen_powerlaw_preds_beta, gen_powerlaw_preds_beta_half]
 continuum_model_titles = ['lognormal model', 'gamma model', 'power law model',
-                          'gen. power law ($\\alpha = e^{-\\gamma}$)',
-                          'gen. power law ($\\alpha = e^{-\\gamma}/2$)']
+                          'power law ($\\alpha = e^{-\\gamma}$)',
+                          'power law ($\\alpha = e^{-\\gamma}/2$)']
 my_axs = [axs[c] for c in 'ABCDE']
 for ax, predictions, title, color in zip(my_axs, continuum_models,
                                          continuum_model_titles, continuum_model_colors):
