@@ -391,8 +391,16 @@ rule vegetation_effects_sensitivity_analysis:
         "notebooks/06c_veg_effects_sensitivity.py"
 # Step 05: Plot results
 
+rule fig1_calcs:
+    input:
+    output:
+        "results/fig1_calcs.npz",
+    script:
+        "notebooks/fig1_calcs.py"
+
 rule plot_fig1:
     input:
+        "results/fig1_calcs.npz",
     output:
         "figures/fig1.png",
     script:
