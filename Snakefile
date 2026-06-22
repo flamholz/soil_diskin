@@ -456,9 +456,9 @@ rule plot_figS6:
 rule clean:
     shell:
         """
-        rm -rf results/*.csv
+        find results -type f -name '*.csv' -delete || true
+        find results -type f -name '*.npz' -delete || true
         rm -rf figures/*
-        rm -rf results/*.html
         rm -rf data/balesdent_2018/*
         rm -rf data/CLM5_global_simulation/global_demo_in.nc
         rm -rf data/CLM5_global_simulation/soildepth.mat
@@ -471,7 +471,15 @@ rule clean:
 rule clean_results:
     shell:
         """
-        rm -rf results/*.csv
+        find results -type f -name '*.csv' -delete || true
+        find results -type f -name '*.npz' -delete || true
         rm -rf figures/*
-        rm -rf results/*.html
+        """
+
+rule clean_light:
+    shell:
+        """
+        find results -type f -name '*.csv' ! -name 'CLM45*.csv' ! -name 'JSBACH*.csv' -delete || true
+        find results -type f -name '*.npz' ! -name 'CLM45*.npz' ! -name 'JSBACH*.npz' -delete || true
+        rm -rf figures/*
         """
