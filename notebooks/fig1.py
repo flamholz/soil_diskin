@@ -1,8 +1,8 @@
 import itertools as it
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 
+from matplotlib.image import BboxImage
 from soil_diskin.continuum_models import PowerLawDisKin
 from tqdm import tqdm
 
@@ -208,13 +208,14 @@ if __name__ == "__main__":
                                   figsize=(4.76, 3), dpi=300)
 
     # Panel A -- schematic of three-pool model loaded from a png
-    ax = axs['A']
-    img = plt.imread('graphics/century_model_diagram.png')
-    ax.imshow(img, aspect='auto', extent=[0, 1, 0, 1])
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    ax.axis('off')
-    
+    ax = axs['A'] 
+    # Clear the axes and turn off ticks/spines to reserve space for the diagram
+    # we will paste the diagram in later. 
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
     # Panel B -- inputs over time
     ax = axs['B']
     print('Plotting panel B: inputs over time...')
@@ -259,4 +260,38 @@ if __name__ == "__main__":
             -0.3, 1.1, key, transform=axs[key].transAxes,
             fontsize=7, va='top', ha='left')
 
-    plt.savefig('figures/fig1.png', dpi=600)
+    # Before saving, compute the pixel coordinates of panel A
+    fig.canvas.draw()
+    bbox_A = axs['A'].get_window_extent(renderer=fig.canvas.get_renderer())
+    # Convert to pixels (already in display coordinates)
+    x_min = int(bbox_A.x0)
+    y_min = int(fig.get_window_extent(renderer=fig.canvas.get_renderer()).height - bbox_A.y1)  # flip y
+    x_max = int(bbox_A.x1)
+    y_max = int(fig.get_window_extent(renderer=fig.canvas.get_renderer()).height - bbox_A.y0)
+
+    panel_a_width = x_max - x_min
+    panel_a_height = y_max - y_min
+
+    plt.savefig('figures/fig1_tmp.png', dpi=600)
+
+    # Create final figure by hand
+    from PIL import Image
+
+    # Now paste the diagram into the exact panel A location
+    base_fig = Image.open('figures/fig1_tmp.png')
+    panel_a_img = Image.open('graphics/century_model_diagram.png')
+
+    # Resize to fit the panel A bounding box exactly
+    my_width = int(panel_a_width * 1.3)
+    my_height = int(panel_a_height * 1.3)
+    panel_a_resized = panel_a_img.resize(
+        (my_width, my_height),Image.Resampling.LANCZOS)
+
+    # Paste at the calculated coordinates
+    my_x_min = int(x_min - 0.2*panel_a_width)
+    my_y_min = int(y_min - 0.15*panel_a_height)
+    base_fig.paste(panel_a_resized, (my_x_min, my_y_min))
+
+    # Save final figure
+    base_fig.save('figures/fig1.png')
+    print("Saved to figures/fig1.png")
