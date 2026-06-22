@@ -137,46 +137,7 @@ rule calibrate_powerlaw:
     script:
         "notebooks/03a_calibrate_powerlaw_model.py"
 
-rule lognormal_age_scan_mathematica:
-    input:
-        "data/14C_atm_annot.csv",
-        "results/all_sites_14C_turnover.csv",
-    output:
-        "results/03_calibrate_models/03b_lognormal_model_age_scan.h5",
-        "results/03_calibrate_models/03b_lognormal_model_age_scan_05.h5",
-        "results/03_calibrate_models/03b_lognormal_model_age_scan_95.h5"
-    shell:
-        """
-        wolframscript --file notebooks/03b_lognormal_age_scan.wls
-        """
 
-rule lognormal_age_scan_h52csv:
-    input:
-        "results/03_calibrate_models/03b_lognormal_model_age_scan.h5",
-        "results/03_calibrate_models/03b_lognormal_model_age_scan_05.h5",
-        "results/03_calibrate_models/03b_lognormal_model_age_scan_95.h5"
-    output:
-        "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
-        "results/03_calibrate_models/03b_lognormal_model_age_scan_05.csv",
-        "results/03_calibrate_models/03b_lognormal_model_age_scan_95.csv"
-    shell:
-        """
-        python notebooks/03b_scan2csv.py -i results/03_calibrate_models/03b_lognormal_model_age_scan.h5 -o results/03_calibrate_models/03b_lognormal_model_age_scan.csv
-        python notebooks/03b_scan2csv.py -i results/03_calibrate_models/03b_lognormal_model_age_scan_05.h5 -o results/03_calibrate_models/03b_lognormal_model_age_scan_05.csv
-        python notebooks/03b_scan2csv.py -i results/03_calibrate_models/03b_lognormal_model_age_scan_95.h5 -o results/03_calibrate_models/03b_lognormal_model_age_scan_95.csv
-        """
-
-rule calibrate_lognormal_python:
-    input:
-        "results/all_sites_14C_turnover.csv",
-        "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
-        "results/03_calibrate_models/03b_lognormal_model_age_scan_05.csv",
-        "results/03_calibrate_models/03b_lognormal_model_age_scan_95.csv",
-        "data/14C_atm_annot.csv"
-    output:
-        "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
-    script:
-        "notebooks/03b_calibrate_lognormal_model.py"
 
 rule calibrate_generalized_powerlaw:
     input:
@@ -186,6 +147,7 @@ rule calibrate_generalized_powerlaw:
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv"
     script:
         "notebooks/03c_calibrate_generalized_powerlaw_model.py"
+
 
 # Run the end-to-end Python lognormal calibration (experimental port)
 rule run_lognormal_calibration_python:
@@ -213,19 +175,7 @@ rule calibrate_gamma:
         "notebooks/03d_calibrate_gamma_model.py"
 
 # Step 04: Generate and collect model predictions for analysis and figures
-# Step 04b: Lognormal predictions (Julia)
-rule lognormal_predictions_julia:
-    input:
-        "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
-    output:
-        "results/04_model_predictions/04b_lognormal_cdfs.csv",
-        "results/04_model_predictions/04b_lognormal_cdfs_05.csv",
-        "results/04_model_predictions/04b_lognormal_cdfs_95.csv"
-    shell:
-        """
-        julia --project=./ notebooks/04b_lognormal_predictions.jl
-        """
-
+# Lognormal predictions (Python-based pipeline used for figures)
 rule lognormal_predictions_python:
     input:
         "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
