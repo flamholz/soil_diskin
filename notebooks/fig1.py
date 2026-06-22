@@ -207,98 +207,14 @@ if __name__ == "__main__":
     fig, axs = plt.subplot_mosaic(mosaic, layout='constrained',
                                   figsize=(4.76, 3), dpi=300)
 
-    # Panel A -- schematic of three-pool model
+    # Panel A -- schematic of three-pool model loaded from a png
     ax = axs['A']
-
-    ax.set_xlim(0, 10)
-    ax.set_ylim(3, 10)
-    ax.axis('off') # Hide the axes
-
-    # 1. Define and draw the boxes for the pools
-    fast_pool_rect = patches.Rectangle((3.1, 7.5), 3.8, 1, edgecolor='black', facecolor='white', lw=1.1)
-    slow_pool_rect = patches.Rectangle((3.1, 5.5), 3.8, 1, edgecolor='black', facecolor='white', lw=1.1)
-    passive_rect = patches.Rectangle((3.1, 3.5), 3.8, 1, edgecolor='black', facecolor='white', lw=1.1)
-
-    ax.add_patch(fast_pool_rect)
-    ax.add_patch(slow_pool_rect)
-    ax.add_patch(passive_rect)
-
-    # 2. Add text labels inside the boxes
-    ax.text(5, 8, 'fast pool', ha='center', va='center', fontsize=6)
-    ax.text(5, 6, 'slow pool', ha='center', va='center', fontsize=6)
-    ax.text(5, 4, 'passive', ha='center', va='center', fontsize=6)
-
-    # 3. Add the "input carbon" label
-    ax.text(0.1, 7, 'input\ncarbon', ha='center', va='center', fontsize=6)
-
-    # 4. Add all the arrows
-    # Arrows from input carbon to fast and slow pools
-    # Arrow to fast pool
-    ax.annotate('', xy=(3.1, 8), xytext=(0.8, 7.25), 
-                arrowprops=dict(arrowstyle='-|>', color='black', lw=0.8, mutation_scale=5))
-
-    # Arrow to slow pool
-    ax.annotate('', xy=(3.1, 6), xytext=(0.8, 6.75), 
-                arrowprops=dict(arrowstyle='-|>', color='black', lw=0.8, mutation_scale=5))
-
-    # Respiration from fast pool
-    ax.plot([6.5, 6.5], [6.5, 7.5], 'k-', linewidth=0.8)
-    ax.annotate('', xy=(6.5, 7.5), xytext=(6.5, 6.5), 
-                arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=7))
-
-    # Transfer from fast to slow pool
-    ax.plot([3.5, 3.5], [6.5, 7.5], 'k-', linewidth=0.8)
-    ax.annotate('', xy=(3.5, 6.5), xytext=(3.5, 7.5), 
-                arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=7))
-
-    # Transfer from slow to passive pool
-    ax.plot([5, 5], [4.5, 5.5], 'k-', linewidth=0.8)
-    ax.annotate('', xy=(5, 4.5), xytext=(5, 5.5), 
-                arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=7))
-
-    ax.text(5, 7, 'CO$_2$', ha='center', va='center', rotation=0, fontsize=6)
-    ax.text(6.5, 5, 'CO$_2$', ha='center', va='center', rotation=0, fontsize=6)
-
-    # Curved arrow from fast pool respiration to CO2 label
-    ax.annotate('', xy=(5.55, 7), xytext=(6.5, 6.65),
-                arrowprops=dict(arrowstyle='-|>', color='black', lw=0.6, 
-                              connectionstyle='angle3,angleA=75,angleB=0', mutation_scale=4))
-
-    # Curved arrow from fast->slow transfer to CO2 label
-    ax.annotate('', xy=(4.55, 7), xytext=(3.5, 7.25),
-                arrowprops=dict(arrowstyle='-|>', color='black', lw=0.6, 
-                              connectionstyle='angle3,angleA=75,angleB=0', mutation_scale=4))
-
-    # Respiration from slow pool
-    ax.annotate('', xy=(7, 5), xytext=(8, 5.5),
-                arrowprops=dict(arrowstyle='-|>', color='black', lw=0.6, 
-                              connectionstyle='angle3,angleA=90,angleB=0', mutation_scale=4))
-
-    # Curved arrow from slow->passive transfer to CO2 label
-    ax.annotate('', xy=(6, 5), xytext=(5, 5.25),
-                arrowprops=dict(arrowstyle='-|>', color='black', lw=0.6, 
-                              connectionstyle='angle3,angleA=90,angleB=0', mutation_scale=4))
-
-
-    # Rectangular CO2 arrow from passive to fast pool with filled arrowheads on both ends
-    # Draw the rectangular path as a line
-    ax.plot([7.3, 8, 8, 7.3], [4, 4, 8, 8], 'k-', linewidth=0.8)
-
-    # Add filled arrowheads at both ends
-    ax.annotate('', xy=(7, 4), xytext=(7.2, 4), 
-                arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=7))
-    ax.annotate('', xy=(7, 8), xytext=(7.2, 8), 
-                arrowprops=dict(arrowstyle='-|>', color='black', lw=0, mutation_scale=7))
-
-    # Add curved arrow from middle of rectangular arrow to CO2 label
-    ax.annotate('', xy=(8.5, 6), xytext=(8, 6),
-                arrowprops=dict(arrowstyle='-|>', color='black', lw=0.6, 
-                              connectionstyle='angle3,angleA=90,angleB=25', mutation_scale=4))
-
-    # Add the CO2 label for the rectangular arrow
-    ax.text(8.5, 6, 'CO$_2$', ha='left', va='center', rotation=0, fontsize=6)
-    ax.text(8.5, 6, 'CO$_2$', ha='left', va='center', rotation=0, fontsize=6)
-
+    img = plt.imread('graphics/century_model_diagram.png')
+    ax.imshow(img, aspect='auto', extent=[0, 1, 0, 1])
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis('off')
+    
     # Panel B -- inputs over time
     ax = axs['B']
     print('Plotting panel B: inputs over time...')
@@ -332,7 +248,12 @@ if __name__ == "__main__":
     inset_ax.set_ylabel(r'CDF of $p_A(\tau)$', fontsize=5)
 
     # Add panel labels
-    panel_labels = 'ABCDEF'
+    key = 'A'
+    axs[key].text(
+            -0.3, 1.1, key, transform=axs[key].transAxes,
+            fontsize=7, va='top', ha='left')
+    
+    panel_labels = 'BCDEF'
     for key in panel_labels:
         axs[key].text(
             -0.3, 1.1, key, transform=axs[key].transAxes,
