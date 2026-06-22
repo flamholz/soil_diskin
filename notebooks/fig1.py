@@ -126,7 +126,7 @@ def plot_total_stocks(ax, my_t, g_ts,
     if annotate_age_dist:
         ymax = G_t[my_t]
         arrowprops=dict(arrowstyle='->', connectionstyle='angle', lw=1)
-        ax.annotate('SOC age dist.', xy=(my_t, ymax-10), xytext=(my_t - 5, ymax + 10),
+        ax.annotate('SOC age dist.', xy=(my_t, ymax-10), xytext=(my_t - 5, ymax + 8),
                     arrowprops=arrowprops, fontsize=5.5, ha='center',
                     bbox=dict(boxstyle='square,pad=0.0', edgecolor='none', facecolor='None'))
         ax.plot([my_t, my_t], [0, ymax], color='k', linestyle='--', lw=1)
