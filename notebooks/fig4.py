@@ -22,14 +22,25 @@ plt.style.use('notebooks/style.mpl')
 pal = viz.color_palette()
 
 #%% Load the predictions
-powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/power_law_model_predictions.csv')
-gen_powerlaw_preds_beta = pd.read_csv(f'results/04_model_predictions/general_power_law_model_predictions.csv')
-gen_powerlaw_preds_beta_half = pd.read_csv(f'results/04_model_predictions/general_power_law_model_predictions_beta_half.csv')
-lognormal_predictions = pd.read_csv(f'results/04_model_predictions/lognormal_model_predictions.csv')
-gamma_predictions = pd.read_csv(f'results/04_model_predictions/gamma_model_predictions.csv')    
-CLM45_predictions = pd.read_csv(f'results/04_model_predictions/CLM45_fnew.csv', header=None, names=['prediction'])
-JSBACH_predictions = pd.read_csv(f'results/04_model_predictions/JSBACH_fnew.csv', header=None, names=['prediction'])
-RCM_predictions = pd.read_csv(f'results/04_model_predictions/RCM.csv')
+powerlaw_predictions = pd.read_csv('results/04_model_predictions/power_law_model_predictions.csv')
+gen_powerlaw_preds_beta = pd.read_csv('results/04_model_predictions/general_power_law_model_predictions.csv')
+gen_powerlaw_preds_beta_half = pd.read_csv('results/04_model_predictions/general_power_law_model_predictions_beta_half.csv')
+lognormal_predictions = pd.read_csv('results/04_model_predictions/lognormal_model_predictions.csv')
+gamma_predictions = pd.read_csv('results/04_model_predictions/gamma_model_predictions.csv')
+CLM45_predictions = pd.read_csv('results/04_model_predictions/CLM45_fnew.csv', header=None, names=['prediction'])
+JSBACH_predictions = pd.read_csv('results/04_model_predictions/JSBACH_fnew.csv', header=None, names=['prediction'])
+RCM_predictions = pd.read_csv('results/04_model_predictions/RCM.csv')
+
+# Model groupings reused across figures
+continuum_model_colors = [pal['dark_blue'], pal['blue'], pal['light_blue']]
+continuum_models = [lognormal_predictions, powerlaw_predictions, gen_powerlaw_preds_beta]
+continuum_model_titles = ['lognormal model', 'power law model ($\\alpha = 1$)', 'power law model ($\\alpha = e^{-\\gamma}$)']
+
+ESM_model_colors = [pal['dark_purple'], pal['purple']]
+ESM_models = [CLM45_predictions, JSBACH_predictions]
+ESM_model_titles = ['CLM4.5', 'JSBACH']
+
+RCM_colors = [pal['dark_green'], pal['green'], pal['light_green']]
 
 
 # %% Define function to plot model predictions
@@ -100,7 +111,6 @@ def plot_model_predictions_cmap(ax, predictions, model_name, clabel, cmap, norm)
     rmse = root_mean_squared_error(true_vals[mask], predictions[mask])
     kge = evaluator.kling_gupta_efficiency()
 
-    rmse = root_mean_squared_error(all_sites['total_fnew'], predictions)
     # Make a single box reporting KGE and RMSE. Black border and grey background
     props = dict(boxstyle='round', facecolor=pal['light_yellow'],
                  edgecolor=pal['dark_grey'], alpha=0.8)
@@ -113,17 +123,15 @@ def plot_model_predictions_cmap(ax, predictions, model_name, clabel, cmap, norm)
 
 #%% 
 # Plot the generalized power law model predictions to check
+# TODO: can we delete this code? 
 fig, axs = plt.subplots(1, 3, figsize=(7.24, 2), dpi=300, constrained_layout=True)
 
-plt.sca(axs[0])
 powerlaw_err = powerlaw_predictions[['predicted_fnew_05','predicted_fnew_95']].sub(powerlaw_predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T
-plot_model_predictions(axs[0], powerlaw_predictions['predicted_fnew'], 'power law model', pal['dark_blue'],powerlaw_err)
+plot_model_predictions(axs[0], powerlaw_predictions['predicted_fnew'], 'power law model', pal['dark_blue'], powerlaw_err)
 
-plt.sca(axs[1])
 gen_powerlaw_err = gen_powerlaw_preds_beta[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_beta['predicted_fnew'], axis=0).abs().fillna(0).values.T
 plot_model_predictions(axs[1], gen_powerlaw_preds_beta['predicted_fnew'], 'generalized power law model', pal['blue'], gen_powerlaw_err)
 
-plt.sca(axs[2])
 gen_powerlaw_err_half = gen_powerlaw_preds_beta_half[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_beta_half['predicted_fnew'], axis=0).abs().fillna(0).values.T
 plot_model_predictions(axs[2], gen_powerlaw_preds_beta_half['predicted_fnew'], 'generalized power law model (beta/2)', pal['light_blue'], gen_powerlaw_err_half)
 
@@ -135,24 +143,16 @@ fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(7.24, 3.5),
                         sharex=True, sharey=True)
 axs = axs.flatten()
 
-continuum_model_colors = [pal['dark_blue'], pal['blue'], pal['light_blue']]
-continuum_models = [lognormal_predictions, powerlaw_predictions, gen_powerlaw_preds_beta]
-continuum_model_titles = ['lognormal model', 'power law model ($\\alpha = 1$)', 'power law model ($\\alpha = e^{-\\gamma}$)']
-
 for ax, predictions, title, color in zip(axs[:3], continuum_models,
                                          continuum_model_titles, continuum_model_colors):
     err = predictions[['predicted_fnew_05','predicted_fnew_95']].sub(predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T
     plot_model_predictions(ax, predictions['predicted_fnew'], title, color, err)
 
-ESM_model_colors = [pal['dark_purple'], pal['purple']]
-ESM_models = [CLM45_predictions, JSBACH_predictions]
-ESM_model_titles = ['CLM4.5', 'JSBACH']
 for ax, predictions, title, color in zip(axs[3:5], ESM_models,
                                          ESM_model_titles, ESM_model_colors):
     plot_model_predictions(ax, predictions['prediction'], title, color)
 
 # Reduced complexity model predictions
-RCM_colors = [pal['dark_green'], pal['green'], pal['light_green']]
 for i, col in enumerate(RCM_predictions.columns):
     title = col +  ' ($^{14} C$ corrected)'
     plot_model_predictions(
@@ -165,7 +165,7 @@ for ax in axs[[0, 4]]:
     ax.set_ylabel('predicted F$_{new}$')
 
 # add labels to each subplot
-for i, (ax, label) in enumerate(zip(axs, "ABCDEFGH")):
+for ax, label in zip(axs, "ABCDEFGH"):
     if label == 'A' or label == 'E':
         ax.text(
             -0.25, 1.1, label, transform=ax.transAxes,
@@ -175,8 +175,7 @@ for i, (ax, label) in enumerate(zip(axs, "ABCDEFGH")):
             -0.15, 1.1, label, transform=ax.transAxes,
             fontsize=7, va='top', ha='left')
 # %% Save the figure
-out_fname = f'figures/fig4.png'
-plt.savefig(out_fname, dpi=300, bbox_inches='tight')
+plt.savefig('figures/fig4.png', dpi=300, bbox_inches='tight')
 plt.savefig('figures/fig4.svg', dpi=300, bbox_inches='tight')
 
 # %% make a supplementary version of the above plot where the points are colored by the
@@ -194,18 +193,16 @@ cnames = 'dark_blue,blue,light_blue,dark_grey'.split(',')
 continuum_model_colors = [pal[c] for c in cnames] + ['grey']
 continuum_models = [lognormal_predictions, gamma_predictions, powerlaw_predictions,
                     gen_powerlaw_preds_beta, gen_powerlaw_preds_beta_half]
-continuum_model_titles = ['lognormal model', 'gamma model', 'power law model',
+continuum_model_titles = ['lognormal model', 'gamma model', 'power law model ($\\alpha = 1$)',
                           'power law ($\\alpha = e^{-\\gamma}$)',
                           'power law ($\\alpha = e^{-\\gamma}/2$)']
 my_axs = [axs[c] for c in 'ABCDE']
-for ax, predictions, title, color in zip(my_axs, continuum_models,
-                                         continuum_model_titles, continuum_model_colors):
+for ax, predictions, title in zip(my_axs, continuum_models, continuum_model_titles):
     sc = plot_model_predictions_cmap(ax, predictions['predicted_fnew'], title,
                                      clabel='Duration_labeling', cmap=cmap, norm=norm)
 
 my_axs = [axs[c] for c in 'FG']
-for ax, predictions, title, color in zip(my_axs, ESM_models,
-                                         ESM_model_titles, ESM_model_colors):
+for ax, predictions, title in zip(my_axs, ESM_models, ESM_model_titles):
     sc = plot_model_predictions_cmap(ax, predictions['prediction'], title,
                                      clabel='Duration_labeling', cmap=cmap, norm=norm)
     
@@ -232,12 +229,12 @@ metric_dists = pd.read_csv('results/fig4_calcs.csv')
 kge_data = metric_dists[metric_dists['metric'] == 'KGE']
 # Order -- continuum, then ESM, then reduced complexity
 order = ['Lognormal', 'Gamma', 'Power-law',
-         'Gen. Power-law (b=exp(-gamma))',
-         'Gen. Power-law (b=exp(-gamma)/2)',
+         'Gen. Power-law (a=exp(-gamma))',
+         'Gen. Power-law (a=exp(-gamma)/2)',
          'CLM4.5', 'JSBACH', 'CESM1', 'IPSL-CM5A-LR', 'MRI-ESM1']
-xlabels = ['lognormal', 'gamma', 'power law',
-           'gen. power law\n($\\alpha = e^{-\\gamma}$)',
-           'gen. power law\n($\\alpha = e^{-\\gamma}/2$)',
+xlabels = ['lognormal', 'gamma', 'power law ($\\alpha = 1$)',
+           'power law\n($\\alpha = e^{-\\gamma}$)',
+           'power law\n($\\alpha = e^{-\\gamma}/2$)',
            'CLM4.5',  'JSBACH', 'CESM1 (RC)', 'IPSL-CM5A-LR (RC)', 'MRI-ESM1 (RC)']
 axs['K'].set_xticklabels(xlabels, rotation=45, ha='right', fontsize=6)
 sns.violinplot(
@@ -259,14 +256,9 @@ axs['K'].set_xlabel('')
 
 # add labels to each subplot
 for i, c in enumerate("ABCDEFGHIJ"):
-    if c == 'A' or c == 'F':
-        axs[c].text(
-            -0.25, 1.2, c, transform=axs[c].transAxes,
-            fontsize=7, va='top', ha='left')
-    else:
-        axs[c].text(
-            -0.25, 1.2, c, transform=axs[c].transAxes,
-            fontsize=7, va='top', ha='left')
+    axs[c].text(
+        -0.25, 1.2, c, transform=axs[c].transAxes,
+        fontsize=7, va='top', ha='left')
 
 # make the tick labels smaller
 for c in 'ABCDEFGHIJ':
@@ -280,8 +272,7 @@ axs['K'].text(-0.04, 1.1, 'K', transform=axs['K'].transAxes,
 axs['K'].tick_params(axis='y', which='major', labelsize=5)
 axs['K'].set_yticks(np.arange(-1, 1.1, 1.0))
 
-out_fname = f'figures/figS3.png'
-plt.savefig(out_fname, dpi=300, bbox_inches='tight')
+plt.savefig('figures/figS3.png', dpi=300, bbox_inches='tight')
 
 # %% make a presentation version with no subpanel labels
 # show only the continuum models and ESMs
@@ -308,22 +299,14 @@ for ax in axs:
 axs[0].set_ylabel('predicted F$_{new}$')
 
 # %% Save the presentation figure
-out_fname = f'figures/fig4_presentation.png'
-plt.savefig(out_fname, dpi=300, bbox_inches='tight')
+plt.savefig('figures/fig4_presentation.png', dpi=300, bbox_inches='tight')
 
 # Make a version of the presentation figure where the points are colored by the
-# timing of the land use change event. 
+# timing of the land use change event.
 fig, axs = plt.subplots(nrows=1, ncols=5, figsize=(7.24, 1.75),
                         dpi=300, constrained_layout=True,
                         sharex=False, sharey=True)
-# for presentation, want lognormal, gamma, powerlaw, in that order
-continuum_model_colors = [pal['dark_blue'], pal['blue'], pal['light_blue']]
-continuum_models = [lognormal_predictions, gamma_predictions, powerlaw_predictions]
-continuum_model_titles = ['lognormal model', 'gamma model', 'power law model']
 
-# make a log-scaled color map for the duration of labeling
-cmap = 'viridis'
-norm = LogNorm(vmin=all_sites['Duration_labeling'].min(), vmax=all_sites['Duration_labeling'].max())
 for ax, predictions, title, color in zip(axs[:3], continuum_models,
                                          continuum_model_titles, continuum_model_colors):
     sc = plot_model_predictions_cmap(ax, predictions['predicted_fnew'], title,

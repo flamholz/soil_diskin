@@ -18,6 +18,7 @@ rule all:
         "figures/fig2.png",
         "figures/fig4.png",
         "figures/figS1.png",
+        "figures/figS2.png",
         "figures/figS3.png",
         "figures/figS4.png",
         "figures/figS5.png",
@@ -97,6 +98,16 @@ rule download_israd_data:
         unzip -o israd_database_files.zip -d data/ISRaD
         rm -f israd_database_files.zip
         touch {output}
+        """
+
+# Whittaker biome boundaries
+rule download_whittaker_biomes:
+    output:
+        "data/whittaker_biomes/biomes.csv"
+    shell:
+        """
+        mkdir -p data/whittaker_biomes
+        curl -L -o {output} https://raw.githubusercontent.com/kunstler/BIOMEplot/refs/heads/master/inst/extdata/biomes.csv
         """
 
 # Step 01: Preprocess Balesdent data
@@ -351,6 +362,7 @@ rule fig1_calcs:
 rule plot_fig1:
     input:
         "results/fig1_calcs.npz",
+        "graphics/century_model_diagram.png",
     output:
         "figures/fig1.png",
     script:
@@ -406,9 +418,21 @@ rule plot_fig4:
     script:
         "notebooks/fig4.py"
 
+rule plot_figS2:
+    input:
+        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+    output:
+        "figures/figS2.png",
+    script:
+        "notebooks/figS2.py"
+
 rule plot_figS1:
     input:
         'data/balesdent_2018/balesdent_2018_raw.xlsx',
+        'data/whittaker_biomes/biomes.csv',
     output:
         'figures/figS1.png',
     script:
@@ -417,7 +441,8 @@ rule plot_figS1:
 rule plot_figS4:
     input:
         'results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results.csv',
-        'results/06_sensitivity_analysis/gamma_turnover_sensitivity_results.csv',
+        'results/processed_balesdent_2018.csv',
+        'results/all_sites_14C_turnover.csv',
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_0.50.csv",
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_0.67.csv",
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_1.csv",
@@ -431,9 +456,8 @@ rule plot_figS4:
 rule plot_figS5:
     input:
         "data/balesdent_2018/balesdent_2018_raw.xlsx",
-        "results/processed_balesdent_2018.csv", 
+        "results/processed_balesdent_2018.csv",
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
-        "results/03_calibrate_models/gamma_model_optimization_results.csv",
         'results/06_sensitivity_analysis/lognormal_input_data.csv',
         'results/06_sensitivity_analysis/lognormal_mu_data.csv',
         'results/06_sensitivity_analysis/lognormal_sigma_data.csv',

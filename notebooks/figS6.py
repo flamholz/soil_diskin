@@ -1,8 +1,6 @@
 # Load libraries
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from permetrics.regression import RegressionMetric
 
 # load data
@@ -10,10 +8,14 @@ from permetrics.regression import RegressionMetric
 site_data = pd.read_csv('results/06_sensitivity_analysis/06c_model_predictions_veg_effects.csv')
 # %%
 # Plot results
-
-fig, axs = plt.subplots(1, 3, figsize=(12, 5), dpi = 300)
-
 def plot_data(col, ax, title):
+    """Helper function to plot the data.
+    
+    Args:
+        col (str): Column name suffix for the predictions.
+        ax (matplotlib.axes.Axes): Axes object to plot on.
+        title (str): Title of the plot.
+    """
     ax.scatter(site_data['total_fnew'], site_data['pred_conv' + col], color='k')
     ax.scatter(site_data['total_fnew'], site_data['pred_no_conv' + col], color='royalblue')
 
@@ -31,9 +33,9 @@ def plot_data(col, ax, title):
     ax.set_title(title)
     ax.set_aspect('equal', 'box')
 
+fig, axs = plt.subplots(1, 2, figsize=(8, 5), dpi=300)
 plot_data('', axs[0], 'Power-law model')
 plot_data('_lognorm', axs[1], 'Lognormal model')
-plot_data('_gamma', axs[2], 'Gamma model')
 plt.tight_layout()
 
 # Save figure
