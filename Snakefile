@@ -476,10 +476,11 @@ rule clean_results:
         rm -rf figures/*
         """
 
+# Intended to trigger a rerun of continuum models without forcing CLM45 or JSBACH to rerun.
 rule clean_light:
     shell:
         """
-        find results -type f -name '*.csv' ! -name 'CLM45*.csv' ! -name 'JSBACH*.csv' -delete || true
+        find results -type f -name '*.csv' ! -name 'CLM45*.csv' ! -name 'JSBACH*.csv' ! -name 'processed_balesdent_2018.csv' ! -name 'all_sites_14C_turnover.csv' -delete || true
         find results -type f -name '*.npz' ! -name 'CLM45*.npz' ! -name 'JSBACH*.npz' -delete || true
         rm -rf figures/*
         """
