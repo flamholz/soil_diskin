@@ -11,6 +11,7 @@ from sklearn.metrics import root_mean_squared_error
 from scipy.interpolate import interp1d
 
 # %%
+# Load the data for the power-law model.
 pl_data = pd.read_csv('results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results.csv')
 site_data = pd.read_csv('results/processed_balesdent_2018.csv')
 turnover_14C = pd.read_csv('results/all_sites_14C_turnover.csv')
@@ -18,7 +19,9 @@ turnover_14C = pd.read_csv('results/all_sites_14C_turnover.csv')
 pl_data.columns = pl_data.columns.astype(float)
 pl_data.reset_index(drop=True, inplace=True)
 
+
 # %%
+# Load the data for the lognormal model.
 def predict_fnew(cdf):
     ts = cdf.columns.astype(float).values
     predictions = []
@@ -36,6 +39,7 @@ ln_data = pd.concat(
 ln_data.columns = pl_data.columns
 
 # %%
+# Make the figure
 fig, axs = plt.subplots(2, 5, figsize=(12, 5), constrained_layout=True, sharex=True, sharey=True, dpi=300)
 
 col_map = {0.5: 0, 1/1.5: 1, 1: 2, 1.5: 3, 2: 4}
