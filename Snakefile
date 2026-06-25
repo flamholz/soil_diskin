@@ -101,6 +101,17 @@ rule download_israd_data:
         """
 
 # Whittaker biome boundaries
+rule download_worldclim:
+    output:
+        directory("data/worldclim")
+    shell:
+        """
+        mkdir -p data/worldclim
+        curl -L -o data/worldclim/wc2.1_10m_bio.zip https://geodata.ucdavis.edu/climate/worldclim/2_1/base/wc2.1_10m_bio.zip
+        unzip data/worldclim/wc2.1_10m_bio.zip -d data/worldclim
+        rm data/worldclim/wc2.1_10m_bio.zip
+        """
+
 rule download_whittaker_biomes:
     output:
         "data/whittaker_biomes/biomes.csv"
@@ -418,12 +429,34 @@ rule plot_fig4:
     script:
         "notebooks/fig4.py"
 
+rule figS2_calcs:
+    input:
+        "results/all_sites_14C_turnover.csv",
+        "data/worldclim",
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
+    output:
+        "results/figS2_calcs.csv",
+        "results/figS2_calcs_lognormal_correlations.csv",
+        "results/figS2_calcs_powerlaw_alpha1_correlations.csv",
+        "results/figS2_calcs_powerlaw_alpha_exp_gamma_correlations.csv",
+        "results/figS2_calcs_powerlaw_alpha_exp_gamma_half_correlations.csv",
+    script:
+        "notebooks/figS2_calcs.py"
+
 rule plot_figS2:
     input:
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
         "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+        "results/figS2_calcs.csv",
+        "results/figS2_calcs_lognormal_correlations.csv",
+        "results/figS2_calcs_powerlaw_alpha1_correlations.csv",
+        "results/figS2_calcs_powerlaw_alpha_exp_gamma_correlations.csv",
+        "results/figS2_calcs_powerlaw_alpha_exp_gamma_half_correlations.csv",
     output:
         "figures/figS2.png",
     script:
