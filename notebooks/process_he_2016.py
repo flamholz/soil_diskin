@@ -2,10 +2,6 @@ import numpy as np
 from os import path
 import pandas as pd
 import xarray as xr
-import rioxarray as rio
-import requests
-import zipfile
-import os
 
 model_names = {'CESM':'CESM1','IPSL':'IPSL-CM5A-LR','MRI':'MRI-ESM1'}
 file_names = {'CESM':'areacella_fx_CESM1-BGC_1pctCO2_r0i0p0',

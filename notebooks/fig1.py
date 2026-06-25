@@ -2,7 +2,6 @@ import itertools as it
 import numpy as np
 import matplotlib.pyplot as plt
 
-from matplotlib.image import BboxImage
 from soil_diskin.continuum_models import PowerLawDisKin
 from tqdm import tqdm
 

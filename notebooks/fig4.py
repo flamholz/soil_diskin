@@ -176,7 +176,7 @@ for ax, label in zip(axs, "ABCDEFGH"):
             fontsize=7, va='top', ha='left')
 # %% Save the figure
 plt.savefig('figures/fig4.png', dpi=300, bbox_inches='tight')
-plt.savefig('figures/fig4.svg', dpi=300, bbox_inches='tight')
+#plt.savefig('figures/fig4.svg', dpi=300, bbox_inches='tight')
 
 # %% make a supplementary version of the above plot where the points are colored by the
 # timing of the land use change event. Using a log color scale. Also, we now include the 
