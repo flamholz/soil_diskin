@@ -6,84 +6,114 @@ if os.getcwd().endswith('notebooks'):
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 import viz
 
 # %%
 plt.style.use('notebooks/style.mpl')
 pal = viz.color_palette()
 
+WORLDCLIM_LABELS = {
+    'mean_annual_temp':           'MAT',
+    'mean_diurnal_temp_range':    'Diurnal ΔT',
+    'isothermality':              'Isothermality',
+    'temp_seasonality':           'T seasonality',
+    'max_temp_warmest_month':     'Max T (warm mo.)',
+    'min_temp_coldest_month':     'Min T (cold mo.)',
+    'temp_annual_range':          'T annual range',
+    'mean_temp_wettest_quarter':  'T (wet qtr.)',
+    'mean_temp_driest_quarter':   'T (dry qtr.)',
+    'mean_temp_warmest_quarter':  'T (warm qtr.)',
+    'mean_temp_coldest_quarter':  'T (cold qtr.)',
+    'annual_precip':              'MAP',
+    'precip_wettest_month':       'P (wet mo.)',
+    'precip_driest_month':        'P (dry mo.)',
+    'precip_seasonality':         'P seasonality',
+    'precip_wettest_quarter':     'P (wet qtr.)',
+    'precip_driest_quarter':      'P (dry qtr.)',
+    'precip_warmest_quarter':     'P (warm qtr.)',
+    'precip_coldest_quarter':     'P (cold qtr.)',
+}
+
 powerlaw_params = pd.read_csv('results/03_calibrate_models/powerlaw_model_optimization_results.csv')
 gen_powerlaw_params = pd.read_csv('results/03_calibrate_models/general_powerlaw_model_optimization_results.csv')
 gen_powerlaw_params_beta_half = pd.read_csv('results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv')
-lognormal_params = pd.read_csv('results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv')
+lognormal_raw = pd.read_csv('results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv')
+
+ln_corr = pd.read_csv('results/figS2_calcs_lognormal_correlations.csv', index_col='worldclim_var')
+pl_corr = pd.read_csv('results/figS2_calcs_powerlaw_alpha1_correlations.csv', index_col='worldclim_var')
+
+# Derive mu and sigma from fitted mean age and turnover time
+lognormal_raw['mu'] = -np.log(np.sqrt(lognormal_raw['turnover']**3 / lognormal_raw['pred']))
+lognormal_raw['sigma'] = np.sqrt(np.log(lognormal_raw['pred'] / lognormal_raw['turnover']))
 
 # %%
-# Each model gets a color matching fig4
-model_colors = {
-    'lognormal':                   pal['dark_blue'],
-    'power law ($\\alpha=1$)':     pal['blue'],
-    'power law ($\\alpha=e^{-\\gamma}$)':    pal['light_blue'],
-    'power law ($\\alpha=e^{-\\gamma}/2$)':  pal['dark_grey'],
-}
-
-fig, axs = plt.subplots(1, 4, figsize=(7.24, 2.5), dpi=300, constrained_layout=True)
-
-kde_kws = dict(fill=True, alpha=0.5, linewidth=1.5, log_scale=True)
-
-# Panel A: lognormal fitted median age
-ax = axs[0]
-sns.kdeplot(lognormal_params['pred'], ax=ax, color=pal['dark_blue'],
-            label='lognormal', **kde_kws)
-ax.set_xlabel('fitted median age (yr)')
-ax.set_title('lognormal $\\tilde{a}$')
-
-# Panel B: t_min across all three power law variants
-ax = axs[1]
-for label, df, color in [
-    ('power law ($\\alpha=1$)',              powerlaw_params,            pal['blue']),
-    ('power law ($\\alpha=e^{-\\gamma}$)',   gen_powerlaw_params,        pal['light_blue']),
-    ('power law ($\\alpha=e^{-\\gamma}/2$)', gen_powerlaw_params_beta_half, pal['dark_grey']),
-]:
-    sns.kdeplot(df['t_min'], ax=ax, color=color, label=label, **kde_kws)
-ax.set_xlabel('$t_{min}$ (yr)')
-ax.set_title('$t_{min}$')
-
-# Panel C: t_max across all three power law variants
-ax = axs[2]
-for label, df, color in [
-    ('power law ($\\alpha=1$)',              powerlaw_params,            pal['blue']),
-    ('power law ($\\alpha=e^{-\\gamma}$)',   gen_powerlaw_params,        pal['light_blue']),
-    ('power law ($\\alpha=e^{-\\gamma}/2$)', gen_powerlaw_params_beta_half, pal['dark_grey']),
-]:
-    sns.kdeplot(df['t_max'], ax=ax, color=color, label=label, **kde_kws)
-ax.set_xlabel('$t_{max}$ (yr)')
-ax.set_title('$t_{max}$')
-
-# Panel D: fitted turnover time across all four models
-ax = axs[3]
-sns.kdeplot(lognormal_params['turnover'], ax=ax, color=pal['dark_blue'],
-            label='lognormal', **kde_kws)
-for label, df, color, tcol in [
-    ('power law ($\\alpha=1$)',              powerlaw_params,               pal['blue'],       'modeled_tau'),
-    ('power law ($\\alpha=e^{-\\gamma}$)',   gen_powerlaw_params,           pal['light_blue'], 'modeled_T'),
-    ('power law ($\\alpha=e^{-\\gamma}/2$)', gen_powerlaw_params_beta_half, pal['dark_grey'],  'modeled_T'),
-]:
-    sns.kdeplot(df[tcol], ax=ax, color=color, label=label, **kde_kws)
-ax.set_xlabel('turnover time (yr)')
-ax.set_title('fitted turnover time')
-
-# Shared formatting
-for ax in axs:
-    ax.set_ylabel('density')
+def scatter(ax, x, y, color, xlabel, ylabel, xlog=False, ylog=False):
+    ax.scatter(x, y, color=color, s=8, linewidths=0.5, edgecolors='k')
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    if xlog:
+        ax.set_xscale('log')
+    if ylog:
+        ax.set_yscale('log')
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
 
-# Single legend on the last panel
-axs[3].legend(fontsize=5, loc='upper right')
 
-# Subplot labels
-for ax, label in zip(axs, 'ABCD'):
-    ax.text(-0.15, 1.05, label, transform=ax.transAxes, fontsize=7, va='top', ha='left')
+def corr_bars(ax, corr_df, param, color, title):
+    """Vertical bar chart of Spearman r for one parameter vs all WorldClim vars."""
+    r = corr_df[f'{param}_spearman_r']
+    p = corr_df[f'{param}_spearman_p']
+    sig = p < 0.05 / 20
+    colors = [color if s else 'lightgrey' for s in sig]
+    x = np.arange(len(r))
+    ax.bar(x, r.values, color=colors, edgecolor='none', width=0.7)
+    ax.set_xticks(x)
+    ax.set_xticklabels([WORLDCLIM_LABELS.get(v, v) for v in r.index],
+                       rotation=45, ha='right')
+    ax.axhline(0, color='k', linewidth=0.5)
+    ax.set_ylabel('Spearman $r$')
+    ax.set_title(title)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+
+
+# %%
+mosaic = [
+    ['A', 'B', 'C', 'D'],
+    ['E', 'E', 'F', 'F'],
+    ['G', 'G', 'H', 'H'],
+]
+fig, ax_dict = plt.subplot_mosaic(mosaic, figsize=(7.24, 5), dpi=300, constrained_layout=True,
+                                  height_ratios=[0.7, 1, 1])
+
+# --- Row 1: parameter–parameter scatter per model ---
+row1_panels = [
+    ('A', 'lognormal model',                        lognormal_raw,                pal['dark_blue'],  'mu',    'sigma',  '$\\mu$',    '$\\sigma$',   False, False),
+    ('B', 'power law ($\\alpha=1$)',                 powerlaw_params,              pal['blue'],       't_min', 't_max',  '$t_{min}$', '$t_{max}$',   True,  True),
+    ('C', 'power law ($\\alpha=e^{-\\gamma}$)',      gen_powerlaw_params,          pal['light_blue'], 't_min', 't_max',  '$t_{min}$', '$t_{max}$',   True,  True),
+    ('D', 'power law ($\\alpha=e^{-\\gamma}/2$)',    gen_powerlaw_params_beta_half,pal['dark_grey'],  't_min', 't_max',  '$t_{min}$', '$t_{max}$',   True,  True),
+]
+for key, title, df, color, xcol, ycol, xlabel, ylabel, xlog, ylog in row1_panels:
+    scatter(ax_dict[key], df[xcol], df[ycol], color, xlabel, ylabel, xlog, ylog)
+    ax_dict[key].set_title(title)
+
+# --- Row 2: lognormal Spearman correlations (mu and sigma) ---
+corr_bars(ax_dict['E'], ln_corr, 'mu',    pal['dark_blue'], 'lognormal: $\\mu$ vs WorldClim')
+corr_bars(ax_dict['F'], ln_corr, 'sigma', pal['dark_blue'], 'lognormal: $\\sigma$ vs WorldClim')
+ax_dict['E'].set_xticklabels([])
+ax_dict['F'].set_xticklabels([])
+
+# --- Row 3: power law (alpha=1) Spearman correlations (t_min and t_max) ---
+corr_bars(ax_dict['G'], pl_corr, 't_min', pal['blue'], 'power law ($\\alpha=1$): $t_{min}$ vs WorldClim')
+corr_bars(ax_dict['H'], pl_corr, 't_max', pal['blue'], 'power law ($\\alpha=1$): $t_{max}$ vs WorldClim')
+
+# --- Panel labels ---
+for key, label in zip('ABCD', 'ABCD'):
+    ax_dict[key].text(-0.3, 1.08, label, transform=ax_dict[key].transAxes,
+                      fontsize=7, va='top', ha='left')
+
+for key, label in zip('EFGH', 'EFGH'):
+    ax_dict[key].text(-0.1, 1.04, label, transform=ax_dict[key].transAxes,
+                      fontsize=7, va='top', ha='left')
 
 fig.savefig('figures/figS2.png', dpi=600, bbox_inches='tight')

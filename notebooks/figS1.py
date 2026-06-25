@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.patches as patches
 
+plt.style.use('notebooks/style.mpl')
+
 from soil_diskin.data_wrangling import assign_biome_numpy
 
 # %%
@@ -44,36 +46,46 @@ colors = {
 site_data = pd.read_excel('data/balesdent_2018/balesdent_2018_raw.xlsx', skiprows=7)
 site_data['biome'] = site_data.apply(assign_biome_numpy, axis=1, biome_data=biome_data)
 
-fig, axs = plt.subplots(1,3, figsize=(12,4), dpi=300, constrained_layout=True)
+fig, axs = plt.subplots(1,3, figsize=(7.24, 1.75), dpi=300, constrained_layout=True)
 
-site_data['Duration_labeling'].plot.hist(ax=axs[0], bins=np.logspace(0,3,int(np.sqrt(site_data.shape[0]))), edgecolor='black', facecolor='lightgrey')
+# Left panel: histogram of labeling durations
+site_data['Duration_labeling'].plot.hist(
+    ax=axs[0], bins=np.logspace(0,3,int(np.sqrt(site_data.shape[0]))), edgecolor='black', facecolor='lightgrey')
 axs[0].set_xscale('log')
-axs[0].set(xlabel='Time since transition [years]', xticks=[1,10,100,1000],  xticklabels=[1,10,100,1000], ylabel='Number of sites')
+axs[0].set(xlabel='time since transition [years]', xticks=[1,10,100,1000],  xticklabels=[1,10,100,1000],
+           ylabel='number of sites')
 
-
-site_data['Sampling date'].plot.hist(ax=axs[1], bins=20, edgecolor='black', facecolor='lightgrey', ylabel='Number of sites')
+# Middle panel: histogram of sampling dates
+site_data['Sampling date'].plot.hist(ax=axs[1], bins=20, edgecolor='black', facecolor='lightgrey',
+                                     ylabel='number of sites', xlabel='sampling date [year]')
 
 # Whittaker diagram
 ax = axs[2]
 ax.set(xlim=(-16, 30), ylim=(0, 500))
 for biome, group in biome_data.groupby('biome'):
-    ax.add_patch(patches.Polygon(group[['x', 'y']].values, closed=True, fill=True, facecolor=colors[group['color'].values[0]], label=biome, lw=2, edgecolor='w'))
+    ax.add_patch(
+        patches.Polygon(
+            group[['x', 'y']].values, closed=True,
+            fill=True, facecolor=colors[group['color'].values[0]],
+            label=biome.lower(), lw=2, edgecolor='w'))
 
-ax.scatter(site_data['MAT_C'], site_data['PANN_mm']/10, color='black', s=30, label='Data Points', )  # MAP converted to cm
-ax.set_xlabel("Mean Annual Temperature (°C)")
-ax.set_ylabel("Mean Annual Precipitation (cm)")
+MAP_cm = site_data['PANN_mm']/10 # MAP converted to cm
+MAT_C = site_data['MAT_C']
+ax.scatter(MAT_C, MAP_cm, lw=0.5, color=colors['grey'],
+           edgecolor='black', alpha=0.8, s=10,
+           label='Balesdent 2018 sites')  
+ax.set_xlabel("mean annual temperature (°C)")
+ax.set_ylabel("mean annual precipitation (cm)")
 ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 
-# remove right and top spines
-for ax in axs:
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-x,y = [.1,1.0]
-axs[0].text(x, y, 'A', transform=axs[0].transAxes, fontsize=14, va='top', ha='right')
-axs[1].text(x, y, 'B', transform=axs[1].transAxes, fontsize=14, va='top', ha='right')
-axs[2].text(x, y, 'C', transform=axs[2].transAxes, fontsize=14, va='top', ha='right')
-
-
+x,y = [-.21,1.15]
+for i, label in enumerate('ABC'):
+    # panel labels
+    axs[i].text(x, y, label, transform=axs[i].transAxes, fontsize=7, va='top', ha='right')
+    # remove right and top spines
+    axs[i].spines['right'].set_visible(False)
+    axs[i].spines['top'].set_visible(False)
+   
 plt.savefig('figures/figS1.png', dpi=300)
 
 

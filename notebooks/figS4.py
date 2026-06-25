@@ -5,10 +5,15 @@ if os.getcwd().endswith('notebooks'):
 
 import pandas as pd
 import matplotlib.pyplot as plt
+
 from itertools import product
 from permetrics.regression import RegressionMetric
 from sklearn.metrics import root_mean_squared_error
 from scipy.interpolate import interp1d
+
+plt.style.use('notebooks/style.mpl')
+import viz
+pal = viz.color_palette()
 
 # %%
 # Load the data for the power-law model.
@@ -40,7 +45,7 @@ ln_data.columns = pl_data.columns
 
 # %%
 # Make the figure
-fig, axs = plt.subplots(2, 5, figsize=(12, 5), constrained_layout=True, sharex=True, sharey=True, dpi=300)
+fig, axs = plt.subplots(2, 5, figsize=(7.24, 3.02), constrained_layout=True, sharex=True, sharey=True, dpi=300)
 
 col_map = {0.5: 0, 1/1.5: 1, 1: 2, 1.5: 3, 2: 4}
 models = [('PowerLaw', pl_data, 0), ('Lognormal', ln_data, 1)]
@@ -52,8 +57,10 @@ for (model, df, row), ratio in product(models, [0.5, 1/1.5, 1, 1.5, 2]):
 
     evaluator = RegressionMetric(y_true=jdf['obs'].values, y_pred=jdf['pred'].values)
     rmse = root_mean_squared_error(jdf['obs'], jdf['pred'])
-    ax.text(0.05, 0.95, f'KGE: {evaluator.kling_gupta_efficiency():.3f}', transform=ax.transAxes, fontsize=10, verticalalignment='top')
-    ax.text(0.05, 0.85, f'RMSE: {rmse:.3f}', transform=ax.transAxes, fontsize=10, verticalalignment='top')
+    props = dict(boxstyle='round', facecolor=pal['light_grey'], edgecolor=pal['dark_grey'], alpha=0.5)
+    box_text = f'KGE = {evaluator.kling_gupta_efficiency():.2f}\nRMSE = {rmse:.2f}'
+    ax.text(0.05, 0.95, box_text, transform=ax.transAxes, fontsize=6,
+            verticalalignment='top', bbox=props)
 
     if row == 1:
         ax.set(xlabel='observed')
@@ -67,7 +74,7 @@ for (model, df, row), ratio in product(models, [0.5, 1/1.5, 1, 1.5, 2]):
     ax.set_ylim(0, 1)
     ax.set_aspect('equal', 'box')
 
-axs[0, 0].text(-0.5, 0.5, 'Power-law model', transform=axs[0, 0].transAxes, fontsize=12, rotation=90, verticalalignment='center')
-axs[1, 0].text(-0.5, 0.5, 'Lognormal model', transform=axs[1, 0].transAxes, fontsize=12, rotation=90, verticalalignment='center')
+axs[0, 0].text(-0.5, 0.5, 'Power-law model', transform=axs[0, 0].transAxes, fontsize=7, rotation=90, verticalalignment='center')
+axs[1, 0].text(-0.5, 0.5, 'Lognormal model', transform=axs[1, 0].transAxes, fontsize=7, rotation=90, verticalalignment='center')
 
 fig.savefig('figures/figS4.png', dpi=600)

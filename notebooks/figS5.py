@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+plt.style.use('notebooks/style.mpl')
 from scipy.special import exp1
 from soil_diskin.continuum_models import PowerLawDisKin
 from scipy.optimize import minimize_scalar
@@ -115,25 +117,34 @@ pl_tau_data = [f_new(ts, 1, 1 , a1, a1, tau1, j) for j in tmaxs]
 # Plot results
 def plot_data(ax, ts, data, colors, title_label, legend_label):
     for j, d in enumerate(data):
-        ax.semilogx(ts, d, color=colors[j], label=f'{legend_label} = {ratios[j]:.2f}')
-        
-        ax.legend(loc='lower right')
-        sns.regplot(data=site_data, x="Duration_labeling", y="total_fnew",ax=ax,scatter_kws={'color':'k'},line_kws={'color':'k','lw':0},x_bins=[3,10,30,50,100,300,1000,3000],fit_reg=False,ci=95)
-        ax.set_title(title_label)
-        ax.set_xlabel('Time (years)')
-        ax.set_ylabel('Fraction of labeled carbon')
+        ax.semilogx(ts, d, color=colors[j],
+                    label=f'{legend_label} = {ratios[j]:.2f}')
+    ax.legend(loc='lower right')
+    n_lines_before = len(ax.lines)
+    sns.regplot(
+        data=site_data, x='Duration_labeling', y='total_fnew', ax=ax,
+        scatter_kws={'color': 'grey', 'lw': 1, 'edgecolors': 'k', 's': 15, 'zorder': 10},
+        line_kws={'color': 'k', 'lw': 0, 'zorder': 10},
+        x_bins=[3, 10, 30, 50, 100, 300, 1000, 3000],
+        fit_reg=False, ci=95,
+    )
+    for line in ax.lines[n_lines_before:]:
+        line.set_linewidth(1.5)
+    ax.set_title(title_label)
+    ax.set_xlabel('Time (years)')
+    ax.set_ylabel('Fraction of labeled carbon')
 
-fig, axs = plt.subplots(2, 3, figsize=(12, 8), sharex=True, sharey=True, constrained_layout=True, dpi=300)
-plot_data(axs[0, 0], ts, pl_input_data, green_colors, 'Change in input', '$J_{post}$/$J_{pre}$')
-plot_data(axs[0, 1], ts, pl_a_data, red_colors, 'Change in $t_{min}$', '$T_{post}$/$T_{pre}$')
-plot_data(axs[0, 2], ts, pl_tau_data, blue_colors, 'Change in $t_{max}$', '$T_{post}$/$T_{pre}$')
+fig, axs = plt.subplots(2, 3, figsize=(7.24, 4.83), sharex=True, sharey=True, constrained_layout=True, dpi=300)
+plot_data(axs[0, 0], ts, pl_input_data, green_colors, 'change in input', '$J_{post}$/$J_{pre}$')
+plot_data(axs[0, 1], ts, pl_a_data, red_colors, 'change in $\\tau_{min}$', '$T_{post}$/$T_{pre}$')
+plot_data(axs[0, 2], ts, pl_tau_data, blue_colors, 'change in $\\tau_{max}$', '$T_{post}$/$T_{pre}$')
 
-plot_data(axs[1, 0], ts_ln, ln_input_data, green_colors, 'Change in input', '$J_{post}$/$J_{pre}$')
-plot_data(axs[1, 1], ts_ln, ln_mu_data, red_colors, 'Change in $\\mu$', '$T_{post}$/$T_{pre}$')
-plot_data(axs[1, 2], ts_ln, ln_sigma_data, blue_colors, 'Change in $\\sigma$', '$T_{post}$/$T_{pre}$')
+plot_data(axs[1, 0], ts_ln, ln_input_data, green_colors, 'change in input', '$J_{post}$/$J_{pre}$')
+plot_data(axs[1, 1], ts_ln, ln_mu_data, red_colors, 'change in $\\mu$', '$T_{post}$/$T_{pre}$')
+plot_data(axs[1, 2], ts_ln, ln_sigma_data, blue_colors, 'change in $\\sigma$', '$T_{post}$/$T_{pre}$')
 
-axs[0, 0].text(-0.3, 0.5, 'Power-law model', transform=axs[0, 0].transAxes, ha='center', va='center', fontsize=16, alpha=1, rotation=90)
-axs[1, 0].text(-0.3, 0.5, 'Lognormal model', transform=axs[1, 0].transAxes, ha='center', va='center', fontsize=16, alpha=1, rotation=90)
+axs[0, 0].text(-0.3, 0.5, 'Power-law model', transform=axs[0, 0].transAxes, ha='center', va='center', fontsize=8, alpha=1, rotation=90)
+axs[1, 0].text(-0.3, 0.5, 'Lognormal model', transform=axs[1, 0].transAxes, ha='center', va='center', fontsize=8, alpha=1, rotation=90)
 
 # Save figure
 plt.savefig('figures/figS5.png', dpi=600, bbox_inches='tight')
