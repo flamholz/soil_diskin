@@ -62,7 +62,7 @@ for target_T, target_R_14C in zip(target_Ts, target_R_14Cs):
 
 # %% Plot figure 2, which diagrams the calibration procedure.
 mosaic = 'ABC\nDEF'
-fig, axs = plt.subplot_mosaic(mosaic, layout='constrained', figsize=(7.25, 4))
+fig, axs = plt.subplot_mosaic(mosaic, layout='constrained', figsize=(7.24, 4))
 
 # --- band constants and plotting helpers ---
 BAND_LOW = 30

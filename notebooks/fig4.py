@@ -232,7 +232,7 @@ order = ['Lognormal', 'Gamma', 'Power-law',
          'Gen. Power-law (a=exp(-gamma))',
          'Gen. Power-law (a=exp(-gamma)/2)',
          'CLM4.5', 'JSBACH', 'CESM1', 'IPSL-CM5A-LR', 'MRI-ESM1']
-xlabels = ['lognormal', 'gamma', 'power law ($\\alpha = 1$)',
+xlabels = ['lognormal', 'gamma', 'power law\n($\\alpha = 1$)',
            'power law\n($\\alpha = e^{-\\gamma}$)',
            'power law\n($\\alpha = e^{-\\gamma}/2$)',
            'CLM4.5',  'JSBACH', 'CESM1 (RC)', 'IPSL-CM5A-LR (RC)', 'MRI-ESM1 (RC)']
