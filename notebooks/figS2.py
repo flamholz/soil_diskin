@@ -39,9 +39,6 @@ gen_powerlaw_params = pd.read_csv('results/03_calibrate_models/general_powerlaw_
 gen_powerlaw_params_beta_half = pd.read_csv('results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv')
 lognormal_raw = pd.read_csv('results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv')
 
-ln_corr = pd.read_csv('results/figS2_calcs_lognormal_correlations.csv', index_col='worldclim_var')
-pl_corr = pd.read_csv('results/figS2_calcs_powerlaw_alpha1_correlations.csv', index_col='worldclim_var')
-
 # Derive mu and sigma from fitted mean age and turnover time
 lognormal_raw['mu'] = -np.log(np.sqrt(lognormal_raw['turnover']**3 / lognormal_raw['pred']))
 lognormal_raw['sigma'] = np.sqrt(np.log(lognormal_raw['pred'] / lognormal_raw['turnover']))
@@ -59,61 +56,24 @@ def scatter(ax, x, y, color, xlabel, ylabel, xlog=False, ylog=False):
     ax.spines['top'].set_visible(False)
 
 
-def corr_bars(ax, corr_df, param, color, title):
-    """Vertical bar chart of Spearman r for one parameter vs all WorldClim vars."""
-    r = corr_df[f'{param}_spearman_r']
-    p = corr_df[f'{param}_spearman_p']
-    sig = p < 0.05 / 20
-    colors = [color if s else 'lightgrey' for s in sig]
-    x = np.arange(len(r))
-    ax.bar(x, r.values, color=colors, edgecolor='none', width=0.7)
-    ax.set_xticks(x)
-    ax.set_xticklabels([WORLDCLIM_LABELS.get(v, v) for v in r.index],
-                       rotation=45, ha='right')
-    ax.axhline(0, color='k', linewidth=0.5)
-    ax.set_ylabel('Spearman $r$')
-    ax.set_title(title)
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-
-
 # %%
-mosaic = [
-    ['A', 'B', 'C', 'D'],
-    ['E', 'E', 'F', 'F'],
-    ['G', 'G', 'H', 'H'],
-]
-fig, ax_dict = plt.subplot_mosaic(mosaic, figsize=(7.24, 5), dpi=300, constrained_layout=True,
-                                  height_ratios=[0.7, 1, 1])
+mosaic = [['A', 'B'], ['C', 'D']]
+fig, ax_dict = plt.subplot_mosaic(mosaic, figsize=(4.76, 4.5), dpi=300, constrained_layout=True)
 
 # --- Row 1: parameter–parameter scatter per model ---
 row1_panels = [
     ('A', 'lognormal model',                        lognormal_raw,                pal['dark_blue'],  'mu',    'sigma',  '$\\mu$',    '$\\sigma$',   False, False),
-    ('B', 'power law ($\\alpha=1$)',                 powerlaw_params,              pal['blue'],       't_min', 't_max',  '$t_{min}$', '$t_{max}$',   True,  True),
-    ('C', 'power law ($\\alpha=e^{-\\gamma}$)',      gen_powerlaw_params,          pal['light_blue'], 't_min', 't_max',  '$t_{min}$', '$t_{max}$',   True,  True),
-    ('D', 'power law ($\\alpha=e^{-\\gamma}/2$)',    gen_powerlaw_params_beta_half,pal['dark_grey'],  't_min', 't_max',  '$t_{min}$', '$t_{max}$',   True,  True),
+    ('B', 'power law ($\\alpha=1$)',                 powerlaw_params,              pal['blue'],       't_min', 't_max',  '$\\tau_\\text{min}$', '$\\tau_\\text{max}$',   True,  True),
+    ('C', 'power law ($\\alpha=e^{-\\gamma}$)',      gen_powerlaw_params,          pal['light_blue'], 't_min', 't_max',  '$\\tau_\\text{min}$', '$\\tau_\\text{max}$',   True,  True),
+    ('D', 'power law ($\\alpha=e^{-\\gamma}/2$)',    gen_powerlaw_params_beta_half,pal['dark_grey'],  't_min', 't_max',  '$\\tau_\\text{min}$', '$\\tau_\\text{max}$',   True,  True),
 ]
 for key, title, df, color, xcol, ycol, xlabel, ylabel, xlog, ylog in row1_panels:
     scatter(ax_dict[key], df[xcol], df[ycol], color, xlabel, ylabel, xlog, ylog)
     ax_dict[key].set_title(title)
 
-# --- Row 2: lognormal Spearman correlations (mu and sigma) ---
-corr_bars(ax_dict['E'], ln_corr, 'mu',    pal['dark_blue'], 'lognormal: $\\mu$ vs WorldClim')
-corr_bars(ax_dict['F'], ln_corr, 'sigma', pal['dark_blue'], 'lognormal: $\\sigma$ vs WorldClim')
-ax_dict['E'].set_xticklabels([])
-ax_dict['F'].set_xticklabels([])
-
-# --- Row 3: power law (alpha=1) Spearman correlations (t_min and t_max) ---
-corr_bars(ax_dict['G'], pl_corr, 't_min', pal['blue'], 'power law ($\\alpha=1$): $t_{min}$ vs WorldClim')
-corr_bars(ax_dict['H'], pl_corr, 't_max', pal['blue'], 'power law ($\\alpha=1$): $t_{max}$ vs WorldClim')
-
 # --- Panel labels ---
 for key, label in zip('ABCD', 'ABCD'):
     ax_dict[key].text(-0.3, 1.08, label, transform=ax_dict[key].transAxes,
-                      fontsize=7, va='top', ha='left')
-
-for key, label in zip('EFGH', 'EFGH'):
-    ax_dict[key].text(-0.1, 1.04, label, transform=ax_dict[key].transAxes,
                       fontsize=7, va='top', ha='left')
 
 fig.savefig('figures/figS2.png', dpi=600, bbox_inches='tight')

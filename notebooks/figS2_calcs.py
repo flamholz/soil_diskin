@@ -116,12 +116,11 @@ for model_label, csv_path, param_cols in MODELS:
     out_path = f'results/figS2_calcs_{model_label}_correlations.csv'
     summary.to_csv(out_path)
 
-    # Print top Spearman correlations for each parameter
+    # Print all Spearman correlations for each parameter, most positive to most negative
     print(f'\n=== {model_label} ===')
     for param in param_cols:
         col = f'{param}_spearman_r'
-        ranked = summary[col].dropna().abs().sort_values(ascending=False)
-        print(f'  {param} — top 5 |Spearman r|:')
-        for var, absval in ranked.head(5).items():
-            raw = summary.loc[var, col]
-            print(f'    {var:35s}  r = {raw:+.3f}')
+        ranked = summary[col].dropna().sort_values(ascending=False)
+        print(f'  {param} — Spearman r (most positive to most negative):')
+        for var, r in ranked.items():
+            print(f'    {var:35s}  r = {r:+.3f}')
