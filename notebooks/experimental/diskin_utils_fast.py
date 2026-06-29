@@ -1,7 +1,8 @@
 """Python port of `diskin_utils_fast.jl`.
 
 Closed-form / 1-D quadrature evaluation of the lognormal Diskin model for a
-constant input. See `notebooks/diskin_closed_form_derivation.md` for the math.
+constant input. See `docs/notes/modeling/lognormal_diskin_closed_form_derivation.md`
+for the math.
 
     C(t) = I * integral over u of exp(-u) * phi_N(u; mu, sigma)
                                  * (1 - exp(-exp(u) * t)) du,    u = log k

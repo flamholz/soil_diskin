@@ -14,7 +14,7 @@ raw_site_data[!, "Ctotal_0-100estim"] = replace(raw_site_data[!, "Ctotal_0-100es
 
 ratios = raw_site_data[:,"Cref_0-100estim"] ./ raw_site_data[:, "Ctotal_0-100estim"];
 
-site_params = CSV.read("results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv", DataFrame);
+site_params = CSV.read("results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv", DataFrame);
 mean_age = mean(site_params[:,"pred"]);
 mean_turnover = mean(site_params[:,"turnover"]);
 

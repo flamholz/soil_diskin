@@ -7,7 +7,6 @@ if os.getcwd().endswith('notebooks'):
 # Load libraries
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import scipy.stats as stats
 from tqdm import tqdm
 from scipy.integrate import cumulative_trapezoid

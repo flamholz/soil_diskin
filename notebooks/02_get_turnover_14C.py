@@ -16,7 +16,6 @@ with open('config.yaml', 'r') as f:
 ee.Authenticate()  # Authenticate Earth Engine
 ee.Initialize(project=config['earth_engine']['project'])
 
-from soil_diskin.utils import download_file
 
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context

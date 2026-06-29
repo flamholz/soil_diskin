@@ -8,10 +8,8 @@ if os.getcwd().endswith('notebooks'):
 import pandas as pd
 import numpy as np
 from soil_diskin.continuum_models import PowerLawDisKin, GammaDisKin
-from os import path
 from scipy.integrate import quad
 from scipy.optimize import minimize
-from tqdm import tqdm
 from joblib import Parallel, delayed, parallel_backend
 
 #TODO: refactor the objective function and prediction code with the code in step 03 for both the Powerlaw and Gamma models so that we don't have code duplication

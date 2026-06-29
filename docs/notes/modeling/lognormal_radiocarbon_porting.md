@@ -1,13 +1,13 @@
 # Porting `03b_lognormal_age_scan.wls` to Julia and Python
 
-This document records the port of [`notebooks/03b_lognormal_age_scan.wls`](03b_lognormal_age_scan.wls)
-(Wolfram Language) to both Julia and Python: the mathematical setup, the
+This document records the port of [`notebooks/03b_lognormal_age_scan.wls`](../../../notebooks/03b_lognormal_age_scan.wls)
+(Wolfram Language) to Python: the mathematical setup, the
 algorithmic improvement that the port applies, the implementation choices, the
 validation strategy, and the resulting performance.
 
 For the underlying math of the lognormal Diskin model and the closed-form
 solution used here, see also
-[`notebooks/diskin_closed_form_derivation.md`](diskin_closed_form_derivation.md).
+[`docs/notes/modeling/lognormal_diskin_closed_form_derivation.md`](lognormal_diskin_closed_form_derivation.md).
 
 ---
 
@@ -18,7 +18,7 @@ first-order pools, with decay rate $k > 0$ distributed according to a
 lognormal density
 
 $$
-f(k) = \frac{1}{k\,\sigma\sqrt{2\pi}}\exp\!\Bigl(-\frac{(\log k - \mu)^2}{2\sigma^2}\Bigr),
+f(k) = \frac{1}{k\\,\sigma\sqrt{2\pi}}\exp\\!\Bigl(-\frac{(\log k - \mu)^2}{2\sigma^2}\Bigr),
 $$
 
 where $(\mu, \sigma)$ are determined from the system's transit time $\tau$ and
@@ -26,7 +26,7 @@ mean age $\bar a$ via
 
 $$
 \sigma = \sqrt{\log(\bar a / \tau)},\qquad
-\mu    = -\log\!\sqrt{\tau^3/\bar a}.
+\mu    = -\log\\!\sqrt{\tau^3/\bar a}.
 $$
 
 For each pool $k$ at steady state under constant input, the carbon's age
@@ -36,18 +36,18 @@ more carbon at steady state), the predicted bulk-pool radiocarbon activity
 ratio is
 
 $$
-\boxed{\;
+\boxed{\\;
 r(\tau, \bar a)
-\;=\; \frac{1}{\mathbb{E}[1/k]}
-\int_0^\infty\!\!\int_0^\infty
-R(a)\, e^{-a/8267}\, f(k)\, e^{-k a}\, dk\, da
-\;}
+\\;=\\; \frac{1}{\mathbb{E}[1/k]}
+\int_0^\infty\\!\\!\int_0^\infty
+R(a)\\, e^{-a/8267}\\, f(k)\\, e^{-k a}\\, dk\\, da
+\\;}
 $$
 
 where:
-- $R(a)$ is the atmospheric $^{14}\!C/^{12}\!C$ activity ratio $a$ years before
+- $R(a)$ is the atmospheric $^{14}\\!C/^{12}\\!C$ activity ratio $a$ years before
   the reference epoch (year 2000 in this dataset),
-- $8267\;\mathrm{yr}$ is the $^{14}\!C$ mean life (so $e^{-a/8267}$ is the
+- $8267\\;\mathrm{yr}$ is the $^{14}\\!C$ mean life (so $e^{-a/8267}$ is the
   radioactive-decay factor),
 - $\mathbb{E}[1/k] = e^{-\mu + \sigma^2/2}$ is the lognormal first inverse
   moment, normalizing the mass-weighted age distribution.
@@ -63,7 +63,7 @@ from its measured fraction modern.
 
 The Wolfram script implements $R(a)$ as Mathematica's
 `Interpolation[..., InterpolationOrder -> 0]` — i.e. a piecewise-constant
-lookup over ~55 000 annual atmospheric $^{14}\!C$ measurements.
+lookup over ~55 000 annual atmospheric $^{14}\\!C$ measurements.
 
 ---
 
@@ -108,7 +108,7 @@ The key observation is that $R(a)$ is **piecewise constant**, so the inner
 integral has an exact closed form. Define
 
 $$
-I(k) \;\equiv\; \int_0^\infty R(a)\, e^{-(1/8267 + k)\, a}\, da .
+I(k) \\;\equiv\\; \int_0^\infty R(a)\\, e^{-(1/8267 + k)\\, a}\\, da .
 $$
 
 If $R(a) = c_i$ on the segment $[a_i, a_{i+1})$, with a constant tail
@@ -116,13 +116,13 @@ $c_\infty$ beyond $a_N$ (Mathematica's `ExtrapolationHandler` returns the
 mean of the last 50 000 values), then with $\alpha \equiv 1/8267 + k$,
 
 $$
-\boxed{\;
+\boxed{\\;
 I(k)
-= \frac{1}{\alpha}\!\left[
-    \sum_{i} c_i\,\bigl(e^{-\alpha a_i} - e^{-\alpha a_{i+1}}\bigr)
-    \;+\; c_\infty\, e^{-\alpha a_N}
+= \frac{1}{\alpha}\\!\left[
+    \sum_{i} c_i\\,\bigl(e^{-\alpha a_i} - e^{-\alpha a_{i+1}}\bigr)
+    \\;+\\; c_\infty\\, e^{-\alpha a_N}
 \right]
-\;}
+\\;}
 $$
 
 This is exact in $a$ — no quadrature needed for that direction.
@@ -131,22 +131,22 @@ What remains is a **1-D outer integral** over $k$:
 
 $$
 r(\tau, \bar a)
-= \frac{1}{\mathbb{E}[1/k]} \int_0^\infty f(k)\, I(k)\, dk .
+= \frac{1}{\mathbb{E}[1/k]} \int_0^\infty f(k)\\, I(k)\\, dk .
 $$
 
 The outer integrand pairs a smooth $f(k)$ (lognormal density) with the smooth
 $I(k)$ (a Laplace-transform-like average). Switching to log-rate coordinates
-$u = \log k$ uses the identity $f(k)\,dk = \varphi_\mathcal{N}(u; \mu, \sigma)\,du$
+$u = \log k$ uses the identity $f(k)\\,dk = \varphi_\mathcal{N}(u; \mu, \sigma)\\,du$
 to put the outer integral in a Gaussian-weighted form perfect for adaptive
 quadrature:
 
 $$
-\boxed{\;
+\boxed{\\;
 r(\tau, \bar a)
 = e^{\mu - \sigma^2/2}
 \int_{-\infty}^{\infty}
-\varphi_\mathcal{N}(u; \mu, \sigma)\, I(e^u)\, du
-\;}
+\varphi_\mathcal{N}(u; \mu, \sigma)\\, I(e^u)\\, du
+\\;}
 $$
 
 In code we truncate the outer integration to $[\mu - 10\sigma,\ \mu + 10\sigma]$
@@ -166,49 +166,11 @@ more reliable because the hard direction was eliminated, not approximated.
 
 ---
 
-## 4. Julia implementation
-
-### Files
-
-- [`notebooks/lognormal_radiocarbon.jl`](lognormal_radiocarbon.jl) — the math:
-  - `AtmC14` struct: piecewise-constant atmospheric $^{14}\!C$ lookup with a
-    constant tail.
-  - `load_atm14c(path)`: matches Wolfram's data-loading behavior — keeps
-    columns `years_before_2000` and `R_14C`, sorts ascending in age, drops
-    negative ages, computes `mean_R` from the last 50 000 file rows.
-  - `inner_integral(atm, α)`: $O(N)$ allocation-free evaluation of $I(k)$;
-    runs through knots, accumulating the segment contributions.
-  - `lognormal_radiocarbon(atm, τ, ā; rtol)`: outer 1-D quadrature in log-$k$
-    via `QuadGK.quadgk`.
-- [`notebooks/03b_lognormal_age_scan.jl`](03b_lognormal_age_scan.jl) — driver
-  that mirrors the Wolfram script:
-  1. Loads `data/14C_atm_annot.csv` once.
-  2. Reads `results/all_sites_14C_turnover.csv`.
-  3. Calls `lognormal_radiocarbon` for each (site, age) on the fixed
-     `agelist = 10 .^ range(3, 5.5, length=101)`.
-  4. Writes the three matrix CSVs that downstream scripts expect.
-
-### Parallelism
-
-The driver parallelizes over sites with `Threads.@threads`. Each site is
-independent, atm14C is read-only, and `inner_integral` is allocation-free, so
-threading scales nearly linearly. With `julia --threads=auto` (12 threads on
-this machine), the full 99 × 101 main scan + the smaller q05 / q95 scans
-together take ≈ 35 s.
-
-### Numerical tolerances
-
-`quadgk` is called with `rtol = 1e-4` per cell. Internal self-consistency
-across `rtol = 1e-6` vs `rtol = 1e-10` agrees to ~ $10^{-9}$, well below the
-~$10^{-3}$ accuracy that Wolfram targets.
-
----
-
 ## 5. Python implementation
 
 ### Files
 
-- [`notebooks/lognormal_radiocarbon.py`](lognormal_radiocarbon.py) — the math:
+- [`soil_diskin/lognormal.py`](../../../soil_diskin/lognormal.py) — the math:
   - `AtmC14`: same role as the Julia struct.
   - `load_atm14c(path)`: same loading behavior.
   - `inner_integral(atm, α)`: vectorized in NumPy
@@ -216,10 +178,10 @@ across `rtol = 1e-6` vs `rtol = 1e-10` agrees to ~ $10^{-9}$, well below the
     Goes via compiled NumPy code for the 55 000-element loop.
   - `lognormal_radiocarbon(atm, τ, ā, rtol)`: outer 1-D quadrature in log-$k$
     via `scipy.integrate.quad`.
-- [`notebooks/03b_lognormal_age_scan.py`](03b_lognormal_age_scan.py) — driver,
+- [`notebooks/experimental/03b_lognormal_age_scan.py`](../../../notebooks/experimental/03b_lognormal_age_scan.py) — driver,
   one-to-one with the Julia driver. Outputs go to `*_python.csv` paths so the
   Julia outputs are preserved alongside.
-- [`notebooks/03b_lognormal_calibration.py`](03b_lognormal_calibration.py) —
+- [`notebooks/03b_lognormal_calibration.py`](../../../notebooks/03b_lognormal_calibration.py) —
   unified end-to-end pipeline: forward age scan + LOWESS calibration in a
   single run, no CSV round-trip between the two phases.
 
@@ -323,17 +285,15 @@ which closes the gap.
 
 ## 8. Downstream calibration
 
-The original Wolfram script generates the calibration matrices that
-[`notebooks/03b_calibrate_lognormal_model.py`](03b_calibrate_lognormal_model.py)
-later inverts (per-row LOWESS smoothing + interpolation) to predict each
+The original Wolfram script generates the calibration matrices that were later 
+inverted in Python (per-row LOWESS smoothing + interpolation) to predict each
 site's mean age from its measured fraction modern.
 
 The unified Python driver
-[`notebooks/03b_lognormal_calibration.py`](03b_lognormal_calibration.py)
+[`notebooks/03b_lognormal_calibration.py`](../../../notebooks/03b_lognormal_calibration.py)
 collapses the two stages into one process, passing the in-memory matrices
 directly into LOWESS rather than round-tripping through CSV. End-to-end
-predicted ages from the unified script agree with the original two-step
-(Julia age scan + Python LOWESS) pipeline to:
+predicted ages from the unified script agree with the original two-step pipeline to:
 
 | Column | median rel diff | max rel diff | max abs diff |
 |---|---:|---:|---:|
@@ -350,19 +310,12 @@ The unified-Python pipeline is the more reliable end-to-end calibration.
 
 ## 9. Files produced (summary)
 
-### Julia
-- [`notebooks/lognormal_radiocarbon.jl`](lognormal_radiocarbon.jl)
-- [`notebooks/03b_lognormal_age_scan.jl`](03b_lognormal_age_scan.jl)
-
 ### Python
-- [`notebooks/lognormal_radiocarbon.py`](lognormal_radiocarbon.py)
-- [`notebooks/03b_lognormal_age_scan.py`](03b_lognormal_age_scan.py)
-- [`notebooks/03b_lognormal_calibration.py`](03b_lognormal_calibration.py) — end-to-end
+- [`soil_diskin/lognormal.py`](../../../soil_diskin/lognormal.py)
+- [`notebooks/03b_lognormal_calibration.py`](../../../notebooks/03b_lognormal_calibration.py) — end-to-end
 
 ### Validation / benchmarking
-- [`notebooks/test_lognormal_radiocarbon.jl`](test_lognormal_radiocarbon.jl) — Julia ↔ Wolfram CSV comparison on a subset
-- [`notebooks/verify_full_scan.jl`](verify_full_scan.jl) — Julia ↔ Wolfram comparison on the full grid, with Wolfram-failure detection
-- [`notebooks/test_python_ports.py`](test_python_ports.py) — Julia ↔ Python comparison + benchmark
+- [`notebooks/experimental/test_lognormal_radiocarbon.jl`](../../../notebooks/experimental/test_lognormal_radiocarbon.jl) — Julia ↔ Wolfram CSV comparison on a subset
+- [`notebooks/experimental/verify_full_scan.jl`](../../../notebooks/experimental/verify_full_scan.jl) — Julia ↔ Wolfram comparison on the full grid, with Wolfram-failure detection
+- [`notebooks/experimental/test_python_ports.py`](../../../notebooks/experimental/test_python_ports.py) — Julia ↔ Python comparison + benchmark
 
-### Reference data preserved
-- [`results/03_calibrate_models/_wolfram_reference/`](../results/03_calibrate_models/_wolfram_reference/) — original Wolfram-generated age-scan and predictions CSVs, kept as a regression baseline.

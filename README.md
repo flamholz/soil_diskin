@@ -114,11 +114,11 @@ uv run pytest tests/test_models.py -v
 # Run entire workflow with 3 cores
 uv run snakemake --cores 3
 
-# Run specific output (e.g., Figure 3)
-uv run snakemake figures/fig3.png --cores 3
+# Run specific output (e.g., Figure 4)
+uv run snakemake figures/fig4.png --cores 3
 
 # Force regeneration of specific results
-uv run snakemake figures/fig3.png --cores 3 --force
+uv run snakemake figures/fig4.png --cores 3 --force
 ```
 
 Make sure you have an internet connection when you run the pipeline, as it will:

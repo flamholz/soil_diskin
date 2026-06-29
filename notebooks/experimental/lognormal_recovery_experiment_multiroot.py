@@ -38,6 +38,8 @@ N_GRID = 101
 LOWESS_FRAC = 0.2
 ATM_PATH = Path("data/14C_atm_annot.csv")
 OUT = Path("results/03_calibrate_models/lognormal_recovery_experiment_multiroot.csv")
+FIG_OUT = Path("figures/lognormal_recovery_experiment_multiroot.png")
+FIG_CORR_OUT = Path("figures/lognormal_recovery_experiment_multiroot_musigma_corr.png")
 
 
 def _build_agelist(tau: float, age: float, n: int = N_GRID) -> np.ndarray:
@@ -117,6 +119,97 @@ def _recover_one(atm, mu: float, sigma: float) -> dict:
     }
 
 
+def plot_recovery(df: pd.DataFrame, out: Path = FIG_OUT) -> None:
+    """Scatter of simulated vs. recovered (mu, sigma) using the oracle-best
+    candidate per draw."""
+    import matplotlib.pyplot as plt
+
+    finite = df.dropna(subset=["best_mu_est", "best_sigma_est"])
+
+    fig, axs = plt.subplots(1, 2, figsize=(8, 4), constrained_layout=True)
+    for ax, true_col, est_col, label in (
+        (axs[0], "mu", "best_mu_est", r"$\mu$"),
+        (axs[1], "sigma", "best_sigma_est", r"$\sigma$"),
+    ):
+        x = finite[true_col]
+        y = finite[est_col]
+        ax.scatter(x, y, s=20, alpha=0.6, edgecolors="none")
+        lo = float(min(x.min(), y.min()))
+        hi = float(max(x.max(), y.max()))
+        ax.plot([lo, hi], [lo, hi], "k--", lw=1, label="1:1")
+        ax.set_xlabel(f"simulated {label}")
+        ax.set_ylabel(f"recovered {label}")
+        ax.set_title(label)
+        ax.legend(loc="upper left", frameon=False)
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Wrote {out}")
+
+
+def _bin_fits(mu: np.ndarray, sigma: np.ndarray, A: np.ndarray, n_bins: int = 10):
+    """Bin samples by A and, in each bin, fit  mu + ln(A_mid) = slope * sigma^2
+    (no intercept). Returns {A_midpoint: (slope, ln_midpoint)}."""
+    from scipy.stats import gmean
+
+    bins = np.logspace(np.log10(A.min()), np.log10(A.max()), n_bins)
+    idx = np.digitize(A, bins)
+    fits = {}
+    for b in np.unique(idx):
+        sel = idx == b
+        if sel.sum() <= 5:
+            continue
+        A_mid = float(gmean([A[sel].min(), A[sel].max()]))
+        ln_mid = np.log(A_mid)
+        x = (sigma[sel] ** 2)[:, None]
+        y = mu[sel] + ln_mid
+        slope = float(np.linalg.lstsq(x, y, rcond=None)[0].item())
+        fits[A_mid] = (slope, ln_mid)
+    return fits
+
+
+def plot_musigma_corr(df: pd.DataFrame, out: Path = FIG_CORR_OUT) -> None:
+    """Two-panel sigma^2-vs-mu scatter (simulated | recovered), colored by A
+    (= the steady-state amount, here the `age` column), with per-A-bin linear
+    fits. For fixed A, theory predicts mu = (3/2) sigma^2 - ln(A)."""
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import LogNorm
+
+    finite = df.dropna(subset=["best_mu_est", "best_sigma_est"]).copy()
+    A = finite["age"].to_numpy()  # A = tau * exp(sigma^2) = exp(3 sigma^2/2 - mu)
+    norm = LogNorm(vmin=A.min(), vmax=A.max())
+
+    panels = [
+        ("simulated", finite["mu"].to_numpy(), finite["sigma"].to_numpy()),
+        ("recovered", finite["best_mu_est"].to_numpy(), finite["best_sigma_est"].to_numpy()),
+    ]
+
+    # y-limits from the scatter (with a small margin) so the long fit lines,
+    # which span ~12 decades of A here, don't compress the points.
+    all_mu = np.concatenate([mu for _, mu, _ in panels])
+    pad = 0.05 * (all_mu.max() - all_mu.min())
+    ylim = (all_mu.min() - pad, all_mu.max() + pad)
+
+    fig, axs = plt.subplots(1, 2, figsize=(11, 4.5), sharex=True, sharey=True,
+                            constrained_layout=True)
+    scatter = None
+    for ax, (title, mu, sigma) in zip(axs, panels):
+        scatter = ax.scatter(sigma ** 2, mu, c=A, cmap="viridis", norm=norm, s=20)
+        for A_mid, (slope, ln_mid) in _bin_fits(mu, sigma, A).items():
+            s2 = np.linspace((sigma ** 2).min(), (sigma ** 2).max(), 100)
+            ax.plot(s2, slope * s2 - ln_mid, color=plt.cm.viridis(norm(A_mid)),
+                    lw=1, label=f"A≈{A_mid:.1g}; slope={slope:.1f}")
+        ax.set(xlabel=r"$\sigma^2$", ylabel=r"$\mu$", title=title, ylim=ylim)
+        ax.legend(fontsize=6, loc="lower right")
+
+    fig.colorbar(scatter, ax=axs, label="A")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Wrote {out}")
+
+
 def main(n_jobs: int = -1) -> None:
     atm = load_atm14c(str(ATM_PATH))
     print(f"atm14C: {len(atm.ages)} non-negative-age knots, mean_R = {atm.mean_R:.6f}")
@@ -136,6 +229,9 @@ def main(n_jobs: int = -1) -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(OUT, index=False)
     print(f"\nWrote {OUT}  ({len(df)} rows)")
+
+    plot_recovery(df)
+    plot_musigma_corr(df)
 
     # Compact summary
     print(f"\nMulti-root statistics:")
