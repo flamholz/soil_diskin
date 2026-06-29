@@ -1,7 +1,7 @@
 import numpy as np
 
 from scipy.integrate import quad
-from scipy.special import exp1, gamma, gammaincc, log_ndtr
+from scipy.special import exp1, gamma, gammainc, gammaincc, log_ndtr
 from scipy.stats import lognorm
 from soil_diskin.constants import LAMBDA_14C, INTERP_R_14C, GAMMA
 from tqdm import tqdm
@@ -185,6 +185,126 @@ class GaussianDisKin(AbstractDiskinModel):
         cdf = (np.sum(cdf_terms, axis=0) / self.T).reshape(a.shape)
         cdf = np.clip(cdf, 0.0, 1.0)
         return _return_scalar_if_scalar(cdf, a)
+
+
+class WeibullDisKin(AbstractDiskinModel):
+    """The Feng (2009) "hockey stick" survival model.
+
+    The survival function is a stretched exponential (Weibull form)
+
+        s(tau) = exp( -(k * tau)^alpha )
+
+    with a rate-scale parameter ``k`` (yr^-1) and a shape parameter
+    ``alpha``. This is the H function of Feng (2009), "Fundamental
+    Considerations of Soil Organic Carbon Dynamics", Soil Science 174(9).
+    The paper writes it as exp(-(k*tau)^alpha); for alpha < 1 the curve has
+    the characteristic sharp initial drop and very long tail of SOC
+    decomposition. alpha = 1 recovers first-order (exponential) kinetics.
+
+    Steady-state relationships (derived in the accompanying markdown):
+
+        T  = Gamma(1 + 1/alpha) / k                       (mean transit time)
+        A  = Gamma(1 + 2/alpha) / (2 k Gamma(1 + 1/alpha)) (mean age)
+        A/T = Gamma(1 + 2/alpha) / (2 Gamma(1 + 1/alpha)^2)
+
+    Note that A/T depends only on alpha (it is Feng's stabilization
+    coefficient beta = Ta/MRT0), while k sets the overall timescale. The
+    age-distribution CDF has the closed form
+
+        cdfA(t) = P(1/alpha, (k t)^alpha)
+
+    where P is the regularized lower incomplete gamma function
+    (scipy.special.gammainc).
+    """
+
+    def __init__(self, k, alpha, interp_r_14c=None, I=None):
+        """
+        Args:
+        k: float
+            Rate-scale parameter (yr^-1). Must be positive.
+        alpha: float
+            Shape parameter (dimensionless). Must be positive. alpha < 1
+            gives the hockey-stick shape; alpha = 1 is first-order kinetics.
+        interp_r_14c: callable
+            An interpolator for the estimated historical radiocarbon
+            concentration. Takes a single argument, the number of years
+            before a reference time (e.g. 2000). If None uses the default
+            interpolator from constants.
+        I: np.ndarray, optional
+            An array of inputs to the model.
+        """
+        super().__init__(interp_r_14c=interp_r_14c)
+
+        self.k = float(k)
+        self.alpha = float(alpha)
+        self.I = I
+
+        if not self.params_valid():
+            self.T = np.nan
+            self.A = np.nan
+            return
+
+        # steady-state transit time and mean age (see module docstring)
+        self.T = gamma(1.0 + 1.0 / self.alpha) / self.k
+        self.A = gamma(1.0 + 2.0 / self.alpha) / (
+            2.0 * self.k * gamma(1.0 + 1.0 / self.alpha)
+        )
+
+    @classmethod
+    def from_age_and_transit_time(cls, A, T, **kwargs):
+        """Construct a WeibullDisKin from the mean age A and transit time T.
+
+        Inverts the steady-state relationships. The ratio A/T fixes alpha
+        (solved numerically since it involves gamma functions), and then
+        k = Gamma(1 + 1/alpha) / T. Requires A/T >= 1 (alpha <= 1).
+
+        Args:
+            A: float
+                The mean age at steady-state.
+            T: float
+                The mean transit time at steady-state.
+
+        Returns:
+            WeibullDisKin
+        """
+        from scipy.optimize import brentq
+        from scipy.special import gammaln
+
+        ratio = A / T
+        if ratio < 1.0:
+            raise ValueError("A / T < 1 implies alpha > 1 (not hockey-stick).")
+
+        def log_ratio(alpha):
+            # log(A/T) computed via log-gamma to avoid overflow at small alpha
+            return (
+                gammaln(1.0 + 2.0 / alpha)
+                - np.log(2.0)
+                - 2.0 * gammaln(1.0 + 1.0 / alpha)
+            )
+
+        # A/T increases as alpha decreases; bracket alpha in (eps, 1]
+        log_target = np.log(ratio)
+        alpha = brentq(lambda a: log_ratio(a) - log_target, 1e-3, 1.0)
+        k = gamma(1.0 + 1.0 / alpha) / T
+        return cls(k, alpha, **kwargs)
+
+    def params_valid(self):
+        """Returns True if the parameters are valid, False otherwise."""
+        finite = np.isfinite([self.k, self.alpha]).all()
+        return bool(finite and self.k > 0 and self.alpha > 0)
+
+    def s(self, t):
+        """The survival function s(tau) = exp(-(k*tau)^alpha)."""
+        t = np.asarray(t, dtype=float)
+        survival = np.exp(-np.power(self.k * t, self.alpha))
+        return _return_scalar_if_scalar(survival, t)
+
+    def cdfA(self, t):
+        """Age-distribution CDF: P(1/alpha, (k t)^alpha)."""
+        t = np.asarray(t, dtype=float)
+        cdf = gammainc(1.0 / self.alpha, np.power(self.k * t, self.alpha))
+        cdf = np.clip(cdf, 0.0, 1.0)
+        return _return_scalar_if_scalar(cdf, t)
 
 
 class LogUniformRateDisKin(AbstractDiskinModel):

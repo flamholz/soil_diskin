@@ -57,7 +57,7 @@ config = ConfigParams(decomp_depth_efolding=0.5, taus=taus, Gamma_soil=Gamma_soi
                       zsoi=zsoi, zisoi=zisoi, dz=dz, dz_node=dz_node, nlevels=10, npools=7)
 global_data = GlobalData(global_da)
 
-tmax = 10_000  # years
+tmax = 100_000  # years
 
 def CLM45_predict_site(row, tmax):
     """Predict the age distribution for a given site using the CLM4.5 model."""
