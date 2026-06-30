@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from os import path
 from scipy.integrate import quad
-from scipy.optimize import minimize
+from scipy.optimize import least_squares
 from soil_diskin.constants import GAMMA
 from soil_diskin.continuum_models import GeneralPowerLawDisKin
 from tqdm import tqdm
@@ -13,19 +13,28 @@ Script should be run from the project root directory.
 Calibrates the Generalized Power Law model from Rothman, PNAS 2025.
 """
 
-# Define the objective function for optimization
-# optimize the two parameters of the model to match the turnover and 14C data
-def objective_function(params, beta, merged_site_data):
+# Define the residuals and objective for optimization.
+# We solve in log space because t_min and t_max span orders of magnitude, and
+# direct optimization in raw units frequently stalls near the initial t_max.
+def unpack_log_params(log_params):
+    """Convert unconstrained log parameters into ordered model parameters."""
+    log_t_min, log_t_gap = log_params
+    t_min = np.exp(log_t_min)
+    t_max = t_min + np.exp(log_t_gap)
+    return t_min, t_max
+
+
+def objective_residuals(log_params, beta, merged_site_data):
     """
-    Objective function to minimize the difference between model predictions and observations.
+    Residual vector comparing model predictions and observations.
 
     Note: 'beta' is the power law exponent parameter in the GeneralPowerLawDisKin model.
     We do not alter it during optimization, but pass it in for model instantiation.
     
     Parameters
     ----------
-    params : list
-        List of parameters [a, b] for the PowerLawDisKin model.
+    log_params : list
+        List of log parameters [log_t_min, log_t_gap].
     beta : float
         The beta parameter for the GeneralPowerLawDisKin model.
     merged_site_data : pd.DataFrame
@@ -33,11 +42,11 @@ def objective_function(params, beta, merged_site_data):
     
     Returns
     -------
-    float
-        The sum of squared differences between the predicted and observed data.
+    np.ndarray
+        Relative residuals for the 14C ratio and turnover.
     """
-    # Unpack the parameters
-    t_min, t_max = params
+    # Unpack the ordered parameters
+    t_min, t_max = unpack_log_params(log_params)
 
     # Create an instance of the GeneralPowerLawDisKin model with the given parameters
     model = GeneralPowerLawDisKin(t_min=t_min, t_max=t_max, beta=beta)
@@ -47,15 +56,25 @@ def objective_function(params, beta, merged_site_data):
                                np.inf, limit=1500,epsabs=1e-3)[0]
     
     # Calculate the relative difference between the predicted and observed data
-    diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm']))
-    total_14C = np.nansum(merged_site_data['fm'] + 1e-6)
-    relative_diff_14C = diff_14C / total_14C
-    diff_turnover = np.nansum((model.T - merged_site_data['turnover']))
-    total_turnover = np.nansum(merged_site_data['turnover'] + 1e-6)
-    relative_diff_turnover = diff_turnover / total_turnover
-    
-    # Return the sum of squared differences
-    return relative_diff_14C**2 + relative_diff_turnover**2
+    relative_diff_14C = (
+        predicted_14C_ratio - merged_site_data['fm']) / (merged_site_data['fm'] + 1e-6)
+    relative_diff_turnover = (
+        model.T - merged_site_data['turnover']) / (merged_site_data['turnover'] + 1e-6)
+
+    return np.array([relative_diff_14C, relative_diff_turnover])
+
+
+def objective_function(log_params, beta, merged_site_data):
+    """Return the sum of squared relative residuals for diagnostics/output."""
+    residuals = objective_residuals(log_params, beta, merged_site_data)
+    return float(np.dot(residuals, residuals))
+
+
+def initial_log_guess(site_data):
+    """Choose a scale-aware initial guess for the site being optimized."""
+    t_min_guess = max(1e-6, site_data['turnover'] / 1000)
+    t_gap_guess = max(site_data['turnover'], 1000)
+    return np.log([t_min_guess, t_gap_guess])
 
 
 # Helper functions to calculate values on DataFrame rows
@@ -117,7 +136,6 @@ merged_site_data = pd.read_csv('results/all_sites_14C_turnover.csv')
 
 # initial guess for the parameters
 beta = np.exp(-GAMMA) # gamma is the Euler-Mascheroni constant
-initial_guess = [0.0005, 1000]
 
 # optimize the parameters using a simple optimization method
 results = []
@@ -125,14 +143,20 @@ results = []
 # iterate over each row in the merged_site_data DataFrame
 print('Running optimization for generalized power law with b = np.exp(-GAMMA)...')
 for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
-    # Minimize the objective function for each site
+    # Solve for ordered parameters in log space to avoid scale-related stalls.
     my_args = (beta, row)
-    res = minimize(objective_function, initial_guess,
-                   args=my_args, method='L-BFGS-B',
-                   bounds=[(1e-10, None), (1e-10, None)])
+    res = least_squares(
+        objective_residuals,
+        initial_log_guess(row),
+        args=my_args,
+        method='trf',
+        ftol=1e-12,
+        xtol=1e-12,
+        gtol=1e-12,
+    )
     
     # Append the optimized parameters to the result list
-    results.append([res.x, res.fun])
+    results.append([unpack_log_params(res.x), objective_function(res.x, beta, row)])
 
 merged_result_df = results_to_dataframe(results, beta, merged_site_data)
 print(f'the Maximum objective value is {merged_result_df["objective_value"].max():.3f}')
@@ -141,19 +165,24 @@ print(f'the Maximum objective value is {merged_result_df["objective_value"].max(
 # Now run it all again, but with b = np.exp(-GAMMA) / 2
 results_2 = []
 beta = np.exp(-GAMMA) / 2
-initial_guess = [0.0005, 1000]
 
 # iterate over each row in the merged_site_data DataFrame
 print('Running optimization for generalized power law with b = np.exp(-GAMMA) / 2...')
 for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
-    # Minimize the objective function for each site
+    # Solve for ordered parameters in log space to avoid scale-related stalls.
     my_args = (beta, row)
-    res = minimize(objective_function, initial_guess,
-                   args=my_args, method='L-BFGS-B',
-                   bounds=[(1e-10, None), (1e-10, None)])
+    res = least_squares(
+        objective_residuals,
+        initial_log_guess(row),
+        args=my_args,
+        method='trf',
+        ftol=1e-12,
+        xtol=1e-12,
+        gtol=1e-12,
+    )
     
     # Append the optimized parameters to the result list
-    results_2.append([res.x,res.fun])
+    results_2.append([unpack_log_params(res.x), objective_function(res.x, beta, row)])
 
 merged_result_df_2 = results_to_dataframe(results_2, beta, merged_site_data)
 print(f'the Maximum objective value is {merged_result_df_2["objective_value"].max():.3f}')

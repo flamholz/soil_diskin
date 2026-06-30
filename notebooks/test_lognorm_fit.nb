@@ -1,0 +1,295 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 14.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[     10355,        285]
+NotebookOptionsPosition[      9109,        260]
+NotebookOutlinePosition[      9504,        276]
+CellTagsIndexPosition[      9461,        273]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(*", 
+   RowBox[{
+    RowBox[{"===", "==="}], "=", 
+    RowBox[{"==", 
+     RowBox[{
+     "===", "===", "===", "===", "===", "===", "===", "===", "===", "===", "===",
+       "===", "===", "===", "===", "===", "==="}]}]}], "*)"}], "\n", 
+  RowBox[{"(*", 
+   RowBox[{"1.", " ", 
+    RowBox[{"SETUP", ":", 
+     RowBox[{
+     "Data", " ", "Loading", " ", "and", " ", "Function", " ", 
+      "Definitions"}]}]}], "*)"}], "\n", 
+  RowBox[{"(*", " ", 
+   RowBox[{
+    RowBox[{
+    "===", "===", "===", "===", "===", "===", "===", "===", "===", "===", "===",
+      "===", "===", "===", "===", "===", "===", "===", "===", "===", "===", 
+     "==="}], "="}], "*)"}], "\n", 
+  RowBox[{"(*", " ", 
+   RowBox[{"Read", " ", "atmospheric", " ", "14", "C", " ", "data"}], "*)"}], 
+  "\n", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"C14DATADIR", " ", "=", " ", "\"\<data/14C_atm_annot.csv\>\""}], 
+    ";"}], "\n", 
+   RowBox[{
+    RowBox[{"C14DATA", " ", "=", " ", 
+     RowBox[{"Import", "[", 
+      RowBox[{"C14DATADIR", ",", " ", 
+       RowBox[{"\"\<HeaderLines\>\"", " ", "->", " ", "1"}]}], "]"}]}], ";"}],
+    "\n", 
+   RowBox[{
+    RowBox[{"C14DATA", " ", "=", " ", 
+     RowBox[{"C14DATA", "[", 
+      RowBox[{"[", 
+       RowBox[{"All", ",", " ", 
+        RowBox[{"{", 
+         RowBox[{"4", ",", " ", "5"}], "}"}]}], "]"}], "]"}]}], ";"}], "\n", 
+   RowBox[{"(*", 
+    RowBox[{
+     RowBox[{"Interpolate", " ", "the", " ", "14", "C", " ", "data"}], ",", 
+     " ", 
+     RowBox[{
+     "use", " ", "the", " ", "mean", " ", "ratio", " ", "for", " ", 
+      "extrapolation"}]}], "*)"}], "\n", 
+   RowBox[{
+    RowBox[{"MeanR", " ", "=", " ", 
+     RowBox[{"Last", "[", 
+      RowBox[{"Mean", "[", 
+       RowBox[{"C14DATA", "[", 
+        RowBox[{"[", 
+         RowBox[{
+          RowBox[{"-", "50000"}], " ", ";;"}], "]"}], "]"}], "]"}], "]"}]}], 
+    ";"}], "\n", 
+   RowBox[{
+    RowBox[{"atm14C", " ", "=", " ", "\n", "  ", 
+     RowBox[{"Interpolation", "[", 
+      RowBox[{"C14DATA", ",", " ", 
+       RowBox[{"InterpolationOrder", " ", "->", " ", "0"}], ",", " ", "\n", 
+       "   ", 
+       RowBox[{"\"\<ExtrapolationHandler\>\"", " ", "->", " ", 
+        RowBox[{"{", 
+         RowBox[{"(", 
+          RowBox[{"MeanR", " ", "&"}], ")"}], "}"}]}]}], "]"}]}], ";"}], "\n",
+    "\n", 
+   RowBox[{"(*", " ", 
+    RowBox[{
+    "Plot", " ", "the", " ", "results", " ", "of", " ", "the", " ", 
+     "interpolation", " ", "to", " ", "see", " ", "it", " ", "makes", " ", 
+     "sense"}], " ", "*)"}], "\n", 
+   RowBox[{"Plot", "[", 
+    RowBox[{
+     RowBox[{"atm14C", "[", "x", "]"}], ",", " ", 
+     RowBox[{"{", 
+      RowBox[{"x", ",", " ", "0", ",", " ", "550000"}], "}"}], ",", " ", "\n",
+      " ", 
+     RowBox[{"Epilog", " ", "->", " ", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"PointSize", "[", "Medium", "]"}], ",", " ", "Red", ",", " ", 
+        
+        RowBox[{"Point", "[", "C14DATA", "]"}]}], "}"}]}]}], "]"}], 
+   "\n"}]}]], "Input",
+ CellChangeTimes->{{3.9869412252320337`*^9, 3.9869412445219297`*^9}},
+ CellLabel->
+  "In[192]:=",ExpressionUUID->"34e46433-20d0-497a-bd38-c99fa04f8504"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Import", "nffil", 
+   "\"File \\!\\(\\*RowBox[{\\\"\\\\\\\"data/14C_atm_annot.csv\\\\\\\"\\\"}]\\\
+) not found during \\!\\(\\*RowBox[{\\\"Import\\\"}]\\).\"", 2, 193, 13, 
+   17340559495862456875, "Local"},
+  "MessageTemplate"]], "Message", "MSG",
+ CellChangeTimes->{{3.986941249602977*^9, 3.986941254979134*^9}},
+ CellLabel->
+  "During evaluation of \
+In[192]:=",ExpressionUUID->"e67d5c12-5dad-4d94-842e-6be3516f6671"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Symbol", "argx", 
+   "\"\\!\\(\\*RowBox[{\\\"Symbol\\\"}]\\) called with \\!\\(\\*RowBox[{\\\"0\
+\\\"}]\\) arguments; 1 argument is expected.\"", 2, 194, 14, 
+   17340559495862456875, "Local"},
+  "MessageTemplate"]], "Message", "MSG",
+ CellChangeTimes->{{3.986941249602977*^9, 3.9869412550203037`*^9}},
+ CellLabel->
+  "During evaluation of \
+In[192]:=",ExpressionUUID->"5f50e630-6c81-4af4-922c-f792246722e8"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Part", "take", 
+   "\"Cannot take positions \\!\\(\\*RowBox[{\\\"-\\\", \\\"50000\\\"}]\\) \
+through \\!\\(\\*RowBox[{\\\"-\\\", \\\"1\\\"}]\\) in \
+\\!\\(\\*RowBox[{\\\"Symbol\\\", \\\"[\\\", \\\"]\\\"}]\\).\"", 2, 195, 15, 
+   17340559495862456875, "Local"},
+  "MessageTemplate"]], "Message", "MSG",
+ CellChangeTimes->{{3.986941249602977*^9, 3.9869412550797663`*^9}},
+ CellLabel->
+  "During evaluation of \
+In[192]:=",ExpressionUUID->"b010ece6-ff8f-4db6-a1de-6fef0cf05b47"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Interpolation", "innd", 
+   "\"First argument in \\!\\(\\*RowBox[{\\\"Symbol\\\", \\\"[\\\", \
+\\\"]\\\"}]\\) does not contain a list of data and coordinates.\"", 2, 196, 
+   16, 17340559495862456875, "Local"},
+  "MessageTemplate"]], "Message", "MSG",
+ CellChangeTimes->{{3.986941249602977*^9, 3.986941255131712*^9}},
+ CellLabel->
+  "During evaluation of \
+In[192]:=",ExpressionUUID->"c5a16f01-b04d-4aa7-a1c9-e841aa62698e"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Interpolation", "innd", 
+   "\"First argument in \\!\\(\\*RowBox[{\\\"Symbol\\\", \\\"[\\\", \
+\\\"]\\\"}]\\) does not contain a list of data and coordinates.\"", 2, 197, 
+   17, 17340559495862456875, "Local"},
+  "MessageTemplate"]], "Message", "MSG",
+ CellChangeTimes->{{3.986941249602977*^9, 3.986941255150557*^9}},
+ CellLabel->
+  "During evaluation of \
+In[192]:=",ExpressionUUID->"99ef9d6f-5918-484c-aedc-809597d4ea29"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Interpolation", "innd", 
+   "\"First argument in \\!\\(\\*RowBox[{\\\"Symbol\\\", \\\"[\\\", \
+\\\"]\\\"}]\\) does not contain a list of data and coordinates.\"", 2, 197, 
+   18, 17340559495862456875, "Local"},
+  "MessageTemplate"]], "Message", "MSG",
+ CellChangeTimes->{{3.986941249602977*^9, 3.986941255154944*^9}},
+ CellLabel->
+  "During evaluation of \
+In[192]:=",ExpressionUUID->"a3f04556-fb6b-40e3-8594-cc26d7b1e80c"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "Interpolation", "innd", 
+   "\"First argument in \\!\\(\\*RowBox[{\\\"Symbol\\\", \\\"[\\\", \
+\\\"]\\\"}]\\) does not contain a list of data and coordinates.\"", 2, 197, 
+   19, 17340559495862456875, "Local"},
+  "MessageTemplate"]], "Message", "MSG",
+ CellChangeTimes->{{3.986941249602977*^9, 3.986941255161561*^9}},
+ CellLabel->
+  "During evaluation of \
+In[192]:=",ExpressionUUID->"7644fae5-1427-4b35-859c-52c7e658661b"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "General", "stop", 
+   "\"Further output of \\!\\(\\*StyleBox[RowBox[{\\\"Interpolation\\\", \
+\\\"::\\\", \\\"innd\\\"}], \\\"MessageName\\\"]\\) will be suppressed during \
+this calculation.\"", 2, 197, 20, 17340559495862456875, "Local"},
+  "MessageTemplate"]], "Message", "MSG",
+ CellChangeTimes->{{3.986941249602977*^9, 3.986941255163769*^9}},
+ CellLabel->
+  "During evaluation of \
+In[192]:=",ExpressionUUID->"467d86b0-cec1-45b6-a160-5c5d415ad3eb"],
+
+Cell[BoxData[
+ GraphicsBox[{{}, {}},
+  AspectRatio->NCache[GoldenRatio^(-1), 0.6180339887498948],
+  Axes->{True, True},
+  AxesLabel->{None, None},
+  AxesOrigin->{0, 0},
+  DisplayFunction->Identity,
+  Epilog->{
+    PointSize[Medium], 
+    RGBColor[1, 0, 0], 
+    PointBox[
+     Symbol[]]},
+  Frame->{{False, False}, {False, False}},
+  FrameLabel->{{None, None}, {None, None}},
+  FrameTicks->{{Automatic, Automatic}, {Automatic, Automatic}},
+  GridLines->{None, None},
+  GridLinesStyle->Directive[
+    GrayLevel[0.5, 0.4]],
+  ImagePadding->All,
+  Method->{
+   "DefaultBoundaryStyle" -> Automatic, 
+    "DefaultGraphicsInteraction" -> {
+     "Version" -> 1.2, "TrackMousePosition" -> {True, False}, 
+      "Effects" -> {
+       "Highlight" -> {"ratio" -> 2}, "HighlightPoint" -> {"ratio" -> 2}, 
+        "Droplines" -> {
+         "freeformCursorMode" -> True, 
+          "placement" -> {"x" -> "All", "y" -> "None"}}}}, "DefaultMeshStyle" -> 
+    AbsolutePointSize[6], "ScalingFunctions" -> None, 
+    "CoordinatesToolOptions" -> {"DisplayFunction" -> ({
+        (Identity[#]& )[
+         Part[#, 1]], 
+        (Identity[#]& )[
+         Part[#, 2]]}& ), "CopiedValueFunction" -> ({
+        (Identity[#]& )[
+         Part[#, 1]], 
+        (Identity[#]& )[
+         Part[#, 2]]}& )}},
+  PlotRange->{{0, 550000}, {0., 0.}},
+  PlotRangeClipping->True,
+  PlotRangePadding->{{
+     Scaled[0.02], 
+     Scaled[0.02]}, {
+     Scaled[0.05], 
+     Scaled[0.05]}},
+  Ticks->{Automatic, Automatic}]], "Output",
+ CellChangeTimes->{{3.986941249816066*^9, 3.9869412551659327`*^9}},
+ CellLabel->
+  "Out[197]=",ExpressionUUID->"c9cfde8b-0d26-4234-8330-d6840ca7f04e"]
+}, Open  ]]
+},
+WindowSize->{808, 821},
+WindowMargins->{{4, Automatic}, {Automatic, 4}},
+FrontEndVersion->"14.0 for Mac OS X ARM (64-bit) (December 12, 2023)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"8c1926b6-9ab2-4814-a1cc-d0633b7032a8"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 3137, 88, 367, "Input",ExpressionUUID->"34e46433-20d0-497a-bd38-c99fa04f8504"],
+Cell[3720, 112, 452, 10, 28, "Message",ExpressionUUID->"e67d5c12-5dad-4d94-842e-6be3516f6671"],
+Cell[4175, 124, 440, 10, 28, "Message",ExpressionUUID->"5f50e630-6c81-4af4-922c-f792246722e8"],
+Cell[4618, 136, 507, 11, 28, "Message",ExpressionUUID->"b010ece6-ff8f-4db6-a1de-6fef0cf05b47"],
+Cell[5128, 149, 455, 10, 28, "Message",ExpressionUUID->"c5a16f01-b04d-4aa7-a1c9-e841aa62698e"],
+Cell[5586, 161, 455, 10, 28, "Message",ExpressionUUID->"99ef9d6f-5918-484c-aedc-809597d4ea29"],
+Cell[6044, 173, 455, 10, 28, "Message",ExpressionUUID->"a3f04556-fb6b-40e3-8594-cc26d7b1e80c"],
+Cell[6502, 185, 455, 10, 28, "Message",ExpressionUUID->"7644fae5-1427-4b35-859c-52c7e658661b"],
+Cell[6960, 197, 484, 10, 28, "Message",ExpressionUUID->"467d86b0-cec1-45b6-a160-5c5d415ad3eb"],
+Cell[7447, 209, 1646, 48, 254, "Output",ExpressionUUID->"c9cfde8b-0d26-4234-8330-d6840ca7f04e"]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)
+

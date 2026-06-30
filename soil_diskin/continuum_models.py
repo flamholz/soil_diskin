@@ -2,6 +2,7 @@ import numpy as np
 
 from scipy.integrate import quad
 from scipy.special import exp1, gammaincc, gamma
+from mpmath import expint
 from scipy.stats import lognorm
 from soil_diskin.constants import LAMBDA_14C, INTERP_R_14C, GAMMA
 from tqdm import tqdm
@@ -249,22 +250,11 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         self.I = I
         self.beta = beta
 
-        # En function - take real part to avoid complex number artifacts
-        self.En = lambda n, x: np.real(x ** (n-1) * gammaincc(1 - n, x) * gamma(1 - n)) if n < 1 else exp1(x)
-
         # steady-state transit time
-        tratio = (t_min * beta) / t_max
-        en_term = self.En(beta, tratio)
-        prod = t_min * beta
-        self.T = prod * np.exp(tratio) * en_term
-
-        # mean age at steady-state
-        A_num = prod * (-np.exp(-tratio) + (beta + tratio - 1) * self.En(beta-1, tratio))
-        A_denom = (beta - 1) * en_term
-        self.A = A_num / A_denom
+        tratio = t_min / t_max
+        self.T = t_min * np.exp(tratio) * float(expint(beta, tratio))
 
         # Save these for shorthand in other methods
-        self.product = prod  # vague name... 
         self.tratio = tratio
 
     def params_valid(self):
@@ -284,7 +274,8 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         The survival function gives the fraction of input remaining at age t.
 
         The expression for s(t) is
-            s(t) = ( (t_min * β)^β * exp(- t / t_max) ) / ( (t_min * β + t)^β )
+            OLD - s(t) = ( (t_min * β)^β * exp(- t / t_max) ) / ( (t_min * β + t)^β )
+            NEW - s(t) = ( t_min / (t_min + t) )^β * exp(- t / t_max) )
 
         Args:
             t: float
@@ -294,9 +285,8 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
             float
                 The fraction of input remaining at age t.
         """
-        num = self.product ** self.beta * np.exp(- t / self.t_max)
-        denom = (self.product + t) ** self.beta
-        return num / denom
+        
+        return (self.t_min / (self.t_min + t)) ** self.beta * np.exp(- t / self.t_max)
     
     def impulse(self, t, X):
         """Calculate the change in state of the system at time t.
@@ -320,7 +310,9 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
     def cdfA(self, a):
         """Calculate the cumulative distribution function of the age distribution."""
         # The CDF is the integral of the PDF from 0 to a
-        cdf = 1 - (self.product / (self.product + a)) ** (self.beta - 1) * self.En(self.beta, (self.product + a) / self.t_max) / self.En(self.beta, self.tratio)
+        num = gammaincc(1 - self.beta, (a + self.t_min) / self.t_max)
+        denom = gammaincc(1 - self.beta, self.tratio)
+        cdf = 1 - num / denom
         return cdf
 
 

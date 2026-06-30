@@ -8,7 +8,7 @@ import rioxarray as rio
 import geemap
 import ee
 ee.Authenticate()  # Authenticate Earth Engine
-ee.Initialize(project='diskin')
+ee.Initialize(project='ee-land-sink')
 
 from soil_diskin.utils import download_file
 
