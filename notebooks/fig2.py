@@ -1,129 +1,149 @@
 # %%
+# If currently in notebooks/ directory, go up one level.
+import os
+import sys
+
+if os.path.basename(os.getcwd()) == 'notebooks':
+    sys.path.append(os.getcwd())
+    os.chdir('..')
+
+# %% imports
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import integrate
+from matplotlib.ticker import MaxNLocator, FormatStrFormatter
 
-from soil_diskin.continuum_models import PowerLawDisKin
+from soil_diskin.continuum_models import LognormalDisKinFast
+from soil_diskin.radiocarbon_utils import load_atm14c
 
 import viz
+
 colors = viz.color_palette()
 
-# use the style file
+# Use the style file.
 plt.style.use('notebooks/style.mpl')
 
-# %% Load the results of the t_min, t_max scan
+# %% Load the results of the mu, sigma scan.
 data = np.load('results/fig2_calcs.npz')
-t_min_values = data['t_min_values']
-t_max_values = data['t_max_values']
+mu_values = data['mu_values']
+sigma_values = data['sigma_values']
 T_matrix = data['T_matrix']
 R_14C_matrix = data['R_14C_matrix']
 
-t_max_grid, t_min_grid = np.meshgrid(
-    t_max_values, t_min_values, indexing='ij')
+SIGMA, MU = np.meshgrid(sigma_values, mu_values, indexing='xy')
 
 # %% For a few target T and R_14C values, find the model
 # parameters that best reproduce those values.
-
-target_Ts = [1, 3, 10, 50]
-target_R_14Cs = [1.1, 1., 0.88, 0.78]
+target_Ts = [1.9, 12.0, 36, 12.1]
+target_R_14Cs = [1.096, 1.117, 0.92, 1.166]
 calibrated_Ts = []
 calibrated_R_14Cs = []
 calibrated_models = []
+atm = load_atm14c()
 
 for target_T, target_R_14C in zip(target_Ts, target_R_14Cs):
-    # find positions where T = target_T and R_14C = target_R_14C
-    T_positions = np.argwhere(np.isclose(T_matrix, target_T, rtol=0.1))
-    R_14C_positions = np.argwhere(np.isclose(R_14C_matrix, target_R_14C, rtol=0.1))
-
     pct_diffs_T = 100 * (T_matrix - target_T) / target_T
     pct_diffs_R_14C = 100 * (R_14C_matrix - target_R_14C) / target_R_14C
-    loss_mat = (pct_diffs_T**2 + pct_diffs_R_14C**2)
+    loss_mat = pct_diffs_T ** 2 + pct_diffs_R_14C ** 2
     min_idx = np.unravel_index(np.argmin(loss_mat), loss_mat.shape)
 
+    mu_cal = mu_values[min_idx[0]]
+    sigma_cal = sigma_values[min_idx[1]]
+
     print(f'For target T={target_T}, R_14C={target_R_14C}:')
-    print(f'Calibrated parameters: t_min = {t_min_values[min_idx[0]]}, t_max = {t_max_values[min_idx[1]]}')
+    print(f'Calibrated parameters: mu = {mu_cal}, sigma = {sigma_cal}')
     print(f'With Turnover Time = {T_matrix[min_idx]}, R_14C = {R_14C_matrix[min_idx]}')
     print(f'Percent differences: dT/T = {pct_diffs_T[min_idx]}, dR_14C/R_14C = {pct_diffs_R_14C[min_idx]}')
     print('')
 
     calibrated_Ts.append(T_matrix[min_idx])
     calibrated_R_14Cs.append(R_14C_matrix[min_idx])
-    calibrated_model = PowerLawDisKin(
-        t_min=t_min_values[min_idx[0]],
-        t_max=t_max_values[min_idx[1]])
-    calibrated_models.append(calibrated_model)
+    calibrated_models.append(LognormalDisKinFast(mu=mu_cal, sigma=sigma_cal, atm=atm))
 
-# %% Plot figure 2, which diagrams the calibration procedure
+calibrated_colors = [colors[c] for c in ['dark_green', 'purple', 'dark_blue', 'red']]
+print('(T, R_14C, hex_color)')
+for T, R, color in zip(calibrated_Ts, calibrated_R_14Cs, calibrated_colors):
+    print(f'  ({T:.1g}, {R:.1g}, {color!r})')
+
+# %% Plot figure 2, which diagrams the calibration procedure.
 mosaic = 'ABC\nDEF'
-fig, axs = plt.subplot_mosaic(
-    mosaic, layout='constrained', figsize=(7.25, 4))
+fig, axs = plt.subplot_mosaic(mosaic, layout='constrained', figsize=(7.24, 4))
 
-# Panel A -- contour plot of turnover time with log-scaled axes
-plt.sca(axs['B'])
-plt.contourf(t_max_grid, t_min_grid, T_matrix,
-             levels=10, cmap='Blues')
-plt.colorbar(label='Turnover Time (years)')
+def plot_calibrated_markers(ax, models, colors, s=15, lw=1.5):
+    for my_model, color in zip(models, colors):
+        ax.scatter(my_model.sigma, my_model.mu,
+                   marker='o', facecolors='none',
+                   edgecolors=color, s=s, linewidths=lw, zorder=20)
 
-# Mark the calibrated points
-calibrated_colors = [colors[c] for c in ['dark_green', 'purple', 'red', 'dark_blue']]
-for my_model, color in zip(calibrated_models, calibrated_colors):
-    plt.scatter(my_model.t_max, my_model.t_min,
-                marker='o', color='none',
-                edgecolor=color, s=15, lw=1.5)
+# Panel B -- contour plot of turnover time in mu/sigma space.
+ax = axs['B']
+# Ensure the contour uses the full data range for coloring
+tmin, tmax = np.nanmin(T_matrix), np.nanmax(T_matrix)
+levels_T = np.linspace(tmin, tmax, 10)
+cf = ax.contourf(SIGMA, MU, T_matrix, levels=levels_T, cmap='Blues', vmin=tmin, vmax=tmax)
+cbar = fig.colorbar(cf, ax=ax, label='Turnover Time (years)')
+# simplify colorbar ticks: integers, limited number
+cbar.ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
+cbar.ax.yaxis.set_major_formatter(FormatStrFormatter('%.0f'))
 
-plt.xlabel('$t_{max}$ (years)')
-plt.ylabel('$t_{min}$ (years)')
-plt.title('turnover time (T)')
+plot_calibrated_markers(ax, calibrated_models, calibrated_colors)
 
-# Panel B -- contour plot of steady-state radiocarbon ratio
-plt.sca(axs['C'])
-plt.contourf(t_max_grid, t_min_grid, R_14C_matrix,
-             levels=10, cmap='Greys')
-plt.colorbar(label='$^{14}C / ^{12}C$')
+ax.set_xlabel(r'lognormal $\sigma$')
+ax.set_ylabel(r'lognormal $\mu$')
+ax.set_title('turnover time (T)')
 
-# Mark the calibrated points
-for my_model, color in zip(calibrated_models, calibrated_colors):
-    plt.scatter(my_model.t_max, my_model.t_min,
-                marker='o', color='none',
-                edgecolor=color, s=15, lw=1.5)
-plt.xlabel('$t_{max}$ (years)')
-plt.ylabel('$t_{min}$ (years)')
-plt.title(r'steady-state $^{14}C / ^{12}C$ ratio')
+# Panel C -- contour plot of steady-state radiocarbon ratio.
+ax = axs['C']
+# Use full data range for radiocarbon ratio contour as well
+rmin, rmax = np.nanmin(R_14C_matrix), np.nanmax(R_14C_matrix)
+levels_R = np.linspace(rmin, rmax, 10)
+cf2 = ax.contourf(SIGMA, MU, R_14C_matrix, levels=levels_R, cmap='Greys', vmin=rmin, vmax=rmax)
+cbar2 = fig.colorbar(cf2, ax=ax, label='$^{14}C / ^{12}C$')
+# fewer, nicely formatted ticks for radiocarbon ratio
+cbar2.ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
+cbar2.ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
-# Plot the survival functions for the calibrated points
+plot_calibrated_markers(ax, calibrated_models, calibrated_colors)
+
+ax.set_xlabel(r'lognormal $\sigma$')
+ax.set_ylabel(r'lognormal $\mu$')
+ax.set_title(r'steady-state $^{14}C / ^{12}C$ ratio')
+
+# Panel E -- survival functions for calibrated points.
 plt.sca(axs['E'])
 plt.xscale('log')
 ages = np.logspace(-3, np.log10(1800), 200)
-for i, (my_model, color) in enumerate(
-    zip(calibrated_models, calibrated_colors)):
-    survival_fn = my_model.s(ages)
+for i, (my_model, color) in enumerate(zip(calibrated_models, calibrated_colors)):
+    survival_fn = my_model.survival_discretized(ages)
     T_val = calibrated_Ts[i]
     R_14C_val = calibrated_R_14Cs[i]
-    label=f'$T={int(T_val)}$; $^{{14}}C/^{{12}}C={R_14C_val:.2f}$'
+    label = f'$T={int(T_val)}$; $^{{14}}C/^{{12}}C={R_14C_val:.2f}$'
     plt.plot(ages, survival_fn, color=color, lw=2, label=label)
+
 plt.xlim(1e-2, 1800)
 plt.xlabel(r'age $\tau$ (years)')
 plt.ylabel(r'$s(\tau)$')
 plt.title('calibrated survival functions')
-# hiding the legend, will make in inkscape
-plt.legend(loc='upper right', fontsize=5,
-           frameon=False).set_visible(False)
+plt.legend(loc='upper right', fontsize=5, frameon=False).set_visible(False)
 
+# Panel F -- CDF of age distributions for calibrated points.
 plt.sca(axs['F'])
 plt.xscale('log')
-# plot the CDF of the age distributions for the calibrated points
-for idx, (my_model, color) in enumerate(zip(calibrated_models, calibrated_colors)):
-    # ages = np.arange(2000)
-    ages = np.logspace(-3, np.log10(100000), 200)
-    age_dist_cdf = my_model.cdfA(ages)
-    plt.plot(ages, age_dist_cdf, color=color, lw=2)
+# precompute ages grid once
+ages_cdf = np.logspace(-3, np.log10(100000), 200)
+for my_model, color in zip(calibrated_models, calibrated_colors):
+    # Vectorized survival -> PDF -> normalized CDF using trapezoidal quadrature
+    s_tau = my_model.survival_discretized(ages_cdf)
+    pA = s_tau / my_model.T
+    pA_integral = integrate.trapezoid(pA, ages_cdf)
+    pA_normalized = pA / pA_integral
+    cdf_A = integrate.cumulative_trapezoid(pA_normalized, ages_cdf, initial=0)
+    plt.plot(ages_cdf, cdf_A, color=color, lw=2)
 
-# Diagram the process of model validation from a single point estimate
-# of the CDF at age = 100 for example. 
-obs_age, obs_CDF = 10, 0.21
-plt.scatter([obs_age], [obs_CDF], color='none', 
+obs_age, obs_CDF = 100, 0.446
+plt.scatter([obs_age], [obs_CDF], color='none',
             edgecolor='k', marker='o', s=15, lw=1,
             zorder=10)
-# draw a dashed line to the x-axis from this point
 plt.axvline(x=obs_age, ymin=0, ymax=obs_CDF,
             color='grey', linestyle='--', lw=1, zorder=-1)
 ax = axs['F']
@@ -135,7 +155,7 @@ plt.xlabel(r'age $\tau$ (years)')
 plt.ylabel(r'CDF of $p_A(\tau)$')
 plt.title('calibrated age distributions')
 
-# Turn off axes for panels A and D
+# Turn off axes for panels A and D to reserve illustration space.
 axs['A'].axis('off')
 axs['D'].axis('off')
 

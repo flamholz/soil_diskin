@@ -9,8 +9,11 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from scipy.special import exp1
 
+plt.style.use('notebooks/style.mpl')
+from scipy.special import exp1
+from soil_diskin.continuum_models import PowerLawDisKin
+from scipy.optimize import minimize_scalar
 
 # %%
 # Read the raw data and calculate the ratio in C stocks between the reference and the experiment sites.
@@ -18,11 +21,8 @@ raw_site_data = pd.read_excel('data/balesdent_2018/balesdent_2018_raw.xlsx', ski
 site_data = pd.read_csv('results/processed_balesdent_2018.csv')
 J_ratio = raw_site_data['Cref_0-100estim'] / raw_site_data['Ctotal_0-100estim']
 
-
 # %% [markdown]
-# ### Power-law
-
-# %% [markdown]
+# ### Power-law model
 # For the unlabeled system, we have the amount of carbon that is of a specific age $J * p_A(t) * T$ - so that the integral of all of the carbon in the system is $J * T$:
 # 
 # $$ J*p_A(t)*T = J\frac{1}{E_1(\frac{a}{\tau})} \frac{e^{-(a+t)/\tau}}{a+t} ae^{a/\tau}E_1(a/\tau) = J \frac{ae^{-t/\tau}}{a+t} = Js(t)$$
@@ -64,24 +64,31 @@ J_ratio = raw_site_data['Cref_0-100estim'] / raw_site_data['Ctotal_0-100estim']
 # %%
 # load lognormal data
 ln_input_data = pd.read_csv('results/06_sensitivity_analysis/lognormal_input_data.csv')
-ln_tau_data = pd.read_csv('results/06_sensitivity_analysis/lognormal_tau_data.csv')
-ln_age_data = pd.read_csv('results/06_sensitivity_analysis/lognormal_age_data.csv')
+ln_mu_data = pd.read_csv('results/06_sensitivity_analysis/lognormal_mu_data.csv')
+ln_sigma_data = pd.read_csv('results/06_sensitivity_analysis/lognormal_sigma_data.csv')
 
 ts_ln = ln_input_data['time'].values
 ln_input_data = [ln_input_data.values[:,i] for i in range(ln_input_data.shape[1]-1)]
-ln_tau_data = [ln_tau_data.values[:,i] for i in range(ln_tau_data.shape[1]-1)]
-ln_age_data = [ln_age_data.values[:,i] for i in range(ln_age_data.shape[1]-1)]
+ln_mu_data = [ln_mu_data.values[:,i] for i in range(ln_mu_data.shape[1]-1)]
+ln_sigma_data = [ln_sigma_data.values[:,i] for i in range(ln_sigma_data.shape[1]-1)]
 
+# define optimization function to find the parameters that produce a specific change in turnover
+def find_param_change(model, param_name, target_change, base_params, param_range, tol=1e-3):
+    def objective(param_value):
+        params = base_params.copy()
+        params[param_name] = param_value
+        model_instance = model(**params)
+        return abs(model_instance.T - base_model.T * target_change)
+
+    base_model = model(**base_params)
+    result = minimize_scalar(objective, bounds=param_range, method='bounded', options={'xatol': tol})
+    return result.x if result.success else None
 # %%
-# Run sensitivity analysis for power law and gamma models
+# Run sensitivity analysis for power law and lognormal models
 powerlaw_params = pd.read_csv('results/03_calibrate_models/powerlaw_model_optimization_results.csv')
-gamma_params = pd.read_csv('results/03_calibrate_models/gamma_model_optimization_results.csv')
 
 a1 = powerlaw_params['t_min'].mean()
 tau1 = powerlaw_params['t_max'].mean()
-
-gamma_alpha = gamma_params['a'].mean()
-gamma_theta = gamma_params['b'].mean()
 
 ratios = np.percentile(J_ratio.dropna().values,[2.5, 25, 50, 75, 97.5])
 ts = np.logspace(-1, 6, 1000)  # time in years
@@ -91,52 +98,53 @@ red_colors = plt.cm.Reds(np.linspace(0.2, 0.8, 5))
 blue_colors = plt.cm.Blues(np.linspace(0.2, 0.8, 5))
 
 # for the power law model
+# for the power-law model, the derivative of the turnover time as a function if the parameter t_min is:
+# -1 + np.exp(t_min/t_max)*exp1(t_min/t_max) + (t_min * np.exp(t_min/t_max) * exp1(t_min/t_max])/t_max
+
+# and the derivative of the turnover time as a function of t_max is:
+# a/b - (a^2 E^(a/b) ExpIntegralE[1, a/b])/b^2
 int_s_labeled  = lambda t, a, tau:  a * np.exp(a / tau) * (exp1(a / tau) - exp1((a + t) / tau)  )
 int_s_unlabeled = lambda t, a, tau: a * np.exp(a / tau) *  exp1((a + t) / tau) 
 f_new = lambda t, J1, J2, a1, a2, tau1, tau2: J2 * int_s_labeled(t, a2, tau2) / (J2 * int_s_labeled(t, a2, tau2) + J1 * int_s_unlabeled(t, a1, tau1))
 
 pl_input_data = [f_new(ts, 1, 1 * j, a1, a1, tau1, tau1) for j in ratios]
-pl_a_data = [f_new(ts, 1, 1 , a1, a1 * j, tau1, tau1) for j in ratios]
-pl_tau_data = [f_new(ts, 1, 1 , a1, a1, tau1, tau1 * j) for j in ratios]
+tmins = [find_param_change(PowerLawDisKin, 't_min', x, {'t_min': a1, 't_max': tau1}, [0, tau1]) for x in ratios]
+tmaxs = [find_param_change(PowerLawDisKin, 't_max', x, {'t_min': a1, 't_max': tau1}, [a1, 1e30]) for x in ratios]
+pl_a_data = [f_new(ts, 1, 1 , a1, j , tau1, tau1) for j in tmins]
+pl_tau_data = [f_new(ts, 1, 1 , a1, a1, tau1, j) for j in tmaxs]
 
-# for the gamma model
-g_int_s_labeled = lambda t, theta, alpha: (1-(1 + theta * t) ** (1 - alpha)) / ((alpha - 1) * theta)
-g_int_s_unlabeled = lambda t, theta, alpha: (1 + theta * t) ** (1 - alpha) / ((alpha - 1) * theta)
-g_f_new = lambda t, J1, J2, alpha1, alpha2, theta1, theta2: J2 * g_int_s_labeled(t, theta2, alpha2) / (J2 * g_int_s_labeled(t, theta2, alpha2) + J1 * g_int_s_unlabeled(t, theta1, alpha1))
-
-gamma_input_data = [g_f_new(ts, 1, 1 * j, gamma_alpha, gamma_alpha, gamma_theta, gamma_theta) for j in ratios]
-gamma_a_data = [g_f_new(ts, 1, 1 , gamma_alpha, gamma_alpha * j, gamma_theta, gamma_theta) for j in ratios]
-gamma_tau_data = [g_f_new(ts, 1, 1 , gamma_alpha, gamma_alpha, gamma_theta, gamma_theta * j) for j in ratios]
-
-
-# %%
+## %%
 # Plot results
 def plot_data(ax, ts, data, colors, title_label, legend_label):
     for j, d in enumerate(data):
-        ax.semilogx(ts, d, color=colors[j], label=f'{legend_label} = {ratios[j]:.2f}')
-        
-        ax.legend(loc='lower right')
-        sns.regplot(data=site_data, x="Duration_labeling", y="total_fnew",ax=ax,scatter_kws={'color':'k'},line_kws={'color':'k','lw':0},x_bins=[3,10,30,50,100,300,1000,3000],fit_reg=False,ci=95)
-        ax.set_title(title_label)
-        ax.set_xlabel('Time (years)')
-        ax.set_ylabel('Fraction of labeled carbon')
+        ax.semilogx(ts, d, color=colors[j],
+                    label=f'{legend_label} = {ratios[j]:.2f}')
+    ax.legend(loc='lower right')
+    n_lines_before = len(ax.lines)
+    sns.regplot(
+        data=site_data, x='Duration_labeling', y='total_fnew', ax=ax,
+        scatter_kws={'color': 'grey', 'lw': 1, 'edgecolors': 'k', 's': 15, 'zorder': 10},
+        line_kws={'color': 'k', 'lw': 0, 'zorder': 10},
+        x_bins=[3, 10, 30, 50, 100, 300, 1000, 3000],
+        fit_reg=False, ci=95,
+    )
+    for line in ax.lines[n_lines_before:]:
+        line.set_linewidth(1.5)
+    ax.set_title(title_label)
+    ax.set_xlabel('Time (years)')
+    ax.set_ylabel('Fraction of labeled carbon')
 
-fig, axs = plt.subplots(3, 3, figsize=(12, 12), sharex=True, sharey=True, constrained_layout=True, dpi=300)    
-plot_data(axs[0, 0], ts, pl_input_data, green_colors, 'Change in input', '$J_{post}$/$J_{pre}$')
-plot_data(axs[0, 1], ts, pl_a_data, red_colors, 'Change in $t_{min}$', '$t_{min,post}$/$t_{min,pre}$')
-plot_data(axs[0, 2], ts, pl_tau_data, blue_colors, 'Change in $t_{max}$', '$t_{max,post}$/$t_{max,pre}$')
+fig, axs = plt.subplots(2, 3, figsize=(7.24, 4.83), sharex=True, sharey=True, constrained_layout=True, dpi=300)
+plot_data(axs[0, 0], ts, pl_input_data, green_colors, 'change in input', '$J_{post}$/$J_{pre}$')
+plot_data(axs[0, 1], ts, pl_a_data, red_colors, 'change in $\\tau_{min}$', '$T_{post}$/$T_{pre}$')
+plot_data(axs[0, 2], ts, pl_tau_data, blue_colors, 'change in $\\tau_{max}$', '$T_{post}$/$T_{pre}$')
 
-plot_data(axs[1, 0], ts_ln, ln_input_data, green_colors, 'Change in input', '$J_{post}$/$J_{pre}$')
-plot_data(axs[1, 1], ts_ln, ln_input_data, red_colors, 'Change in turnover $T$', '$T_{post}$/$T_{pre}$')
-plot_data(axs[1, 2], ts_ln, ln_input_data, blue_colors, 'Change in mean age $A$', '$A_{post}$/$A_{pre}$')
+plot_data(axs[1, 0], ts_ln, ln_input_data, green_colors, 'change in input', '$J_{post}$/$J_{pre}$')
+plot_data(axs[1, 1], ts_ln, ln_mu_data, red_colors, 'change in $\\mu$', '$T_{post}$/$T_{pre}$')
+plot_data(axs[1, 2], ts_ln, ln_sigma_data, blue_colors, 'change in $\\sigma$', '$T_{post}$/$T_{pre}$')
 
-plot_data(axs[2, 0], ts, gamma_input_data, green_colors, 'Change in input', '$J_{post}$/$J_{pre}$')
-plot_data(axs[2, 1], ts, gamma_a_data, red_colors, 'Change in $\\alpha$', '$\\alpha_{post}$/$\\alpha_{pre}$')
-plot_data(axs[2, 2], ts, gamma_tau_data, blue_colors, 'Change in $\\theta$', '$\\theta_{post}$/$\\theta_{pre}$')
-axs[0,0].text(-0.3, 0.5, 'Power-law model', transform=axs[0,0].transAxes, ha='center', va='center', fontsize=16, alpha=1, rotation=90)
-axs[1,0].text(-0.3, 0.5, 'Lognormal model', transform=axs[1,0].transAxes, ha='center', va='center', fontsize=16, alpha=1, rotation=90)
-axs[2,0].text(-0.3, 0.5, 'Gamma model', transform=axs[2,0].transAxes, ha='center', va='center', fontsize=16, alpha=1, rotation=90)
-plt.tight_layout()
+axs[0, 0].text(-0.3, 0.5, 'Power-law model', transform=axs[0, 0].transAxes, ha='center', va='center', fontsize=8, alpha=1, rotation=90)
+axs[1, 0].text(-0.3, 0.5, 'Lognormal model', transform=axs[1, 0].transAxes, ha='center', va='center', fontsize=8, alpha=1, rotation=90)
 
 # Save figure
 plt.savefig('figures/figS5.png', dpi=600, bbox_inches='tight')

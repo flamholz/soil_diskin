@@ -3,8 +3,9 @@ import unittest
 import numpy as np
 
 from soil_diskin.continuum_models import PowerLawDisKin, GammaDisKin
-from soil_diskin.continuum_models import GeneralPowerLawDisKin, LognormalDisKin
+from soil_diskin.continuum_models import GeneralPowerLawDisKin, LognormalDisKin, LognormalDisKinFast
 from soil_diskin.constants import GAMMA
+from soil_diskin.radiocarbon_utils import load_atm14c
 
 model_classes = [PowerLawDisKin, GammaDisKin,
                  GeneralPowerLawDisKin, LognormalDisKin]
@@ -327,10 +328,14 @@ class TestGeneralPowerLawDisKin(unittest.TestCase):
             self.assertFalse(model.params_valid(),
                              msg=f"Invalid parameters t_min={t_min}, t_max={t_max}, beta={beta} marked as valid.")
         
-        # Beta must be between 0 and 1
-        with self.assertRaises(ValueError):
-            GeneralPowerLawDisKin(t_min=10, t_max=1000, beta=1.5)  # beta > 1
-        
+        # Beta is required to be positive (constructor enforces > 0).
+        # Beta > 1 is allowed under the new behavior; it should construct
+        # and be considered valid by `params_valid`.
+        model = GeneralPowerLawDisKin(t_min=10, t_max=1000, beta=1.5)  # beta > 1 should construct
+        self.assertTrue(model.params_valid(),
+                        msg=f"beta > 1 should be valid for params_valid() (beta=1.5)")
+
+        # Negative beta should still raise
         with self.assertRaises(ValueError):
             GeneralPowerLawDisKin(t_min=10, t_max=1000, beta=-0.1)  # beta < 0
 
@@ -421,3 +426,31 @@ class TestLognormalDisKin(unittest.TestCase):
             self.assertAlmostEqual(expected_a, a, msg=f"Age mismatch for a={a}, T={T}, mu={mu}, sigma={sigma}")
             self.assertAlmostEqual(expected_T, T, msg=f"Transit time mismatch for a={a}, T={T}, mu={mu}, sigma={sigma}")    
 
+
+class TestLognormalDisKinFast(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.atm = load_atm14c()
+
+    def test_requires_atm_on_construction(self):
+        with self.assertRaises(TypeError):
+            LognormalDisKinFast(mu=0.0, sigma=0.5)
+
+    def test_ignores_interp_from_base(self):
+        model = LognormalDisKinFast(
+            mu=-1.0,
+            sigma=0.8,
+            atm=self.atm,
+            interp_r_14c=lambda _x: 999.0,
+        )
+        self.assertIsNone(model.interp_14c)
+
+    def test_calc_radiocarbon_ratio_ss_returns_tuple(self):
+        model = LognormalDisKinFast(mu=-1.0, sigma=0.8, atm=self.atm)
+        ratio, err = model.calc_radiocarbon_ratio_ss()
+        self.assertIsInstance(ratio, float)
+        self.assertIsInstance(err, float)
+        self.assertGreaterEqual(err, 0.0)
+        self.assertGreaterEqual(ratio, 0.0)
+        self.assertLessEqual(ratio, 1.5)

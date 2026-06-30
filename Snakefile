@@ -16,8 +16,9 @@ rule all:
         # "figures/model_predictions.png",
         "figures/fig1.png",
         "figures/fig2.png",
-        "figures/fig3.png",
+        "figures/fig4.png",
         "figures/figS1.png",
+        "figures/figS2.png",
         "figures/figS3.png",
         "figures/figS4.png",
         "figures/figS5.png",
@@ -49,14 +50,14 @@ rule download_he_2016:
 
 rule download_CLM45_conf:
     output:        
-        "data/CLM5_global_simulation/gcb_matrix_supp_data.zip"
         "data/CLM5_global_simulation/global_demo_in.nc",
-        "data/CLM5_global_simulation/clm5_params.c171117.nc",
-        ""
+        "data/CLM5_global_simulation/soildepth.mat"
+    params:
+        zipfile="data/CLM5_global_simulation/gcb_matrix_supp_data.zip"
     shell:
         """
         mkdir -p data/CLM5_global_simulation/
-        curl -L -o {output} https://hs.pangaea.de/model/Huang-etal_2017/gcb_matrix_supp_data.zip
+        curl -L -o {params.zipfile} https://hs.pangaea.de/model/Huang-etal_2017/gcb_matrix_supp_data.zip
         pushd data/CLM5_global_simulation/ 
         unzip -j gcb_matrix_supp_data.zip
         popd
@@ -84,6 +85,42 @@ rule download_kang_data:
         popd
         """
 
+# ISRaD database
+rule download_israd_data:
+    output:
+        "data/ISRaD/.israd_download_complete"
+    params:
+        url="https://github.com/International-Soil-Radiocarbon-Database/ISRaD/raw/main/ISRaD_data_files/database/ISRaD_database_files.zip"
+    shell:
+        """
+        mkdir -p data/ISRaD
+        curl -L -o israd_database_files.zip {params.url}
+        unzip -o israd_database_files.zip -d data/ISRaD
+        rm -f israd_database_files.zip
+        touch {output}
+        """
+
+# Whittaker biome boundaries
+rule download_worldclim:
+    output:
+        directory("data/worldclim")
+    shell:
+        """
+        mkdir -p data/worldclim
+        curl -L -o data/worldclim/wc2.1_10m_bio.zip https://geodata.ucdavis.edu/climate/worldclim/2_1/base/wc2.1_10m_bio.zip
+        unzip data/worldclim/wc2.1_10m_bio.zip -d data/worldclim
+        rm data/worldclim/wc2.1_10m_bio.zip
+        """
+
+rule download_whittaker_biomes:
+    output:
+        "data/whittaker_biomes/biomes.csv"
+    shell:
+        """
+        mkdir -p data/whittaker_biomes
+        curl -L -o {output} https://raw.githubusercontent.com/kunstler/BIOMEplot/refs/heads/master/inst/extdata/biomes.csv
+        """
+
 # Step 01: Preprocess Balesdent data
 rule preprocess_balesdent:
     input:
@@ -91,13 +128,16 @@ rule preprocess_balesdent:
     output:
         "results/processed_balesdent_2018.csv"
     shell:
-        "python notebooks/01_preprocess_balesdent_data.py -i {input} -o {output} --no-backfill"
+        "python notebooks/01_preprocess_balesdent_data.py -i {input} -o {output} --backfill"
 
+# Step 01b: Preprocess 14C atmospheric history data
 rule preprocess_14C_data:
+    input:
+        "data/14C_atm.csv"
     output:
         "data/14C_atm_annot.csv"
-    script:
-        "notebooks/01_preprocess_14C_data.py"
+    shell:
+        "python notebooks/01_preprocess_14C_history.py -i {input} -o {output}"
 
 # Step 02: Get 14C turnover data for the Balesdent sites
 rule turnover_14C:
@@ -119,25 +159,7 @@ rule calibrate_powerlaw:
     script:
         "notebooks/03a_calibrate_powerlaw_model.py"
 
-rule lognormal_age_scan_mathematica:
-    input:
-        "data/14C_atm_annot.csv"
-    output:
-        "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
-    shell:
-        """
-        wolframscript --file notebooks/03b_lognormal_age_scan.wls
-        """
 
-rule calibrate_lognormal_python:
-    input:
-        "results/all_sites_14C_turnover.csv",
-        "results/03_calibrate_models/03b_lognormal_model_age_scan.csv",
-        "data/14C_atm_annot.csv"
-    output:
-        "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
-    script:
-        "notebooks/03b_calibrate_lognormal_model.py"
 
 rule calibrate_generalized_powerlaw:
     input:
@@ -147,6 +169,23 @@ rule calibrate_generalized_powerlaw:
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv"
     script:
         "notebooks/03c_calibrate_generalized_powerlaw_model.py"
+
+
+# Run the end-to-end Python lognormal calibration (experimental port)
+rule run_lognormal_calibration_python:
+    input:
+        sites="results/all_sites_14C_turnover.csv",
+        atm="data/14C_atm_annot.csv",
+    output:
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_python.csv",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_05_python.csv",
+        "results/03_calibrate_models/03b_lognormal_model_age_scan_95_python.csv",
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+    shell:
+        """
+        mkdir -p results/03_calibrate_models
+        python notebooks/03b_lognormal_calibration.py
+        """
 
 # Step 03d: Calibrate gamma model
 rule calibrate_gamma:
@@ -158,15 +197,17 @@ rule calibrate_gamma:
         "notebooks/03d_calibrate_gamma_model.py"
 
 # Step 04: Generate and collect model predictions for analysis and figures
-# Step 04b: Lognormal predictions (Julia)
-rule lognormal_predictions_julia:
+# Lognormal predictions (Python-based pipeline used for figures)
+rule lognormal_predictions_python:
     input:
-        "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
     output:
-        "results/04_model_predictions/04b_lognormal_cdfs.csv"
+        "results/04_model_predictions/04b_lognormal_cdfs_python.csv",
+        "results/04_model_predictions/04b_lognormal_cdfs_05_python.csv",
+        "results/04_model_predictions/04b_lognormal_cdfs_95_python.csv"
     shell:
         """
-        julia --project=./ notebooks/04b_lognormal_predictions.jl
+        python notebooks/04b_lognormal_predictions_fast.py --params-path {input}
         """
 
 # Download JSBACH files for parameterization of other models
@@ -189,16 +230,16 @@ rule continuum_model_predictions:
         "results/processed_balesdent_2018.csv",
         "results/all_sites_14C_turnover.csv",
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
-        "results/04_model_predictions/04b_lognormal_cdfs.csv",
+        "results/04_model_predictions/04b_lognormal_cdfs_python.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
         "results/03_calibrate_models/gamma_model_optimization_results.csv"
     output:
-        "results/04_model_predictions/gamma.csv",
-        "results/04_model_predictions/power_law.csv",
-        "results/04_model_predictions/lognormal.csv",
-        "results/04_model_predictions/general_power_law.csv",
-        "results/04_model_predictions/general_power_law_beta_half.csv",
+        "results/04_model_predictions/gamma_model_predictions.csv",
+        "results/04_model_predictions/power_law_model_predictions.csv",
+        "results/04_model_predictions/lognormal_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions_beta_half.csv",
     script:
         "notebooks/04_collect_continuum_model_predictions.py"
 
@@ -206,8 +247,8 @@ rule continuum_model_predictions:
 rule CLM45_model_predictions:
     input:
         "data/CLM5_global_simulation/soildepth.mat",
-        "data/CLM5_global_simulation/gcb_matrix_supp_data.zip",
         "data/CLM5_global_simulation/global_demo_in.nc",
+        "data/CLM5_global_simulation/clm5_params.c171117.nc",
         "results/processed_balesdent_2018.csv",
         "results/all_sites_14C_turnover.csv",
     output:
@@ -299,11 +340,11 @@ rule turnover_sensitivity_analysis_lognormal_julia:
 rule steady_state_sensitivity_analysis_lognormal:
     input:
         "data/balesdent_2018/balesdent_2018_raw.xlsx",
-        "results/03_calibrate_models/03b_lognormal_predictions_calcurve.csv",
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
     output:
         "results/06_sensitivity_analysis/lognormal_input_data.csv",
-        "results/06_sensitivity_analysis/lognormal_tau_data.csv",
-        "results/06_sensitivity_analysis/lognormal_age_data.csv",
+        "results/06_sensitivity_analysis/lognormal_mu_data.csv",
+        "results/06_sensitivity_analysis/lognormal_sigma_data.csv",
     shell:
         """
         julia --project=./ notebooks/06b_lognormal_steady_state_sensitivity.jl
@@ -322,8 +363,17 @@ rule vegetation_effects_sensitivity_analysis:
         "notebooks/06c_veg_effects_sensitivity.py"
 # Step 05: Plot results
 
+rule fig1_calcs:
+    input:
+    output:
+        "results/fig1_calcs.npz",
+    script:
+        "notebooks/fig1_calcs.py"
+
 rule plot_fig1:
     input:
+        "results/fig1_calcs.npz",
+        "graphics/century_model_diagram.png",
     output:
         "figures/fig1.png",
     script:
@@ -344,35 +394,78 @@ rule plot_fig2:
     script:
         "notebooks/fig2.py"
 
-rule fig3_calcs:
+rule fig4_calcs:
     input:
-    output:
-        "results/fig3_calcs.csv",
-    script:
-        "notebooks/fig3_calcs.py"
-
-
-rule plot_fig3:
-    input:
-        'results/04_model_predictions/power_law.csv',
-        'results/04_model_predictions/lognormal.csv',
-        'results/04_model_predictions/gamma.csv',
-        'results/04_model_predictions/general_power_law.csv',
-        'results/04_model_predictions/general_power_law_beta_half.csv',
+        "results/04_model_predictions/gamma_model_predictions.csv",
+        "results/04_model_predictions/power_law_model_predictions.csv",
+        "results/04_model_predictions/lognormal_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions_beta_half.csv",
         'results/04_model_predictions/CLM45_fnew.csv',
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
         'results/processed_balesdent_2018.csv',
-        'results/fig3_calcs.csv',
     output:
-        "figures/fig3.png",
+        "results/fig4_calcs.csv",
+    script:
+        "notebooks/fig4_calcs.py"
+
+
+rule plot_fig4:
+    input:
+        "results/04_model_predictions/gamma_model_predictions.csv",
+        "results/04_model_predictions/power_law_model_predictions.csv",
+        "results/04_model_predictions/lognormal_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions.csv",
+        "results/04_model_predictions/general_power_law_model_predictions_beta_half.csv",
+        'results/04_model_predictions/CLM45_fnew.csv',
+        'results/04_model_predictions/JSBACH_fnew.csv',
+        'results/04_model_predictions/RCM.csv',
+        'results/processed_balesdent_2018.csv',
+        'results/fig4_calcs.csv',
+    output:
+        "figures/fig4.png",
         "figures/figS3.png" # also make figS3 here
     script:
-        "notebooks/fig3.py"
+        "notebooks/fig4.py"
+
+rule figS2_calcs:
+    input:
+        "results/all_sites_14C_turnover.csv",
+        "data/worldclim",
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
+    output:
+        "results/figS2_calcs.csv",
+        "results/figS2_calcs_lognormal_correlations.csv",
+        "results/figS2_calcs_powerlaw_alpha1_correlations.csv",
+        "results/figS2_calcs_powerlaw_alpha_exp_gamma_correlations.csv",
+        "results/figS2_calcs_powerlaw_alpha_exp_gamma_half_correlations.csv",
+    script:
+        "notebooks/figS2_calcs.py"
+
+rule plot_figS2:
+    input:
+        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+        "results/figS2_calcs.csv",
+        "results/figS2_calcs_lognormal_correlations.csv",
+        "results/figS2_calcs_powerlaw_alpha1_correlations.csv",
+        "results/figS2_calcs_powerlaw_alpha_exp_gamma_correlations.csv",
+        "results/figS2_calcs_powerlaw_alpha_exp_gamma_half_correlations.csv",
+    output:
+        "figures/figS2.png",
+    script:
+        "notebooks/figS2.py"
 
 rule plot_figS1:
     input:
         'data/balesdent_2018/balesdent_2018_raw.xlsx',
+        'data/whittaker_biomes/biomes.csv',
     output:
         'figures/figS1.png',
     script:
@@ -381,7 +474,8 @@ rule plot_figS1:
 rule plot_figS4:
     input:
         'results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results.csv',
-        'results/06_sensitivity_analysis/gamma_turnover_sensitivity_results.csv',
+        'results/processed_balesdent_2018.csv',
+        'results/all_sites_14C_turnover.csv',
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_0.50.csv",
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_0.67.csv",
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_1.csv",
@@ -395,12 +489,11 @@ rule plot_figS4:
 rule plot_figS5:
     input:
         "data/balesdent_2018/balesdent_2018_raw.xlsx",
-        "results/processed_balesdent_2018.csv", 
+        "results/processed_balesdent_2018.csv",
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
-        "results/03_calibrate_models/gamma_model_optimization_results.csv",
         'results/06_sensitivity_analysis/lognormal_input_data.csv',
-        'results/06_sensitivity_analysis/lognormal_tau_data.csv',
-        'results/06_sensitivity_analysis/lognormal_age_data.csv',
+        'results/06_sensitivity_analysis/lognormal_mu_data.csv',
+        'results/06_sensitivity_analysis/lognormal_sigma_data.csv',
     output:
         "figures/figS5.png"
     script:
@@ -415,68 +508,36 @@ rule plot_figS6:
         "notebooks/figS6.py"
 
 
-# # Step 06: Sensitivity analysis
-# rule sensitivity_analysis_old:
-#     input:
-#         "results/model_predictions.csv"
-#     output:
-#         "results/sensitivity_old_results.html"
-#     shell:
-#         """
-#         jupyter nbconvert --to html --execute notebooks/06_sensitivity_analysis_old.ipynb
-#         mv notebooks/06_sensitivity_analysis_old.html {output}
-#         """
-
-# rule sensitivity_analysis_powerlaw:
-#     input:
-#         "results/powerlaw_model_params.csv"
-#     output:
-#         "results/sensitivity_powerlaw.csv"
-#     shell:
-#         """
-#         jupyter nbconvert --to html --execute notebooks/06a_sensitivity_analysis_powerlaw.ipynb
-#         touch {output}
-#         """
-
-# rule sensitivity_analysis_lognormal:
-#     input:
-#         "results/lognormal_model_params.csv"
-#     output:
-#         "results/sensitivity_lognormal.csv"
-#     shell:
-#         """
-#         jupyter nbconvert --to html --execute notebooks/06b_sensitivity_analysis_lognormal.ipynb
-#         touch {output}
-#         """
-
-# rule sensitivity_analysis_lognormal_julia:
-#     input:
-#         "results/lognormal_model_params.csv"
-#     output:
-#         "results/sensitivity_lognormal_julia.csv"
-#     shell:
-#         """
-#         julia notebooks/06b_sensitivity_analysis_lognormal.jl
-#         """
-
 
 # Clean up rule
 rule clean:
     shell:
         """
-        rm -rf results/*.csv
+        find results -type f -name '*.csv' -delete || true
+        find results -type f -name '*.npz' -delete || true
         rm -rf figures/*
-        rm -rf results/*.html
         rm -rf data/balesdent_2018/*
-        rm -rf data/CLM5_global_simulation/*
+        rm -rf data/CLM5_global_simulation/global_demo_in.nc
+        rm -rf data/CLM5_global_simulation/soildepth.mat
+        rm -rf data/he_2016/*
         rm -rf data/kang_2023/*
         rm -rf data/shi_2020/*
+        rm -rf data/ISRaD/*
         """
 
 rule clean_results:
     shell:
         """
-        rm -rf results/*.csv
+        find results -type f -name '*.csv' -delete || true
+        find results -type f -name '*.npz' -delete || true
         rm -rf figures/*
-        rm -rf results/*.html
+        """
+
+# Intended to trigger a rerun of continuum models without forcing CLM45 or JSBACH to rerun.
+rule clean_light:
+    shell:
+        """
+        find results -type f -name '*.csv' ! -name 'CLM45*.csv' ! -name 'JSBACH*.csv' ! -name 'processed_balesdent_2018.csv' ! -name 'all_sites_14C_turnover.csv' -delete || true
+        find results -type f -name '*.npz' ! -name 'CLM45*.npz' ! -name 'JSBACH*.npz' -delete || true
+        rm -rf figures/*
         """

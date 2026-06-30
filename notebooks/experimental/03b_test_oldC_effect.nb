@@ -1,0 +1,171 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 14.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      5960,        163]
+NotebookOptionsPosition[      5196,        143]
+NotebookOutlinePosition[      5594,        159]
+CellTagsIndexPosition[      5551,        156]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"C14DATADIR", "=", "\"\<soil_diskin/data/14C_atm_annot.csv\>\""}],
+     ";", "\n", 
+    RowBox[{"C14DATA", "=", 
+     RowBox[{"Import", "[", 
+      RowBox[{"C14DATADIR", ",", 
+       RowBox[{"\"\<HeaderLines\>\"", "\[Rule]", "1"}]}], "]"}]}], ";", "\n", 
+    
+    RowBox[{"C14DATA", "=", 
+     RowBox[{"C14DATA", "\[LeftDoubleBracket]", 
+      RowBox[{"All", ",", 
+       RowBox[{"{", 
+        RowBox[{"4", ",", "5"}], "}"}]}], "\[RightDoubleBracket]"}]}], ";", 
+    "\n", 
+    RowBox[{"MeanR", "=", "10"}], ";", "\n", 
+    RowBox[{"atm14C1", "=", 
+     RowBox[{"Interpolation", "[", 
+      RowBox[{"C14DATA", ",", 
+       RowBox[{"InterpolationOrder", "\[Rule]", "0"}], ",", 
+       RowBox[{"\"\<ExtrapolationHandler\>\"", "\[Rule]", 
+        RowBox[{"{", 
+         RowBox[{"MeanR", "&"}], "}"}]}]}], "]"}]}], ";", "\n", 
+    RowBox[{"atm14C2", "=", 
+     RowBox[{"Interpolation", "[", 
+      RowBox[{"C14DATA", ",", 
+       RowBox[{"InterpolationOrder", "\[Rule]", "0"}], ",", 
+       RowBox[{"\"\<ExtrapolationHandler\>\"", "\[Rule]", 
+        RowBox[{"{", 
+         RowBox[{"0", "&"}], "}"}]}]}], "]"}]}], ";", "\n", 
+    "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"LognormalRadiocarbon", "[", 
+      RowBox[{"tau_", ",", "age_", ",", " ", "atm_"}], "]"}], ":=", 
+     RowBox[{"(", 
+      RowBox[{
+       RowBox[{"sig", "=", 
+        SqrtBox[
+         RowBox[{"Log", "[", 
+          FractionBox["age", "tau"], "]"}]]}], ";", 
+       RowBox[{"mu", "=", 
+        RowBox[{"-", 
+         RowBox[{"Log", "[", 
+          SqrtBox[
+           FractionBox[
+            SuperscriptBox["tau", "3"], "age"]], "]"}]}]}], ";", 
+       RowBox[{"r", "=", 
+        RowBox[{"NIntegrate", "[", 
+         RowBox[{
+          FractionBox[
+           RowBox[{
+            RowBox[{"atm", "[", "a", "]"}], " ", 
+            RowBox[{"Exp", "[", 
+             RowBox[{"-", 
+              FractionBox["a", "8267"]}], "]"}], " ", 
+            RowBox[{"PDF", "[", 
+             RowBox[{
+              RowBox[{"LogNormalDistribution", "[", 
+               RowBox[{"mu", ",", "sig"}], "]"}], ",", "x"}], "]"}], " ", 
+            RowBox[{"Exp", "[", 
+             RowBox[{
+              RowBox[{"-", "x"}], " ", "a"}], "]"}]}], 
+           RowBox[{"Exp", "[", 
+            RowBox[{
+             RowBox[{"-", "mu"}], "+", 
+             FractionBox[
+              SuperscriptBox["sig", "2"], "2"]}], "]"}]], ",", 
+          RowBox[{"{", 
+           RowBox[{"x", ",", "0", ",", "\[Infinity]"}], "}"}], ",", 
+          RowBox[{"{", 
+           RowBox[{"a", ",", "0", ",", "\[Infinity]"}], "}"}], ",", 
+          RowBox[{"PrecisionGoal", "\[Rule]", "3"}]}], "]"}]}], ";", "r"}], 
+      ")"}]}], ";"}], ")"}], "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{"LognormalRadiocarbon", "[", 
+  RowBox[{"13", ",", "10000", ",", "atm14C1"}], "]"}], "\n", 
+ RowBox[{"LognormalRadiocarbon", "[", 
+  RowBox[{"13", ",", "10000", ",", "atm14C2"}], 
+  "]"}], "\[IndentingNewLine]"}], "Input",
+ CellChangeTimes->{{3.986948603241254*^9, 3.986948687413063*^9}},
+ CellLabel->
+  "In[163]:=",ExpressionUUID->"d737061b-62a0-4477-97db-56a4d31a5e82"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "NIntegrate", "slwcon", 
+   "\"Numerical integration converging too slowly; suspect one of the \
+following: singularity, value of the integration is 0, highly oscillatory \
+integrand, or WorkingPrecision too small.\"", 2, 164, 54, 
+   24275313714889345370, "Local"},
+  "MessageTemplate"]], "Message", "MSG",
+ CellChangeTimes->{{3.986948657105772*^9, 3.986948687945121*^9}},
+ CellLabel->
+  "During evaluation of \
+In[163]:=",ExpressionUUID->"120d5552-c986-4791-9831-bedc0121a23f"],
+
+Cell[BoxData["0.9143011210734084`"], "Output",
+ CellChangeTimes->{{3.986948659765177*^9, 3.9869486886530123`*^9}},
+ CellLabel->
+  "Out[164]=",ExpressionUUID->"12b49096-39f5-45fd-87af-7432838a9d21"],
+
+Cell[BoxData[
+ TemplateBox[{
+  "NIntegrate", "slwcon", 
+   "\"Numerical integration converging too slowly; suspect one of the \
+following: singularity, value of the integration is 0, highly oscillatory \
+integrand, or WorkingPrecision too small.\"", 2, 165, 55, 
+   24275313714889345370, "Local"},
+  "MessageTemplate"]], "Message", "MSG",
+ CellChangeTimes->{{3.986948657105772*^9, 3.986948688704706*^9}},
+ CellLabel->
+  "During evaluation of \
+In[163]:=",ExpressionUUID->"872791e9-26da-4208-8f14-a348a6039a8e"],
+
+Cell[BoxData["0.9142679260809287`"], "Output",
+ CellChangeTimes->{{3.986948659765177*^9, 3.986948689399527*^9}},
+ CellLabel->
+  "Out[165]=",ExpressionUUID->"81be8129-cfdb-4bac-a4f3-ea8fd037804e"]
+}, Open  ]]
+},
+WindowSize->{808, 911},
+WindowMargins->{{60, Automatic}, {Automatic, 144}},
+FrontEndVersion->"14.0 for Mac OS X ARM (64-bit) (December 12, 2023)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"59d7e341-c893-4986-a30f-f304f31f39de"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 3176, 82, 596, "Input",ExpressionUUID->"d737061b-62a0-4477-97db-56a4d31a5e82"],
+Cell[3759, 106, 510, 11, 46, "Message",ExpressionUUID->"120d5552-c986-4791-9831-bedc0121a23f"],
+Cell[4272, 119, 197, 3, 34, "Output",ExpressionUUID->"12b49096-39f5-45fd-87af-7432838a9d21"],
+Cell[4472, 124, 510, 11, 46, "Message",ExpressionUUID->"872791e9-26da-4208-8f14-a348a6039a8e"],
+Cell[4985, 137, 195, 3, 34, "Output",ExpressionUUID->"81be8129-cfdb-4bac-a4f3-ea8fd037804e"]
+}, Open  ]]
+}
+]
+*)
+

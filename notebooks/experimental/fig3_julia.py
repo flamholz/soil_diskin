@@ -3,11 +3,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import viz
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import notebooks.viz as viz
 
 from permetrics.regression import RegressionMetric
 from sklearn.metrics import root_mean_squared_error
 from matplotlib.colors import LogNorm
+
+import os 
+
+if os.getcwd().endswith('notebooks'):
+    os.chdir('..')
 
 #%% Load the site data
 all_sites = pd.read_csv('results/processed_balesdent_2018.csv')
@@ -17,21 +26,30 @@ plt.style.use('notebooks/style.mpl')
 pal = viz.color_palette()
 
 #%% Load the predictions
-powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/power_law.csv',header=None, names=['prediction'])
-gen_powerlaw_preds_beta = pd.read_csv(f'results/04_model_predictions/general_power_law.csv', header=None, names=['prediction'])
-gen_powerlaw_preds_beta_half = pd.read_csv(f'results/04_model_predictions/general_power_law_beta_half.csv', header=None, names=['prediction'])
-lognormal_predictions = pd.read_csv(f'results/04_model_predictions/lognormal.csv',header=None, names=['prediction'])
-gamma_predictions = pd.read_csv(f'results/04_model_predictions/gamma.csv',header=None, names=['prediction'])    
+powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/power_law_model_predictions.csv')
+gen_powerlaw_preds_beta = pd.read_csv(f'results/04_model_predictions/general_power_law_model_predictions.csv')
+gen_powerlaw_preds_beta_half = pd.read_csv(f'results/04_model_predictions/general_power_law_model_predictions_beta_half.csv')
+lognormal_predictions = pd.read_csv(f'results/04_model_predictions/lognormal_model_predictions_julia.csv')
+gamma_predictions = pd.read_csv(f'results/04_model_predictions/gamma_model_predictions.csv')    
 CLM45_predictions = pd.read_csv(f'results/04_model_predictions/CLM45_fnew.csv', header=None, names=['prediction'])
 JSBACH_predictions = pd.read_csv(f'results/04_model_predictions/JSBACH_fnew.csv', header=None, names=['prediction'])
 RCM_predictions = pd.read_csv(f'results/04_model_predictions/RCM.csv')
 
 
 # %% Define function to plot model predictions
-def plot_model_predictions(ax, predictions, model_name, color):
+def plot_model_predictions(ax, predictions, model_name, color, pred_err=None):
     ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
             label='y=x', zorder=-10, lw=1)
-    ax.scatter(all_sites['total_fnew'],
+    if pred_err is not None:
+        ax.errorbar(all_sites['total_fnew'],
+                    predictions,
+                    yerr=pred_err,
+                    fmt='o', label=model_name, color=color,
+                    ecolor='k', elinewidth=0.5, capsize=2,
+                    mec='k', mew=0.5,
+                    markersize=5, alpha=0.9)
+    else:
+        ax.scatter(all_sites['total_fnew'],
                predictions, label=model_name, color=color,
                edgecolor='k', lw=0.5, s=20, alpha=0.9)
 
@@ -54,17 +72,29 @@ def plot_model_predictions(ax, predictions, model_name, color):
     ax.set_title(model_name)
     ax.set_xticks(np.arange(0, 1.1, 0.5))
     ax.set_yticks(np.arange(0, 1.1, 0.5))
+    ax.legend().remove()
 
 
 # Alternate version with colormap and color normalization
 def plot_model_predictions_cmap(ax, predictions, model_name, clabel, cmap, norm):
     ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
             label='y=x', zorder=-10, lw=1)
-    sc = ax.scatter(all_sites['total_fnew'],
-               predictions, label=model_name,
-               c=all_sites[clabel], cmap=cmap, norm=norm,
-               edgecolor='k', lw=0.5, s=20, alpha=0.9)
-
+    
+    # Plot with different markers for different data sources
+    balesdent_mask = all_sites['C_data_source'] == 'Balesdent et al. 2018'
+    soilgrids_mask = all_sites['C_data_source'] == 'SoilGrids backfill'
+    
+    # Plot Balesdent points with circles
+    sc = ax.scatter(all_sites.loc[balesdent_mask, 'total_fnew'],
+                    predictions[balesdent_mask], label=model_name,
+                    c=all_sites.loc[balesdent_mask, clabel], cmap=cmap, norm=norm,
+                    edgecolor='k', lw=0.5, s=20, alpha=0.9, marker='o')
+    
+    # Plot SoilGrids points with diamonds
+    ax.scatter(all_sites.loc[soilgrids_mask, 'total_fnew'],
+               predictions[soilgrids_mask],
+               c=all_sites.loc[soilgrids_mask, clabel], cmap=cmap, norm=norm,
+               edgecolor='k', lw=0.5, s=20, alpha=0.9, marker='D')
     # calculate metrics
     true_vals = all_sites['total_fnew'].values
     predictions = predictions.values
@@ -90,13 +120,16 @@ def plot_model_predictions_cmap(ax, predictions, model_name, clabel, cmap, norm)
 fig, axs = plt.subplots(1, 3, figsize=(7.24, 2), dpi=300, constrained_layout=True)
 
 plt.sca(axs[0])
-plot_model_predictions(axs[0], powerlaw_predictions['prediction'], 'power law model', pal['dark_blue'])
+powerlaw_err = powerlaw_predictions[['predicted_fnew_05','predicted_fnew_95']].sub(powerlaw_predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T
+plot_model_predictions(axs[0], powerlaw_predictions['predicted_fnew'], 'power law model', pal['dark_blue'],powerlaw_err)
 
 plt.sca(axs[1])
-plot_model_predictions(axs[1], gen_powerlaw_preds_beta['prediction'], 'generalized power law model', pal['blue'])
+gen_powerlaw_err = gen_powerlaw_preds_beta[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_beta['predicted_fnew'], axis=0).abs().fillna(0).values.T
+plot_model_predictions(axs[1], gen_powerlaw_preds_beta['predicted_fnew'], 'generalized power law model', pal['blue'], gen_powerlaw_err)
 
 plt.sca(axs[2])
-plot_model_predictions(axs[2], gen_powerlaw_preds_beta_half['prediction'], 'generalized power law model (beta/2)', pal['light_blue'])
+gen_powerlaw_err_half = gen_powerlaw_preds_beta_half[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_beta_half['predicted_fnew'], axis=0).abs().fillna(0).values.T
+plot_model_predictions(axs[2], gen_powerlaw_preds_beta_half['predicted_fnew'], 'generalized power law model (beta/2)', pal['light_blue'], gen_powerlaw_err_half)
 
 plt.savefig('figures/gen_powerlaw.png', dpi=300, bbox_inches='tight')
 
@@ -112,7 +145,8 @@ continuum_model_titles = ['power law model', 'lognormal model', 'gamma model']
 
 for ax, predictions, title, color in zip(axs[:3], continuum_models,
                                          continuum_model_titles, continuum_model_colors):
-    plot_model_predictions(ax, predictions['prediction'], title, color)
+    err = predictions[['predicted_fnew_05','predicted_fnew_95']].sub(predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T
+    plot_model_predictions(ax, predictions['predicted_fnew'], title, color, err)
 
 ESM_model_colors = [pal['dark_purple'], pal['purple']]
 ESM_models = [CLM45_predictions, JSBACH_predictions]
@@ -145,8 +179,9 @@ for i, (ax, label) in enumerate(zip(axs, "ABCDEFGH")):
             -0.15, 1.1, label, transform=ax.transAxes,
             fontsize=7, va='top', ha='left')
 # %% Save the figure
-out_fname = f'figures/fig3.png'
+out_fname = f'figures/fig3_julia.png'
 plt.savefig(out_fname, dpi=300, bbox_inches='tight')
+plt.savefig('figures/fig3_julia.svg', dpi=300, bbox_inches='tight')
 
 # %% make a supplementary version of the above plot where the points are colored by the
 # timing of the land use change event. Using a log color scale. Also, we now include the 
@@ -169,7 +204,7 @@ continuum_model_titles = ['lognormal model', 'gamma model', 'power law model',
 my_axs = [axs[c] for c in 'ABCDE']
 for ax, predictions, title, color in zip(my_axs, continuum_models,
                                          continuum_model_titles, continuum_model_colors):
-    sc = plot_model_predictions_cmap(ax, predictions['prediction'], title,
+    sc = plot_model_predictions_cmap(ax, predictions['predicted_fnew'], title,
                                      clabel='Duration_labeling', cmap=cmap, norm=norm)
 
 my_axs = [axs[c] for c in 'FG']
@@ -264,7 +299,8 @@ continuum_models = [lognormal_predictions, gamma_predictions, powerlaw_predictio
 continuum_model_titles = ['lognormal model', 'gamma model', 'power law model']
 for ax, predictions, title, color in zip(axs[:3], continuum_models,
                                          continuum_model_titles, continuum_model_colors):
-    plot_model_predictions(ax, predictions['prediction'], title, color) 
+    err = predictions[['predicted_fnew_05','predicted_fnew_95']].sub(predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T
+    plot_model_predictions(ax, predictions['predicted_fnew'], title, color, err) 
 
 for ax, predictions, title, color in zip(axs[3:5], ESM_models,
                                          ESM_model_titles, ESM_model_colors):
@@ -276,7 +312,7 @@ for ax in axs:
 axs[0].set_ylabel('predicted F$_{new}$')
 
 # %% Save the presentation figure
-out_fname = f'figures/fig3_presentation.png'
+out_fname = f'figures/fig3_presentation_julia.png'
 plt.savefig(out_fname, dpi=300, bbox_inches='tight')
 
 # Make a version of the presentation figure where the points are colored by the
@@ -294,7 +330,7 @@ cmap = 'viridis'
 norm = LogNorm(vmin=all_sites['Duration_labeling'].min(), vmax=all_sites['Duration_labeling'].max())
 for ax, predictions, title, color in zip(axs[:3], continuum_models,
                                          continuum_model_titles, continuum_model_colors):
-    sc = plot_model_predictions_cmap(ax, predictions['prediction'], title,
+    sc = plot_model_predictions_cmap(ax, predictions['predicted_fnew'], title,
                                      clabel='Duration_labeling', cmap=cmap, norm=norm)
 
 for ax, predictions, title, color in zip(axs[3:5], ESM_models,
@@ -304,6 +340,6 @@ for ax, predictions, title, color in zip(axs[3:5], ESM_models,
 colorbar_label = 'time since transition (yrs)'
 cbar = plt.colorbar(sc, ax=axs, orientation='vertical', label=colorbar_label, pad=0.01)
 
-plt.savefig('figures/fig3_presentation_colored_by_labeling_duration.png', dpi=300, bbox_inches='tight')
+plt.savefig('figures/fig3_presentation_colored_by_labeling_duration_julia.png', dpi=300, bbox_inches='tight')
 
 # %%

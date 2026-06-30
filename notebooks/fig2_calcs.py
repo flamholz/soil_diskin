@@ -1,12 +1,8 @@
-# %% 
-# if currently in notebooks/ directory, go up one level
+# %%
+# If currently in notebooks/ directory, go up one level.
 import os
 import sys
 
-# Add the notebooks/ directory to the sys.path
-print(os.getcwd())
-
-# If we are in the notebooks/ directory, go up one level
 if os.path.basename(os.getcwd()) == 'notebooks':
     sys.path.append(os.getcwd())
     os.chdir('..')
@@ -15,40 +11,56 @@ if os.path.basename(os.getcwd()) == 'notebooks':
 # %% imports
 import numpy as np
 
-from soil_diskin.continuum_models import PowerLawDisKin
+from soil_diskin.continuum_models import LognormalDisKinFast
+from soil_diskin.radiocarbon_utils import load_atm14c
+import multiprocessing
 from tqdm import tqdm
 
-# %% calculations needed to make figure 2
-# first scan over t_min and t_max to calculate T and R_14C
-# TODO: move all below here a new fig2.py once the 
-# simulation is importable. 
-# TODO: run this separately from the figure 2 plotting code
-# and save the results to a file, since it takes a while to run.
+# %% calculations needed to make figure 2 (lognormal version)
+# Scan over mu and sigma and calculate T and R_14C.
+mu_values = np.linspace(-2.5, 0.0, 100)
+sigma_values = np.linspace(0.1, 2.0, 100)
+MU, SIGMA = np.meshgrid(mu_values, sigma_values, indexing='ij')
 
-# Exemplify calibration of the power-law model.
-# vary t_min and t_max and calculate the turnover T and
-# steady-state radiocarbon ratio. Store these in matrices
-# and plot as contour plots.
-t_min_values = np.linspace(0.1, 10, 100)
-t_max_values = np.linspace(1000, 100000, 100)
-t_min_grid, t_max_grid = np.meshgrid(
-    t_min_values, t_max_values, indexing='ij')
+atm = load_atm14c()
 
-T_matrix = np.zeros((len(t_min_values), len(t_max_values)))
-R_14C_matrix = np.zeros((len(t_min_values), len(t_max_values)))
+T_matrix = np.zeros((len(mu_values), len(sigma_values)))
+R_14C_matrix = np.zeros((len(mu_values), len(sigma_values)))
 
-for i, t_min in enumerate(tqdm(t_min_values, desc='t_min loop')):
-    for j, t_max in enumerate(tqdm(t_max_values, desc='t_max loop', leave=False)):
-        my_model = PowerLawDisKin(t_min=t_min, t_max=t_max)
-        T_matrix[i, j] = my_model.T
-        R_14_C, _err = my_model.calc_radiocarbon_ratio_ss()
 
-        R_14C_matrix[i, j] = R_14_C
+def _init_worker(atm_path):
+    global WORKER_ATM
+    WORKER_ATM = load_atm14c(atm_path)
 
-# %% Save t_min, t_max, T_matrix, R_14C_matrix to a npz file
-np.savez('results/fig2_calcs.npz',
-         t_min_values=t_min_values,
-         t_max_values=t_max_values,
-         T_matrix=T_matrix,
-         R_14C_matrix=R_14C_matrix)
 
+def _compute_cell(task):
+    i, j, mu, sigma = task
+    model = LognormalDisKinFast(mu=mu, sigma=sigma, atm=WORKER_ATM)
+    r14c, _ = model.calc_radiocarbon_ratio_ss()
+    return (i, j, model.T, r14c)
+
+
+# Use multiprocessing when run as a script; otherwise fall back to serial loop
+if __name__ == "__main__":
+    atm_path = "data/14C_atm_annot.csv"
+    # build list of tasks
+    tasks = [(i, j, mu_values[i], sigma_values[j]) for i in range(len(mu_values)) for j in range(len(sigma_values))]
+
+    cpu_count = max(1, multiprocessing.cpu_count() - 1)
+    with multiprocessing.Pool(processes=cpu_count, initializer=_init_worker, initargs=(atm_path,)) as pool:
+        pbar = tqdm(total=len(tasks), desc='cells', unit='cell')
+        for i, j, Tval, rval in pool.imap_unordered(_compute_cell, tasks, chunksize=16):
+            T_matrix[i, j] = Tval
+            R_14C_matrix[i, j] = rval
+            pbar.update(1)
+        pbar.close()
+    # %% Save grids and outputs to an npz file.
+    np.savez(
+        'results/fig2_calcs.npz',
+        mu_values=mu_values,
+        sigma_values=sigma_values,
+        MU=MU,
+        SIGMA=SIGMA,
+        T_matrix=T_matrix,
+        R_14C_matrix=R_14C_matrix,
+    )

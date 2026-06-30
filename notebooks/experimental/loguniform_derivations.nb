@@ -1,0 +1,224 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 14.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      7340,        214]
+NotebookOptionsPosition[      6295,        191]
+NotebookOutlinePosition[      6693,        207]
+CellTagsIndexPosition[      6650,        204]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(*", 
+   RowBox[{"Parameters", ":", 
+    RowBox[{"0", "<", "a", "<", "b"}]}], "*)"}], 
+  RowBox[{
+   RowBox[{"Clear", "[", 
+    RowBox[{"a", ",", "b", ",", "s", ",", "x"}], "]"}], "\n", 
+   "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"assumptions", "=", 
+     RowBox[{"0", "<", "a", "<", "b"}]}], ";"}], "\[IndentingNewLine]", "\n", 
+   
+   RowBox[{"(*", 
+    RowBox[{"Log", "-", 
+     RowBox[{"uniform", " ", "PDF"}]}], "*)"}], "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"pdf", "[", "x_", "]"}], ":=", 
+     RowBox[{"1", "/", 
+      RowBox[{"(", 
+       RowBox[{"x", " ", 
+        RowBox[{"Log", "[", 
+         RowBox[{"b", "/", "a"}], "]"}]}], ")"}]}]}], ";"}], 
+   "\[IndentingNewLine]", "\n", 
+   RowBox[{"(*", 
+    RowBox[{"Laplace", " ", "transform"}], "*)"}], "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"L", "[", "s_", "]"}], ":=", 
+     RowBox[{"Integrate", "[", 
+      RowBox[{
+       RowBox[{
+        RowBox[{"Exp", "[", 
+         RowBox[{
+          RowBox[{"-", "s"}], " ", "x"}], "]"}], " ", 
+        RowBox[{"pdf", "[", "x", "]"}]}], ",", 
+       RowBox[{"{", 
+        RowBox[{"x", ",", "a", ",", "b"}], "}"}], ",", 
+       RowBox[{"Assumptions", "->", "assumptions"}]}], "]"}]}], ";"}], 
+   "\[IndentingNewLine]", "\n", 
+   RowBox[{"(*", 
+    RowBox[{"Display", " ", "the", " ", "transform"}], "*)"}], 
+   "\[IndentingNewLine]", 
+   RowBox[{"laplaceResult", "=", 
+    RowBox[{"FullSimplify", "[", 
+     RowBox[{
+      RowBox[{"L", "[", "s", "]"}], ",", "assumptions"}], "]"}]}], 
+   "\[IndentingNewLine]", "\n", 
+   RowBox[{"(*", 
+    RowBox[{
+    "Integrate", " ", "the", " ", "Laplace", " ", "transform", " ", "from", 
+     " ", "0", " ", "to", " ", "Infinity"}], "*)"}], "\[IndentingNewLine]", 
+   RowBox[{"integratedLT", "=", 
+    RowBox[{"FullSimplify", "[", 
+     RowBox[{
+      RowBox[{"Integrate", "[", 
+       RowBox[{
+        RowBox[{"L", "[", "s", "]"}], ",", 
+        RowBox[{"{", 
+         RowBox[{"s", ",", "0", ",", "Infinity"}], "}"}], ",", 
+        RowBox[{"Assumptions", "->", "assumptions"}]}], "]"}], ",", 
+      "assumptions"}], "]"}]}], "\[IndentingNewLine]", "\n", 
+   RowBox[{"(*", 
+    RowBox[{"Expected", " ", "reciprocal", " ", 
+     RowBox[{"E", "[", 
+      RowBox[{"1", "/", "X"}], "]"}]}], "*)"}], "\[IndentingNewLine]", 
+   RowBox[{"expectedInverse", "=", 
+    RowBox[{"FullSimplify", "[", 
+     RowBox[{
+      RowBox[{"Integrate", "[", 
+       RowBox[{
+        RowBox[{
+         RowBox[{"(", 
+          RowBox[{"1", "/", "x"}], ")"}], " ", 
+         RowBox[{"pdf", "[", "x", "]"}]}], ",", 
+        RowBox[{"{", 
+         RowBox[{"x", ",", "a", ",", "b"}], "}"}], ",", 
+        RowBox[{"Assumptions", "->", "assumptions"}]}], "]"}], ",", 
+      "assumptions"}], "]"}]}], "\[IndentingNewLine]", "\n", 
+   RowBox[{"(*", 
+    RowBox[{"Verify", " ", "equality"}], "*)"}], "\[IndentingNewLine]", 
+   RowBox[{"verification", "=", 
+    RowBox[{"FullSimplify", "[", 
+     RowBox[{
+      RowBox[{"integratedLT", "==", "expectedInverse"}], ",", "assumptions"}],
+      "]"}]}], "\[IndentingNewLine]", "\n", 
+   RowBox[{"(*", 
+    RowBox[{"Optional", ":", 
+     RowBox[{"numerical", " ", "test"}]}], "*)"}], "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"params", "=", 
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{"a", "->", "2"}], ",", 
+       RowBox[{"b", "->", "10"}]}], "}"}]}], ";"}], "\n", 
+   "\[IndentingNewLine]", 
+   RowBox[{"N", "[", 
+    RowBox[{
+     RowBox[{"laplaceResult", "/.", " ", "params"}], "/.", " ", 
+     RowBox[{"s", "->", "1"}]}], "]"}], "\n", 
+   RowBox[{"N", "[", 
+    RowBox[{"integratedLT", "/.", " ", "params"}], "]"}], "\n", 
+   RowBox[{"N", "[", 
+    RowBox[{"expectedInverse", "/.", " ", "params"}], "]"}]}]}]], "Input",
+ CellChangeTimes->{{3.98705264972447*^9, 3.987052649726384*^9}},
+ CellLabel->
+  "In[212]:=",ExpressionUUID->"38f8938a-3641-4f03-9228-b9f8bff8bdef"],
+
+Cell[BoxData[
+ FractionBox[
+  RowBox[{
+   RowBox[{"-", 
+    RowBox[{"ExpIntegralEi", "[", 
+     RowBox[{
+      RowBox[{"-", "a"}], " ", "s"}], "]"}]}], "+", 
+   RowBox[{"ExpIntegralEi", "[", 
+    RowBox[{
+     RowBox[{"-", "b"}], " ", "s"}], "]"}]}], 
+  RowBox[{"Log", "[", 
+   FractionBox["b", "a"], "]"}]]], "Output",
+ CellChangeTimes->{3.987052651336803*^9},
+ CellLabel->
+  "Out[216]=",ExpressionUUID->"9365a704-60bc-4c11-b97d-955bec3f6202"],
+
+Cell[BoxData[
+ FractionBox[
+  RowBox[{"a", "-", "b"}], 
+  RowBox[{
+   RowBox[{"a", " ", "b", " ", 
+    RowBox[{"Log", "[", "a", "]"}]}], "-", 
+   RowBox[{"a", " ", "b", " ", 
+    RowBox[{"Log", "[", "b", "]"}]}]}]]], "Output",
+ CellChangeTimes->{3.987052652949909*^9},
+ CellLabel->
+  "Out[217]=",ExpressionUUID->"74b39960-4642-475c-a959-9c8fba24be34"],
+
+Cell[BoxData[
+ FractionBox[
+  RowBox[{
+   FractionBox["1", "a"], "-", 
+   FractionBox["1", "b"]}], 
+  RowBox[{"Log", "[", 
+   FractionBox["b", "a"], "]"}]]], "Output",
+ CellChangeTimes->{3.987052653091815*^9},
+ CellLabel->
+  "Out[218]=",ExpressionUUID->"f271c0bf-4a7a-411f-895d-a0f770f5b84b"],
+
+Cell[BoxData["True"], "Output",
+ CellChangeTimes->{3.987052653164899*^9},
+ CellLabel->
+  "Out[219]=",ExpressionUUID->"236f50b2-5445-4ecd-82ba-1ab806f753c8"],
+
+Cell[BoxData["0.03038101275070687`"], "Output",
+ CellChangeTimes->{3.987052653168169*^9},
+ CellLabel->
+  "Out[221]=",ExpressionUUID->"3270f31c-4672-435f-b5f8-5690adfe8eef"],
+
+Cell[BoxData["0.24853397382384468`"], "Output",
+ CellChangeTimes->{3.987052653168579*^9},
+ CellLabel->
+  "Out[222]=",ExpressionUUID->"3d1dd825-f86c-431b-a1cb-0ad5be6ab6e9"],
+
+Cell[BoxData["0.24853397382384476`"], "Output",
+ CellChangeTimes->{3.987052653168881*^9},
+ CellLabel->
+  "Out[223]=",ExpressionUUID->"6748ca8c-9436-4a43-875f-176dff2b6d92"]
+}, Open  ]]
+},
+WindowSize->{808, 911},
+WindowMargins->{{Automatic, 727}, {59, Automatic}},
+FrontEndVersion->"14.0 for Mac OS X ARM (64-bit) (December 12, 2023)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"550298bc-1f77-4329-b535-b5d9e3b16edc"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 3919, 107, 640, "Input",ExpressionUUID->"38f8938a-3641-4f03-9228-b9f8bff8bdef"],
+Cell[4502, 131, 444, 14, 62, "Output",ExpressionUUID->"9365a704-60bc-4c11-b97d-955bec3f6202"],
+Cell[4949, 147, 351, 10, 53, "Output",ExpressionUUID->"74b39960-4642-475c-a959-9c8fba24be34"],
+Cell[5303, 159, 292, 9, 69, "Output",ExpressionUUID->"f271c0bf-4a7a-411f-895d-a0f770f5b84b"],
+Cell[5598, 170, 156, 3, 34, "Output",ExpressionUUID->"236f50b2-5445-4ecd-82ba-1ab806f753c8"],
+Cell[5757, 175, 172, 3, 34, "Output",ExpressionUUID->"3270f31c-4672-435f-b5f8-5690adfe8eef"],
+Cell[5932, 180, 172, 3, 34, "Output",ExpressionUUID->"3d1dd825-f86c-431b-a1cb-0ad5be6ab6e9"],
+Cell[6107, 185, 172, 3, 34, "Output",ExpressionUUID->"6748ca8c-9436-4a43-875f-176dff2b6d92"]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)
+

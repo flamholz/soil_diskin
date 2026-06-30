@@ -5,11 +5,6 @@ if os.getcwd().endswith('notebooks'):
 
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from itertools import product
-from permetrics.regression import RegressionMetric
-from sklearn.metrics import r2_score, root_mean_squared_error
 from scipy.interpolate import interp1d
 
 # %%
