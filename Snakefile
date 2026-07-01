@@ -187,14 +187,14 @@ rule run_lognormal_calibration_python:
         python notebooks/03b_lognormal_calibration.py
         """
 
-# Step 03d: Calibrate gamma model
-rule calibrate_gamma:
+# Step 03d: Calibrate weibull model
+rule calibrate_weibull:
     input:
         "results/all_sites_14C_turnover.csv"
     output:
-        "results/03_calibrate_models/gamma_model_optimization_results.csv"
+        "results/03_calibrate_models/weibull_model_optimization_results.csv"
     script:
-        "notebooks/03d_calibrate_gamma_model.py"
+        "notebooks/03d_calibrate_weibull_model.py"
 
 # Step 04: Generate and collect model predictions for analysis and figures
 # Lognormal predictions (Python-based pipeline used for figures)
@@ -233,9 +233,9 @@ rule continuum_model_predictions:
         "results/04_model_predictions/04b_lognormal_cdfs_python.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
-        "results/03_calibrate_models/gamma_model_optimization_results.csv"
+        "results/03_calibrate_models/weibull_model_optimization_results.csv"
     output:
-        "results/04_model_predictions/gamma_model_predictions.csv",
+        "results/04_model_predictions/weibull_model_predictions.csv",
         "results/04_model_predictions/power_law_model_predictions.csv",
         "results/04_model_predictions/lognormal_model_predictions.csv",
         "results/04_model_predictions/general_power_law_model_predictions.csv",
@@ -290,7 +290,6 @@ rule turnover_sensitivity_analysis_powerlaw_gamma:
         "results/all_sites_14C_turnover.csv",
     output:
         "results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results.csv",
-        "results/06_sensitivity_analysis/gamma_turnover_sensitivity_results.csv",
     script:
         "notebooks/06a_turnover_sensitivity.py"
 
@@ -355,7 +354,6 @@ rule vegetation_effects_sensitivity_analysis:
         'data/balesdent_2018/balesdent_2018_raw.xlsx',
         'results/processed_balesdent_2018.csv',
         'results/03_calibrate_models/powerlaw_model_optimization_results.csv',
-        'results/03_calibrate_models/gamma_model_optimization_results.csv',
         'results/06_sensitivity_analysis/06a_lognormal_cdfs_1.csv', 
     output:
         'results/06_sensitivity_analysis/06c_model_predictions_veg_effects.csv',
@@ -396,7 +394,7 @@ rule plot_fig2:
 
 rule fig4_calcs:
     input:
-        "results/04_model_predictions/gamma_model_predictions.csv",
+        "results/04_model_predictions/weibull_model_predictions.csv",
         "results/04_model_predictions/power_law_model_predictions.csv",
         "results/04_model_predictions/lognormal_model_predictions.csv",
         "results/04_model_predictions/general_power_law_model_predictions.csv",
@@ -413,7 +411,7 @@ rule fig4_calcs:
 
 rule plot_fig4:
     input:
-        "results/04_model_predictions/gamma_model_predictions.csv",
+        "results/04_model_predictions/weibull_model_predictions.csv",
         "results/04_model_predictions/power_law_model_predictions.csv",
         "results/04_model_predictions/lognormal_model_predictions.csv",
         "results/04_model_predictions/general_power_law_model_predictions.csv",

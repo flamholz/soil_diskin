@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 from scipy.interpolate import interp1d
-from soil_diskin.continuum_models import GammaDisKin, PowerLawDisKin, GeneralPowerLawDisKin
+from soil_diskin.continuum_models import GammaDisKin, PowerLawDisKin, GeneralPowerLawDisKin, WeibullDisKin
 
 """
 Collects the continuum model predictions for all sites and saves them to CSV files.
@@ -88,6 +88,18 @@ general_power_law_params = pd.read_csv(f'results/03_calibrate_models/{fname}')
 print("Generating generalized power-law model predictions...")
 result = generate_predictions(GeneralPowerLawDisKin, general_power_law_params, ['t_min', 't_max', 'beta'])
 result.to_csv('results/04_model_predictions/general_power_law_model_predictions_beta_half.csv', index=False)
+
+
+#%% Weibull / hockey-stick model
+fname = 'weibull_model_optimization_results.csv'
+weibull_params = pd.read_csv(f'results/03_calibrate_models/{fname}')
+
+result = generate_predictions(WeibullDisKin, weibull_params, ['k', 'alpha'])
+
+output_path = 'results/04_model_predictions/weibull_model_predictions.csv'
+result.to_csv(output_path, index=False)
+print(f'wrote {output_path}')
+
 
 #%% Lognormal model
 
