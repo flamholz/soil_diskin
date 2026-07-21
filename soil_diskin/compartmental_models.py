@@ -154,19 +154,49 @@ class CLM5(CompartmentalModel):
         
         self.K_ts = np.stack(
             [self.make_K_matrix(
-                self.config.taus, 
+                self.config.taus,
                 np.array(self.config.zsoi),
-                self.env.w[t,:], 
-                self.env.t[t,:], 
-                self.env.o[t,:], 
+                self.env.w[t,:],
+                self.env.t[t,:],
+                self.env.o[t,:],
                 self.env.n[t,:],
                 self.config.decomp_depth_efolding,
                 self.config.nlevels) for t in range(12)
             ]
         )
 
+        # Precompute the monthly state operators (A @ K_t - V) used by _dX.
+        # They depend only on A, K_ts and V, which are fixed after construction,
+        # so building them once saves a 70x70 matmul on every ODE right-hand
+        # side evaluation.
+        # errstate guards against a spurious numpy "divide by zero in matmul"
+        # RuntimeWarning from the SIMD kernel on finite inputs; it also keeps
+        # grid cells whose scalars are legitimately NaN (e.g. ocean) quiet.
+        with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
+            self._ops = np.stack(
+                [self.A @ self.K_ts[t] - self.V for t in range(12)]
+            )
+
         self.X_size = self.I.shape[1]
-    
+
+    @property
+    def I(self):
+        """Carbon input to litter/CWD pools, shape (12, npools * nlevels)."""
+        return self._I
+
+    @I.setter
+    def I(self, value):
+        """Set the inputs, keeping a plain-ndarray copy in sync.
+
+        _dX is evaluated millions of times by the ODE solvers, and indexing the
+        xarray directly costs ~99 us per call versus ~0.1 us for an ndarray.
+        Caching via the setter (rather than once in __init__) means callers that
+        reassign model.I after construction -- e.g. the unit rescaling in
+        tests/test_CLM_models.py -- still get the right values in _dX.
+        """
+        self._I = value
+        self._I_np = np.asarray(value)
+
     @classmethod
     def make_V_matrix(self, Gamma_soil, F_soil, npools, nlevels,
                     dz, dz_node, zsoi, zisoi):
@@ -373,37 +403,21 @@ class CLM5(CompartmentalModel):
             dX: change in state matrix of C pools
         """
         assert tres in ['M','Y'], "tres must be 'M' or 'Y'"
-        # print('t:', t)
         if tres == 'Y':
             t_ind = int((t % (1 / 12)) * 12 * 12) # t is in units of years, and the dt for the I, T and P is in months, so we multiply by 12 to get the index
         else:
             t_ind = int(t % 12) # t is in units of months
-        I_t = self.I[t_ind,:].values
-        
-        taus = self.config.taus
-        zsoi = self.config.zsoi
-        w_scalar = self.env.w
-        t_scalar = self.env.t
-        o_scalar = self.env.o
-        n_scalar = self.env.n
-        decomp_depth_efolding = self.config.decomp_depth_efolding
-        nlevels = self.config.nlevels
+        I_t = self._I_np[t_ind]
 
-        # K_t = self.make_K_matrix(taus, zsoi,
-        #                     w_scalar[t_ind,:], t_scalar[t_ind,:], o_scalar[t_ind,:], n_scalar[t_ind,:],
-        #                     decomp_depth_efolding, nlevels)
-
-        
-        # dX = I_t + (self.A @ K_t - self.V) @ X#.values
         # This hack solves a problem that arises because X
-        # is a xarray object when called from our tests but 
-        # an np.ndarray when called from the model run. 
+        # is a xarray object when called from our tests but
+        # an np.ndarray when called from the model run.
         # TODO: make sure the unit tests cover both cases.
         if not isinstance(X, np.ndarray):
             dX = X.copy()
-            dX.data = I_t + (self.A @ self.K_ts[t_ind, :, :] - self.V) @ X.values
+            dX.data = I_t + self._ops[t_ind] @ X.values
         else:
-            dX = I_t + (self.A @ self.K_ts[t_ind, :, :] - self.V) @ X
+            dX = I_t + self._ops[t_ind] @ X
 
         return dX
     
