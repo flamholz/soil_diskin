@@ -34,8 +34,8 @@ SIGMA, MU = np.meshgrid(sigma_values, mu_values, indexing='xy')
 
 # %% For a few target T and R_14C values, find the model
 # parameters that best reproduce those values.
-target_Ts = [32, 34, 36]
-target_R_14Cs = [1.09, 1.04, 0.92]
+target_Ts = [1.9, 12.0, 36, 12.1]
+target_R_14Cs = [1.096, 1.117, 0.92, 1.166]
 calibrated_Ts = []
 calibrated_R_14Cs = []
 calibrated_models = []
@@ -60,19 +60,14 @@ for target_T, target_R_14C in zip(target_Ts, target_R_14Cs):
     calibrated_R_14Cs.append(R_14C_matrix[min_idx])
     calibrated_models.append(LognormalDisKinFast(mu=mu_cal, sigma=sigma_cal, atm=atm))
 
+calibrated_colors = [colors[c] for c in ['dark_green', 'purple', 'dark_blue', 'red']]
+print('(T, R_14C, hex_color)')
+for T, R, color in zip(calibrated_Ts, calibrated_R_14Cs, calibrated_colors):
+    print(f'  ({T:.1g}, {R:.1g}, {color!r})')
+
 # %% Plot figure 2, which diagrams the calibration procedure.
 mosaic = 'ABC\nDEF'
 fig, axs = plt.subplot_mosaic(mosaic, layout='constrained', figsize=(7.24, 4))
-
-# --- band constants and plotting helpers ---
-BAND_LOW = 30
-BAND_HIGH = 40
-BAND_ALPHA = 0.35
-BAND_COLOR_B = "#ac9304"
-BAND_COLOR_C = "#fff4b2"
-
-# single mask reused across panels
-mask_band = (T_matrix >= BAND_LOW) & (T_matrix <= BAND_HIGH)
 
 def plot_calibrated_markers(ax, models, colors, s=15, lw=1.5):
     for my_model, color in zip(models, colors):
@@ -91,13 +86,6 @@ cbar = fig.colorbar(cf, ax=ax, label='Turnover Time (years)')
 cbar.ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
 cbar.ax.yaxis.set_major_formatter(FormatStrFormatter('%.0f'))
 
-# Highlight band with translucent fill and dashed contours
-ax.contourf(SIGMA, MU, mask_band.astype(int), levels=[0.5, 1.5],
-            colors=[BAND_COLOR_B], alpha=BAND_ALPHA, zorder=2)
-ax.contour(SIGMA, MU, T_matrix, levels=[BAND_LOW, BAND_HIGH], colors='k',
-           linestyles='--', linewidths=0.5, zorder=3)
-
-calibrated_colors = [colors[c] for c in ['dark_green', 'purple', 'dark_blue']]
 plot_calibrated_markers(ax, calibrated_models, calibrated_colors)
 
 ax.set_xlabel(r'lognormal $\sigma$')
@@ -110,12 +98,6 @@ ax = axs['C']
 rmin, rmax = np.nanmin(R_14C_matrix), np.nanmax(R_14C_matrix)
 levels_R = np.linspace(rmin, rmax, 10)
 cf2 = ax.contourf(SIGMA, MU, R_14C_matrix, levels=levels_R, cmap='Greys', vmin=rmin, vmax=rmax)
-# Overlay the same T-band highlight on Panel C (use shared mask_band)
-ax.contourf(SIGMA, MU, mask_band.astype(int), levels=[0.5, 1.5],
-            colors=[BAND_COLOR_C], alpha=BAND_ALPHA, zorder=2)
-ax.contour(SIGMA, MU, T_matrix, levels=[BAND_LOW, BAND_HIGH], colors='k', linestyles='--', linewidths=0.5,
-           zorder=3)
-
 cbar2 = fig.colorbar(cf2, ax=ax, label='$^{14}C / ^{12}C$')
 # fewer, nicely formatted ticks for radiocarbon ratio
 cbar2.ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
@@ -158,7 +140,7 @@ for my_model, color in zip(calibrated_models, calibrated_colors):
     cdf_A = integrate.cumulative_trapezoid(pA_normalized, ages_cdf, initial=0)
     plt.plot(ages_cdf, cdf_A, color=color, lw=2)
 
-obs_age, obs_CDF = 100, 0.67
+obs_age, obs_CDF = 100, 0.446
 plt.scatter([obs_age], [obs_CDF], color='none',
             edgecolor='k', marker='o', s=15, lw=1,
             zorder=10)
