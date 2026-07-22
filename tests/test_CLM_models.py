@@ -263,7 +263,7 @@ class TestCLM45FnewAccuracy(unittest.TestCase):
 
     is the fraction of soil carbon younger than age `a`. The ground truth here
     is the definition of that quantity, simulated directly in the style of
-    notebooks/tracer_simulation_test.ipynb: carry a labeled and an unlabeled
+    notebooks/clm_tracer_test.ipynb: carry a labeled and an unlabeled
     pool and take F_new = labeled / (labeled + unlabeled).
 
     Both are evaluated on the annual-mean operator M = A K_bar - V, so this
