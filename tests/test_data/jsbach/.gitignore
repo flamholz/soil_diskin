@@ -1,0 +1,6 @@
+# Build products of testing_src/run_yasso_test.sh, regenerated on every run
+build_temp/
+testing_src/test_yasso_call
+*.mod
+*.o
+yasso_output.csv
