@@ -26,7 +26,7 @@ powerlaw_predictions = pd.read_csv('results/04_model_predictions/power_law_model
 gen_powerlaw_preds_beta = pd.read_csv('results/04_model_predictions/general_power_law_model_predictions.csv')
 gen_powerlaw_preds_beta_half = pd.read_csv('results/04_model_predictions/general_power_law_model_predictions_beta_half.csv')
 lognormal_predictions = pd.read_csv('results/04_model_predictions/lognormal_model_predictions.csv')
-gamma_predictions = pd.read_csv('results/04_model_predictions/gamma_model_predictions.csv')
+weibull_predictions = pd.read_csv('results/04_model_predictions/weibull_model_predictions.csv')
 CLM45_predictions = pd.read_csv('results/04_model_predictions/CLM45_fnew.csv', header=None, names=['prediction'])
 JSBACH_predictions = pd.read_csv('results/04_model_predictions/JSBACH_fnew.csv', header=None, names=['prediction'])
 RCM_predictions = pd.read_csv('results/04_model_predictions/RCM.csv')
@@ -191,9 +191,9 @@ cmap = 'viridis'
 norm = LogNorm(vmin=all_sites['Duration_labeling'].min(), vmax=all_sites['Duration_labeling'].max())
 cnames = 'dark_blue,blue,light_blue,dark_grey'.split(',')
 continuum_model_colors = [pal[c] for c in cnames] + ['grey']
-continuum_models = [lognormal_predictions, gamma_predictions, powerlaw_predictions,
+continuum_models = [lognormal_predictions, weibull_predictions, powerlaw_predictions,
                     gen_powerlaw_preds_beta, gen_powerlaw_preds_beta_half]
-continuum_model_titles = ['lognormal model', 'gamma model', 'power law model ($\\alpha = 1$)',
+continuum_model_titles = ['lognormal model', 'hockey-stick model', 'power law model ($\\alpha = 1$)',
                           'power law ($\\alpha = e^{-\\gamma}$)',
                           'power law ($\\alpha = e^{-\\gamma}/2$)']
 my_axs = [axs[c] for c in 'ABCDE']
@@ -228,11 +228,11 @@ for c in 'AF':
 metric_dists = pd.read_csv('results/fig4_calcs.csv')
 kge_data = metric_dists[metric_dists['metric'] == 'KGE']
 # Order -- continuum, then ESM, then reduced complexity
-order = ['Lognormal', 'Gamma', 'Power-law',
+order = ['Lognormal', 'Hockey-stick', 'Power-law',
          'Gen. Power-law (a=exp(-gamma))',
          'Gen. Power-law (a=exp(-gamma)/2)',
          'CLM4.5', 'JSBACH', 'CESM1', 'IPSL-CM5A-LR', 'MRI-ESM1']
-xlabels = ['lognormal', 'gamma', 'power law\n($\\alpha = 1$)',
+xlabels = ['lognormal', 'hockey-stick', 'power law\n($\\alpha = 1$)',
            'power law\n($\\alpha = e^{-\\gamma}$)',
            'power law\n($\\alpha = e^{-\\gamma}/2$)',
            'CLM4.5',  'JSBACH', 'CESM1 (RC)', 'IPSL-CM5A-LR (RC)', 'MRI-ESM1 (RC)']
@@ -280,10 +280,10 @@ fig, axs = plt.subplots(nrows=1, ncols=5, figsize=(7.24, 1.75),
                         dpi=300, constrained_layout=True,
                         sharex=False, sharey=True)
 
-# for presentation, want lognormal, gamma, powerlaw, in that order
+# for presentation, want lognormal, weibull, powerlaw, in that order
 continuum_model_colors = [pal['dark_blue'], pal['blue'], pal['light_blue']]
-continuum_models = [lognormal_predictions, gamma_predictions, powerlaw_predictions]
-continuum_model_titles = ['lognormal model', 'gamma model', 'power law model']
+continuum_models = [lognormal_predictions, weibull_predictions, powerlaw_predictions]
+continuum_model_titles = ['lognormal model', 'hockey-stick model', 'power law model']
 for ax, predictions, title, color in zip(axs[:3], continuum_models,
                                          continuum_model_titles, continuum_model_colors):
     err = predictions[['predicted_fnew_05','predicted_fnew_95']].sub(predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T

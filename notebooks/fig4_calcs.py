@@ -14,7 +14,7 @@ powerlaw_predictions = pd.read_csv('results/04_model_predictions/power_law_model
 gen_powerlaw_preds_alpha = pd.read_csv('results/04_model_predictions/general_power_law_model_predictions.csv')
 gen_powerlaw_preds_alpha_half = pd.read_csv('results/04_model_predictions/general_power_law_model_predictions_beta_half.csv')
 lognormal_predictions = pd.read_csv('results/04_model_predictions/lognormal_model_predictions.csv')
-gamma_predictions = pd.read_csv('results/04_model_predictions/gamma_model_predictions.csv')
+weibull_predictions = pd.read_csv('results/04_model_predictions/weibull_model_predictions.csv')
 CLM45_predictions = pd.read_csv('results/04_model_predictions/CLM45_fnew.csv', header=None, names=['prediction'])
 JSBACH_predictions = pd.read_csv('results/04_model_predictions/JSBACH_fnew.csv', header=None, names=['prediction'])
 RCM_predictions = pd.read_csv('results/04_model_predictions/RCM.csv')
@@ -26,7 +26,7 @@ results = { 'Power-law': {'RMSE': [], 'KGE': []},
             'Gen. Power-law (a=exp(-gamma))': {'RMSE': [], 'KGE': []},
             'Gen. Power-law (a=exp(-gamma)/2)': {'RMSE': [], 'KGE': []},
             'Lognormal': {'RMSE': [], 'KGE': []},
-            'Gamma': {'RMSE': [], 'KGE': []},
+            'Hockey-stick': {'RMSE': [], 'KGE': []},
             'CLM4.5': {'RMSE': [], 'KGE': []},
             'JSBACH': {'RMSE': [], 'KGE': []},
           }
@@ -64,13 +64,13 @@ def analyze_model(model_type, df, samples, true_vals, results_acc):
 # Run the bootstrap resampling
 print('Running bootstrap resampling to estimate RMSE and KGE distributions...')
 model_types = ['Power-law', 'Gen. Power-law (a=exp(-gamma))', 'Gen. Power-law (a=exp(-gamma)/2)',
-               'Lognormal', 'Gamma', 'CLM4.5', 'JSBACH'] + list(RCM_predictions.columns)
+               'Lognormal', 'Hockey-stick', 'CLM4.5', 'JSBACH'] + list(RCM_predictions.columns)
 prediction_dfs = [
     powerlaw_predictions,
     gen_powerlaw_preds_alpha,
     gen_powerlaw_preds_alpha_half,
     lognormal_predictions,
-    gamma_predictions,
+    weibull_predictions,
     CLM45_predictions,
     JSBACH_predictions] + [RCM_predictions[col] for col in RCM_predictions.columns]
 for mt, df in zip(model_types, prediction_dfs):

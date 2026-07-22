@@ -5,7 +5,7 @@ from collections import namedtuple
 from scipy.interpolate import interp1d
 from soil_diskin.constants import SECS_PER_DAY, DAYS_PER_YEAR, T_MELT
 from soil_diskin.compartmental_models import JSBACH
-from soil_diskin.age_dist_utils import predict_fnew
+from soil_diskin.age_dist_utils import calc_age_dist_cdf
 from joblib import Parallel, delayed, parallel_backend
 
 
@@ -54,29 +54,28 @@ def get_env_params(row):
     return namedtuple('EnvParams', ['I', 'T', 'P', 'd'])(I, T, P, d)
 
 
-def JSBACH_predict_site(row, tmax):
-    """Predict the age distribution for a given site using the JSBACH model."""
+def JSBACH_predict_site(row):
+    """Predict F_new for a given site using the JSBACH model.
+
+    Uses the analytical steady-state age CDF rather than a tracer run. JSBACH is
+    linear, dX/dt = I(t) u + (A K(t)) X, so with the annual-mean operator
+    M = A K_bar and mean input I_bar = mean(I) u, calc_age_dist_cdf normalizes
+    by xss = -M^-1 I_bar (the steady state) instead of by the tracer total at
+    tmax, and is evaluated directly at the site's labeling duration.
+    """
     env_params = get_env_params(row)
-    age_CDF = predict_fnew(JSBACH, JSBACH_config, env_params, tmax)
-
-    return age_CDF
-
-tmax = 100_000  # maximum time in years
+    model = JSBACH(JSBACH_config, env_params)
+    M = model.A @ model.K.mean(axis=0)
+    I_bar = np.asarray(model.I).mean() * model.u
+    return calc_age_dist_cdf(M, I_bar, row['Duration_labeling']).squeeze(axis=-1)
 
 with parallel_backend('loky', n_jobs=-1):
     JSBACH_predictions = Parallel(verbose=1)(
-        delayed(JSBACH_predict_site)(site_data.iloc[i], tmax) for i in range(len(site_data))
+        delayed(JSBACH_predict_site)(site_data.iloc[i]) for i in range(len(site_data))
     )
-# JSBACH_predictions = pd.DataFrame([JSBACH_predict_site(site_data.iloc[i], tmax) for i in range(len(site_data))])
-JSBACH_predictions = pd.DataFrame(JSBACH_predictions)
-JSBACH_predictions.columns = np.logspace(-1, np.log10(tmax), 1000)  # time in years
-JSBACH_fnew_predictions = np.array([interp1d(JSBACH_predictions.columns, JSBACH_predictions.iloc[1])(site_data.iloc[i]['Duration_labeling']) for i in range(len(site_data))])
+JSBACH_fnew_predictions = np.array(JSBACH_predictions)
 
 # Save the model predictions
-out_fname = f'results/04_model_predictions/JSBACH.csv'
-print(f"Saving JSBACH predictions to {out_fname} ...")
-JSBACH_predictions.to_csv(out_fname, index=False)
-
 new_format_fname = f'results/04_model_predictions/JSBACH_fnew.csv'
 print(f"Saving JSBACH fnew predictions to {new_format_fname} ...")
 np.savetxt(new_format_fname, JSBACH_fnew_predictions)
