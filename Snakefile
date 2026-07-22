@@ -252,7 +252,6 @@ rule CLM45_model_predictions:
         "results/processed_balesdent_2018.csv",
         "results/all_sites_14C_turnover.csv",
     output:
-        "results/04_model_predictions/CLM45.csv",
         "results/04_model_predictions/CLM45_fnew.csv"
     script:
         "notebooks/04_CLM45_model_predictions.py"
@@ -266,7 +265,6 @@ rule JSBACH_model_predictions:
         "results/processed_balesdent_2018.csv",
         "results/all_sites_14C_turnover.csv",
     output:
-        "results/04_model_predictions/JSBACH.csv",
         "results/04_model_predictions/JSBACH_fnew.csv"
     script:
         "notebooks/04_JSBACH_model_predictions.py"

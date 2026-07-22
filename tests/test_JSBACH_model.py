@@ -1,4 +1,5 @@
 import os
+import shutil
 import unittest
 import numpy as np
 import pandas as pd
@@ -14,6 +15,17 @@ import subprocess
 JSBACH_FORCING_DIR = 'data/model_params/JSBACH'
 JSBACH_FORCING_FILES = [f'{JSBACH_FORCING_DIR}/JSBACH_S3_{v}.nc'
                         for v in ('tas', 'pr', 'npp')]
+
+# The Fortran reference is the unmodified JSBACH yasso routine, built on demand.
+# Neither the sources nor the compiler are in git, so the comparison is skipped
+# where they are unavailable.
+JSBACH_FORTRAN_DIR = 'tests/test_data/jsbach'
+JSBACH_FORTRAN_RUNNER = f'{JSBACH_FORTRAN_DIR}/testing_src/run_yasso_test.sh'
+JSBACH_FORTRAN_OUTPUT = f'{JSBACH_FORTRAN_DIR}/yasso_output.csv'
+
+# days_per_year in mo_carbon_constants.f90; yasso steps with 1/365.25 of a year,
+# which differs from the 365 that DAYS_PER_YEAR uses elsewhere in this project.
+JSBACH_DAYS_PER_YEAR = 365.25
 
 class TestJSBACH(unittest.TestCase):
     """Test suite for JSBACH compartmental model."""
@@ -31,9 +43,6 @@ class TestJSBACH(unittest.TestCase):
             d=0.1  # CWD diameter
         )
 
-        # compile and run a test version of the Fortran JSBACH model. The code for this example run is in the testing_src directory
-        subprocess.call('tests/test_data/jsbach/testing_src/run_yasso_test.sh')
-
     def test_initialization(self):
         """Test that JSBACH can be instantiated."""
         model = JSBACH(self.config, self.env_params)
@@ -42,9 +51,25 @@ class TestJSBACH(unittest.TestCase):
         self.assertIsNotNone(model.K)
         self.assertIsNotNone(model.u)
 
+    @unittest.skipUnless(
+        os.path.exists(JSBACH_FORTRAN_RUNNER)
+        and shutil.which(os.environ.get('FC', 'gfortran')),
+        f"needs {JSBACH_FORTRAN_RUNNER} and a Fortran compiler"
+    )
     def test_comparison_with_fortran(self):
-        """Test JSBACH output against Fortran implementation."""
-        # Parameters from JSBACH documentation in 
+        """Test JSBACH output against Fortran implementation.
+
+        Both sides take one daily Euler step from pools of 1 mol(C)/m2 under a
+        constant 25 C / 1 m-per-year climate, for the non-woody litter pools.
+
+        The step uses JSBACH's own year length rather than DAYS_PER_YEAR, so
+        that the two discretisations are identical and any difference is a real
+        difference in the model. Under that setup the implementations agree to
+        ~2e-16; at DAYS_PER_YEAR = 365 the year-length mismatch alone costs
+        3e-5, which is coarse enough to hide a 1% error in a transfer
+        coefficient.
+        """
+        # Parameters from JSBACH documentation in
         # from https://pure.mpg.de/rest/items/item_3279802_26/component/file_3316522/content#page=107.51 and 
         # https://gitlab.dkrz.de/icon/icon-model/-/blob/release-2024.10-public/externals/jsbach/src/carbon/mo_carbon_process.f90
         a_i = np.array([0.72, 5.9, 0.28, 0.031])
@@ -60,26 +85,29 @@ class TestJSBACH(unittest.TestCase):
         JSBACH_config = namedtuple('Config', ['a_i', 'a_h', 'b1', 'b2', 'gamma', 'phi1', 'phi2', 'r'])
         config = JSBACH_config(a_i = a_i, a_h = a_h, b1 = b1, b2 = b2, gamma = gamma, phi1 = phi1, phi2 = phi2, r = r)
         
-        # Create environment parameters
+        # Create environment parameters. The annual litter input is one day's
+        # worth per day, so that the Euler step below sees an input of 1.
         one_vec = np.ones(12)
         JSBACH_env_params = namedtuple('EnvParams', ['I', 'T', 'P', 'd'])
-        env_params = JSBACH_env_params(one_vec * DAYS_PER_YEAR, 25 * one_vec, one_vec, 4)
+        env_params = JSBACH_env_params(one_vec * JSBACH_DAYS_PER_YEAR, 25 * one_vec, one_vec, 4)
 
         # Instantiate model and compute output
         model = JSBACH(config=config, env_params=env_params)
         output = model._dX(t=0, X=np.ones(18))[:9]
 
-        # Run the Fortran implementation
-        
-        print('Running Fortran JSBACH model for comparison...')
+        # Compile and run the unmodified Fortran yasso routine; the driver that
+        # sets up this same experiment is in testing_src/test_yasso_call.f90.
+        subprocess.run([JSBACH_FORTRAN_RUNNER], check=True,
+                       capture_output=True, text=True)
+
         # Load Fortran output
-        fortran_output = pd.read_csv('tests/test_data/jsbach/yasso_output.csv')
-        
+        fortran_output = pd.read_csv(JSBACH_FORTRAN_OUTPUT)
+
         # Assert outputs are almost equal
-        expected = output * (1/DAYS_PER_YEAR) + np.ones(9)
+        expected = output * (1/JSBACH_DAYS_PER_YEAR) + np.ones(9)
         actual = fortran_output['Value'].values[:9]
         for i in range(len(expected)):
-            self.assertAlmostEqual(actual[i], expected[i], places=3)
+            self.assertAlmostEqual(actual[i], expected[i], places=12)
 
 def _load_jsbach_forcing(path):
     """Monthly-mean JSBACH forcing field, gap-filled, as the prediction script does."""
