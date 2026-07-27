@@ -28,7 +28,6 @@ J_ratio = raw_site_data['Cref_0-100estim'] / raw_site_data['Ctotal_0-100estim']
 # %%
 # load the powerlaw and gamma model parameters and lognormal cdfs
 powerlaw_params = pd.read_csv('results/03_calibrate_models/powerlaw_model_optimization_results.csv')
-gamma_params = pd.read_csv('results/03_calibrate_models/gamma_model_optimization_results.csv')
 lognormal_cdfs = pd.read_csv('results/06_sensitivity_analysis/06a_lognormal_cdfs_1.csv')
 lognormal_cdfs.columns = lognormal_cdfs.columns.astype(float)
 
@@ -84,19 +83,12 @@ def make_predictions(ts, veg_p, par1, par2, label_time, model, pA=None):
     
     return conv_fnew, no_conv_fnew
 
-
 # %%
 # # Power-law model predictions
 for i, row in tqdm(powerlaw_params.iterrows()):
     conv_fnew, model_cdf = make_predictions(ts, veg_p, row.loc['t_min'], row.loc['t_max'], site_data.loc[i, 'Duration_labeling'], PowerLawDisKin)
     site_data.loc[i, 'pred_conv'] = conv_fnew
     site_data.loc[i, 'pred_no_conv'] = model_cdf
-
-# Gamma model predictions
-for i, row in tqdm(gamma_params.iterrows()):
-    conv_fnew, model_cdf = make_predictions(ts, veg_p, row.loc['a'], row.loc['b'], site_data.loc[i, 'Duration_labeling'], GammaDisKin)
-    site_data.loc[i, 'pred_conv_gamma'] = conv_fnew
-    site_data.loc[i, 'pred_no_conv_gamma'] = model_cdf
 
 # %%
 # Lognormal model predictions
