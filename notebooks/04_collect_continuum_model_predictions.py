@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 from scipy.interpolate import interp1d
-from soil_diskin.continuum_models import GammaDisKin, PowerLawDisKin, GeneralPowerLawDisKin, WeibullDisKin
+from soil_diskin.continuum_models import PowerLawDisKin, GeneralPowerLawDisKin, WeibullDisKin
 
 """
 Collects the continuum model predictions for all sites and saves them to CSV files.
@@ -47,18 +47,6 @@ def generate_predictions(model_class, params_df, param_names):
             result.loc[i, 'predicted_fnew_05'] = model_05.cdfA(site_data.loc[i, 'Duration_labeling'])
             result.loc[i, 'predicted_fnew_95'] = model_95.cdfA(site_data.loc[i, 'Duration_labeling'])
     return result
-
-#%% Gamma model
-
-# load the gamma model parameters to generate predictions
-fname = 'gamma_model_optimization_results.csv'
-gamma_params = pd.read_csv(f'results/03_calibrate_models/{fname}')
-result = site_data.copy()
-
-print("Generating gamma model predictions...")
-
-result = generate_predictions(GammaDisKin, gamma_params, ['a', 'b'])
-result.to_csv('results/04_model_predictions/gamma_model_predictions.csv', index=False)
 
 #%% Power-law model
 
