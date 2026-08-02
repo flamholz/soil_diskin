@@ -288,50 +288,28 @@ rule turnover_sensitivity_analysis_powerlaw_gamma:
         "results/all_sites_14C_turnover.csv",
     output:
         "results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results.csv",
+        "results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results_q05.csv",
+        "results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results_q95.csv",
     script:
         "notebooks/06a_turnover_sensitivity.py"
 
-rule turnover_sensitivity_analysis_lognormal_mathematica:
+rule turnover_sensitivity_analysis_lognormal:
     input:
         'data/14C_atm_annot.csv',
+        "results/processed_balesdent_2018.csv",
         'results/all_sites_14C_turnover.csv',
     output:
-        "results/06_sensitivity_analysis/06a_lognormal_age_scan0.50.csv",
-        "results/06_sensitivity_analysis/06a_lognormal_age_scan0.67.csv",
-        "results/06_sensitivity_analysis/06a_lognormal_age_scan1.csv",
-        "results/06_sensitivity_analysis/06a_lognormal_age_scan1.50.csv",
-        "results/06_sensitivity_analysis/06a_lognormal_age_scan2.csv",
-    shell:
-        """
-        wolframscript --file notebooks/06a_lognormal_turnover_sensitivity.wls
-        """
-
-rule turnover_sensitivity_analysis_lognormal_python:
-    input:
-        "results/06_sensitivity_analysis/06a_lognormal_age_scan0.50.csv",
-        "results/06_sensitivity_analysis/06a_lognormal_age_scan0.67.csv",
-        "results/06_sensitivity_analysis/06a_lognormal_age_scan1.csv",
-        "results/06_sensitivity_analysis/06a_lognormal_age_scan1.50.csv",
-        "results/06_sensitivity_analysis/06a_lognormal_age_scan2.csv",
-    output:
         "results/06_sensitivity_analysis/lognormal_age_predictions.csv",
-    script:
-        "notebooks/06a_lognormal_turnover_sensitivity.py"
-
-rule turnover_sensitivity_analysis_lognormal_julia:
-    input:
-        "results/06_sensitivity_analysis/lognormal_age_predictions.csv",
-        "results/all_sites_14C_turnover.csv"
-    output:
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_0.50.csv",
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_0.67.csv",
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_1.csv",
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_1.50.csv",
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_2.csv",
-    shell:
-        """
-        julia --project=./ notebooks/06a_lognormal_turnover_sensitivity.jl
-        """
+        "results/06_sensitivity_analysis/06a_lognormal_fnew.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_fnew_q05.csv",
+        "results/06_sensitivity_analysis/06a_lognormal_fnew_q95.csv",
+    script:
+        "notebooks/06a_lognormal_turnover_sensitivity.py"
 
 # Step 06b: Steady-state sensitivity analysis
 rule steady_state_sensitivity_analysis_lognormal:
@@ -342,10 +320,8 @@ rule steady_state_sensitivity_analysis_lognormal:
         "results/06_sensitivity_analysis/lognormal_input_data.csv",
         "results/06_sensitivity_analysis/lognormal_mu_data.csv",
         "results/06_sensitivity_analysis/lognormal_sigma_data.csv",
-    shell:
-        """
-        julia --project=./ notebooks/06b_lognormal_steady_state_sensitivity.jl
-        """
+    script:
+        "notebooks/06b_lognormal_steady_state_sensitivity.py"
 # Step 06c: Vegetation effects sensitivity analysis
 rule vegetation_effects_sensitivity_analysis:
     input:
@@ -470,13 +446,12 @@ rule plot_figS1:
 rule plot_figS4:
     input:
         'results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results.csv',
+        'results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results_q05.csv',
+        'results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results_q95.csv',
+        'results/06_sensitivity_analysis/06a_lognormal_fnew.csv',
+        'results/06_sensitivity_analysis/06a_lognormal_fnew_q05.csv',
+        'results/06_sensitivity_analysis/06a_lognormal_fnew_q95.csv',
         'results/processed_balesdent_2018.csv',
-        'results/all_sites_14C_turnover.csv',
-        "results/06_sensitivity_analysis/06a_lognormal_cdfs_0.50.csv",
-        "results/06_sensitivity_analysis/06a_lognormal_cdfs_0.67.csv",
-        "results/06_sensitivity_analysis/06a_lognormal_cdfs_1.csv",
-        "results/06_sensitivity_analysis/06a_lognormal_cdfs_1.50.csv",
-        "results/06_sensitivity_analysis/06a_lognormal_cdfs_2.csv",
     output:
         'figures/figS4.png',
     script:
