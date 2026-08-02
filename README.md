@@ -17,11 +17,11 @@ This repository contains code and data for analyzing soil carbon turnover using 
 Before starting, ensure you have:
 
 - **Python 3.11 or higher**
-- **Julia 1.11+** - [Download here](https://julialang.org/downloads/)
 - **Fortran compiler** (for JSBACH model compilation)
   - Linux: `gfortran` via `sudo apt install gfortran`
   - macOS: `gcc` via [Homebrew](https://brew.sh/) with `brew install gcc`
 - **Google Earth Engine account** - [Sign up here](https://earthengine.google.com/signup/)
+- **Julia 1.11+** (optional, only for the earlier Julia implementations in `notebooks/archive`) - [Download here](https://julialang.org/downloads/)
 - **WolframScript** (optional, for Mathematica notebooks) - [Download here](https://www.wolfram.com/wolframscript/)
 - **~5 GB disk space** for data and results
 
@@ -60,7 +60,10 @@ uv pip install -e .
 uv run python -c "import soil_diskin; print('soil_diskin version:', soil_diskin.__version__)"
 ```
 
-### 4. Set up Julia dependencies
+### 4. Set up Julia dependencies (optional)
+
+The Snakemake pipeline is fully Python; Julia is only needed to run the earlier
+implementations kept in `notebooks/archive`.
 
 ```bash
 # Install Julia packages from Project.toml

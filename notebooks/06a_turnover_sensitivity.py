@@ -7,7 +7,7 @@ if os.getcwd().endswith('notebooks'):
 # Load libraries
 import pandas as pd
 import numpy as np
-from soil_diskin.continuum_models import PowerLawDisKin, GammaDisKin
+from soil_diskin.continuum_models import PowerLawDisKin
 from scipy.integrate import quad
 from scipy.optimize import minimize
 from joblib import Parallel, delayed, parallel_backend
@@ -77,8 +77,12 @@ def generate_predictions(model, initial_guess, data):
         # if isinstance(model, PowerLawDisKin):
         if model == PowerLawDisKin:
             res = minimize(objective_function, initial_guess, args=(model, row, [1, 1]), method='Nelder-Mead')
-        elif model == GammaDisKin:
-            res = minimize(objective_function, initial_guess, args=(model, row, [300, 1]), method='Nelder-Mead', bounds=((1.00001, None), (0, None)))
+            if not model(*res.x).params_valid():
+                # For short turnover times the unbounded simplex can end up at a
+                # negative t_min, which makes the prediction NaN. Refit with the
+                # parameters bounded to positive values.
+                res = minimize(objective_function, initial_guess, args=(model, row, [1, 1]),
+                               method='Nelder-Mead', bounds=[(0, None), (0, None)])
         else:
             print(model)
             raise ValueError("Model type not recognized for optimization.")
@@ -114,24 +118,34 @@ for ratio in ratios:
     pl_sensitivity_results.append(generate_predictions(PowerLawDisKin, initial_guess, df))
 
 # %%
-# Generate predictions for each scaling for the Gamma model
-gamma_sensitivity_results = []
-initial_guess = [1.2, 0.5]
-for ratio in ratios:
-    df = merged_df.copy()
-    df['turnover'] = df['turnover'] * ratio
-    gamma_sensitivity_results.append(generate_predictions(GammaDisKin, initial_guess, df))
-
-# %%
 # Collect the results into DataFrames
 pl_df = pd.concat([pd.DataFrame(x) for x in pl_sensitivity_results], axis=1, keys=ratios)
-gamma_df = pd.concat([pd.DataFrame(x) for x in gamma_sensitivity_results], axis=1, keys=ratios)
+
 pl_df.columns = pl_df.columns.droplevel(1)
-gamma_df.columns = gamma_df.columns.droplevel(1)
+
 
 # %%
 # Save the results to CSV files
 pl_df.to_csv('results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results.csv', index=False)
-gamma_df.to_csv('results/06_sensitivity_analysis/gamma_turnover_sensitivity_results.csv', index=False)
+
+# %%
+# Repeat the scan for the SoilGrids-backfilled sites using their q05/q95 turnover
+# estimates, so that the sensitivity figure can show the C stock uncertainty of
+# those sites as error bars. Rows of sites without a backfilled estimate are NaN.
+backfilled_df = merged_df[merged_df['turnover_q05'].notna()]
+
+for quantile in ['q05', 'q95']:
+    quantile_results = []
+    for ratio in ratios:
+        df = backfilled_df.copy()
+        df['turnover'] = df[f'turnover_{quantile}'] * ratio
+        quantile_results.append(generate_predictions(PowerLawDisKin, initial_guess, df))
+
+    quantile_df = pd.DataFrame(np.array(quantile_results).T,
+                               index=backfilled_df.index, columns=ratios)
+    quantile_df = quantile_df.reindex(merged_df.index)
+    fname = f'results/06_sensitivity_analysis/powerlaw_turnover_sensitivity_results_{quantile}.csv'
+    quantile_df.to_csv(fname, index=False)
+
 
 
