@@ -175,7 +175,7 @@ for ax, label in zip(axs, "ABCDEFGH"):
             -0.15, 1.1, label, transform=ax.transAxes,
             fontsize=7, va='top', ha='left')
 # %% Save the figure
-plt.savefig('figures/fig4.png', dpi=300, bbox_inches='tight')
+plt.savefig('figures/fig4_old.png', dpi=300, bbox_inches='tight')
 #plt.savefig('figures/fig4.svg', dpi=300, bbox_inches='tight')
 
 # %% make a supplementary version of the above plot where the points are colored by the
@@ -321,4 +321,56 @@ cbar = plt.colorbar(sc, ax=axs, orientation='vertical', label=colorbar_label, pa
 
 plt.savefig('figures/fig4_presentation_colored_by_labeling_duration.png', dpi=300, bbox_inches='tight')
 
-# %%
+# %% fig4_alt -- lognormal and CLM scatter panels + KGE boxplot
+fig, axs = plt.subplot_mosaic('ABC', figsize=(7.24, 2.5),
+                              dpi=300, constrained_layout=True,
+                              width_ratios=[1, 1, 1.3])
+
+# Panel A -- lognormal predicted vs. actual
+lognormal_err = lognormal_predictions[['predicted_fnew_05', 'predicted_fnew_95']].sub(
+    lognormal_predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T
+plot_model_predictions(axs['A'], lognormal_predictions['predicted_fnew'],
+                       'lognormal continuum model', pal['dark_blue'], lognormal_err)
+axs['A'].set_xlabel('observed F$_{new}$')
+axs['A'].set_ylabel('predicted F$_{new}$')
+
+# Panel B -- CLM4.5 predicted vs. actual
+plot_model_predictions(axs['B'], CLM45_predictions['prediction'],
+                       'CLM4.5 compartmental model', pal['dark_purple'])
+axs['B'].set_xlabel('observed F$_{new}$')
+axs['B'].set_ylabel('predicted F$_{new}$')
+
+# Panel C -- KGE boxplot for selected models
+alt_order = ['Lognormal', 'Power-law', 'Gen. Power-law (a=exp(-gamma))',
+             'CLM4.5', 'JSBACH',
+             'CESM1', 'IPSL-CM5A-LR', 'MRI-ESM1']
+alt_xlabels = ['lognormal', 'power law ($\\alpha=1$)', 'power law ($\\alpha=e^{-\\gamma}$)',
+               'CLM4.5', 'JSBACH',
+               'CESM1 (RC)', 'IPSL-CM5A-LR (RC)', 'MRI-ESM1 (RC)']
+alt_kge = kge_data[kge_data['model'].isin(alt_order)]
+alt_colors = [pal['dark_blue'], pal['blue'], pal['light_blue'],
+              pal['dark_purple'], pal['purple'],
+              pal['dark_green'], pal['green'], pal['light_green']]
+sns.boxplot(data=alt_kge, x='model', y='value', hue='model', ax=axs['C'],
+            order=alt_order, palette=dict(zip(alt_order, alt_colors)),
+            showfliers=False, legend=False)
+axs['C'].set_xticklabels(alt_xlabels, rotation=45, ha='right', fontsize=6)
+axs['C'].set_ylabel('Kling–Gupta efficiency (KGE)')
+axs['C'].set_xlabel('')
+for x in [2.5, 4.5]:
+    axs['C'].axvline(x, color=pal['dark_grey'], linestyle='--', linewidth=0.75, zorder=0)
+
+axs['C'].set_ylim(top=0.99)
+group_labels = ['continuum', 'compartmental', '$^{14}$C constrained']
+group_centers = [1.0, 3.5, 6.0]
+for label, xc in zip(group_labels, group_centers):
+    axs['C'].text(xc, 1.02, label, ha='center', va='bottom',
+                  fontsize=6, transform=axs['C'].get_xaxis_transform(), clip_on=False)
+
+
+
+# subplot labels
+for label, ax in zip('ABC', [axs['A'], axs['B'], axs['C']]):
+    ax.text(-0.2, 1.1, label, transform=ax.transAxes, fontsize=7, va='top', ha='left')
+
+plt.savefig('figures/fig4.png', dpi=300, bbox_inches='tight')

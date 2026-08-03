@@ -417,6 +417,7 @@ rule plot_fig4:
         'results/fig4_calcs.csv',
     output:
         "figures/fig4.png",
+        "figures/fig4_old.png",
         "figures/figS3.png" # also make figS3 here
     script:
         "notebooks/fig4.py"
