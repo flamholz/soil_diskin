@@ -460,6 +460,76 @@ class PowerLawDisKin(AbstractDiskinModel):
         return (1 - exp1((self.t_min + a) / self.t_max) / exp1(tratio))
 
 
+class LogUniformDisKin(AbstractDiskinModel):
+    """A model with decay rates uniformly distributed in log space.
+
+    The rate density is ``p(k) = 1 / (k log(k_max / k_min))`` between
+    ``k_min`` and ``k_max``. ``log_width`` is ``log(k_max / k_min)``;
+    representing the width directly keeps very broad spectra numerically
+    tractable. All rates are in inverse years.
+    """
+
+    def __init__(self, k_min, log_width, interp_r_14c=None, I=None):
+        super().__init__(interp_r_14c=interp_r_14c)
+        self.k_min = float(k_min)
+        self.log_width = float(log_width)
+        self.I = I
+
+        if not self.params_valid():
+            self.T = np.nan
+            self.A = np.nan
+            return
+
+        self.log_k_max = np.log(self.k_min) + self.log_width
+        inverse_k_max = np.exp(-self.log_k_max)
+        self.T = (1 / self.k_min - inverse_k_max) / self.log_width
+        self.A = 0.5 * (1 / self.k_min + inverse_k_max)
+
+    def params_valid(self):
+        """Return whether the rate bounds are finite, positive, and ordered."""
+        finite = np.isfinite([self.k_min, self.log_width]).all()
+        return bool(finite and self.k_min > 0 and self.log_width > 0)
+
+    @staticmethod
+    def _return_scalar_if_scalar(value, original):
+        return float(value) if np.ndim(original) == 0 else value
+
+    @staticmethod
+    def _rate_age(log_rate, age):
+        log_value = log_rate + np.log(age)
+        return np.exp(np.minimum(log_value, np.log(np.finfo(float).max)))
+
+    def s(self, t):
+        """Return the survival function at age ``t``."""
+        t_arr = np.asarray(t, dtype=float)
+        result = np.ones_like(t_arr)
+        positive = t_arr > 0
+        age = t_arr[positive]
+        result[positive] = (
+            exp1(self._rate_age(np.log(self.k_min), age))
+            - exp1(self._rate_age(self.log_k_max, age))
+        ) / self.log_width
+        return self._return_scalar_if_scalar(result, t)
+
+    def cdfA(self, t):
+        """Return the closed-form steady-state age-distribution CDF."""
+        t_arr = np.asarray(t, dtype=float)
+        result = np.zeros_like(t_arr)
+        positive = t_arr > 0
+        age = t_arr[positive]
+        lower_age = self._rate_age(np.log(self.k_min), age)
+        upper_age = self._rate_age(self.log_k_max, age)
+        inverse_k_max = np.exp(-self.log_k_max)
+        tail = (
+            np.exp(-lower_age) / self.k_min
+            - age * exp1(lower_age)
+            - np.exp(-upper_age) * inverse_k_max
+            + age * exp1(upper_age)
+        ) / (1 / self.k_min - inverse_k_max)
+        result[positive] = np.clip(1 - tail, 0, 1)
+        return self._return_scalar_if_scalar(result, t)
+
+
 class LognormalDisKin(AbstractDiskinModel):
     """A model where the rate distribution is lognormal."""
 
@@ -821,4 +891,3 @@ class WeibullDisKin(AbstractDiskinModel):
         cdf = gammainc(1.0 / self.alpha, np.power(self.k * t, self.alpha))
         cdf = np.clip(cdf, 0.0, 1.0)
         return cdf
-

@@ -23,6 +23,7 @@ rule all:
         "figures/figS4.png",
         "figures/figS5.png",
         "figures/figS6.png",
+        "figures/figS7.png",
 
 # Step 00: Download necessary data files using curl.
 # NOTE: wget was hard to install with UV for some reason. Using curl instead.
@@ -196,6 +197,16 @@ rule calibrate_weibull:
     script:
         "notebooks/03d_calibrate_weibull_model.py"
 
+# Step 03e: Calibrate log-uniform rate model
+rule calibrate_loguniform:
+    input:
+        "results/all_sites_14C_turnover.csv",
+        "data/14C_atm_annot.csv",
+    output:
+        "results/03_calibrate_models/loguniform_model_optimization_results.csv"
+    script:
+        "notebooks/03e_calibrate_loguniform_model.py"
+
 # Step 04: Generate and collect model predictions for analysis and figures
 # Lognormal predictions (Python-based pipeline used for figures)
 rule lognormal_predictions_python:
@@ -209,6 +220,15 @@ rule lognormal_predictions_python:
         """
         python notebooks/04b_lognormal_predictions_fast.py --params-path {input}
         """
+
+rule loguniform_model_predictions:
+    input:
+        "results/processed_balesdent_2018.csv",
+        "results/03_calibrate_models/loguniform_model_optimization_results.csv",
+    output:
+        "results/04_model_predictions/loguniform_model_predictions.csv"
+    script:
+        "notebooks/04_loguniform_model_predictions.py"
 
 # Download JSBACH files for parameterization of other models
 rule download_jsbach_data:
@@ -477,6 +497,15 @@ rule plot_figS6:
         "figures/figS6.png"
     script:
         "notebooks/figS6.py"
+
+rule plot_figS7:
+    input:
+        'results/processed_balesdent_2018.csv',
+        'results/04_model_predictions/loguniform_model_predictions.csv',
+    output:
+        "figures/figS7.png"
+    script:
+        "notebooks/figS7.py"
 
 
 

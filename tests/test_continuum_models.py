@@ -2,13 +2,43 @@ import itertools
 import unittest
 import numpy as np
 
-from soil_diskin.continuum_models import PowerLawDisKin, GammaDisKin
+from soil_diskin.continuum_models import PowerLawDisKin, GammaDisKin, LogUniformDisKin
 from soil_diskin.continuum_models import GeneralPowerLawDisKin, LognormalDisKin, LognormalDisKinFast
 from soil_diskin.constants import GAMMA
 from soil_diskin.radiocarbon_utils import load_atm14c
 
 model_classes = [PowerLawDisKin, GammaDisKin,
-                 GeneralPowerLawDisKin, LognormalDisKin]
+                 GeneralPowerLawDisKin, LognormalDisKin, LogUniformDisKin]
+
+
+class TestLogUniformDisKin(unittest.TestCase):
+    def test_analytical_moments_and_distribution(self):
+        model = LogUniformDisKin(k_min=0.01, log_width=np.log(100))
+
+        self.assertTrue(model.params_valid())
+        self.assertAlmostEqual(model.T, (100.0 - 1.0) / np.log(100.0))
+        self.assertAlmostEqual(model.A, (100.0 + 1.0) / 2.0)
+        self.assertAlmostEqual(model.s(0.0), 1.0)
+        self.assertAlmostEqual(model.cdfA(0.0), 0.0)
+        self.assertAlmostEqual(model.calc_transit_time()[0], model.T, places=5)
+        self.assertAlmostEqual(model.calc_mean_age()[0], model.A, places=5)
+
+        ages = np.logspace(-3, 5, 100)
+        survival = model.s(ages)
+        cdf = model.cdfA(ages)
+        self.assertTrue(np.all(np.diff(survival) <= 0))
+        self.assertTrue(np.all(np.diff(cdf) >= 0))
+        self.assertTrue(np.all((cdf >= 0) & (cdf <= 1)))
+
+        wide_model = LogUniformDisKin(k_min=1e-3, log_width=1000)
+        self.assertTrue(np.isfinite([wide_model.T, wide_model.A]).all())
+        self.assertTrue(0 < wide_model.s(1.0) < 1)
+        self.assertTrue(0 < wide_model.cdfA(1.0) < 1)
+
+    def test_parameter_validation(self):
+        self.assertFalse(LogUniformDisKin(0.0, 1.0).params_valid())
+        self.assertFalse(LogUniformDisKin(1.0, 0.0).params_valid())
+        self.assertFalse(LogUniformDisKin(1.0, -1.0).params_valid())
 
 class TestImplementsAbstractMethods(unittest.TestCase):
     def test_implements_abstract_methods(self):
