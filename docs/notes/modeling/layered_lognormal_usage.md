@@ -112,8 +112,10 @@ including the slow tail shifted by `-sigma²`. A positive tridiagonal recurrence
 avoids cancellation in the steady-state resolvent when decomposition is much
 slower than transport. Historical radiocarbon uses the piecewise-constant
 atmosphere and its constant old-age tail. Finite-time source integrals use a
-block matrix exponential when subtraction would lose accuracy. All calculations
-also support pure advection and zero transport.
+dimensionless block matrix exponential over short steps when subtraction would
+lose accuracy. Longer horizons use the source-integral doubling identity with
+stochastic transport transitions, preventing numerical growth of the conserved
+transport mode. All calculations also support pure advection and zero transport.
 
 Analytic Gaussian-density derivatives supply the fitting Jacobian. Its reported
 singular values use parameters scaled by their search ranges, with a relative
@@ -124,3 +126,31 @@ global identifiability.
 uv run pytest tests/test_layered_lognormal.py tests/test_layered_fitting.py \
   tests/test_layered_data.py tests/test_layered_workflow.py
 ```
+
+## Implementation validation (2026-09-23)
+
+The four new test files plus `tests/test_lognormal_utils.py` pass all 30 tests,
+including the long-horizon regression at the slow, broad parameter bounds.
+Mypy passes all four new source modules, and Ruff passes the new source and tests.
+The full-suite run before that final regression was added had 113 passing tests,
+5 skips, and one existing Wolfram integration failure. An isolated retry outside
+the sandbox confirmed the failure is due to an unactivated Wolfram installation.
+
+The example above was rerun against real data in
+`results/layered_lognormal_final_smoke`. Both zero-transport primary fits converged.
+The two coupled primary fits reached the 500-evaluation limit and remain explicitly
+flagged as unconverged; their scaled objectives were approximately 31–32.
+Every retained candidate passed the prediction and quadrature checks. These runs
+validate the workflow, not the illustrative hyperparameters or scientific fit quality.
+
+### Standards review
+
+No material findings against the repository conventions and code-smell baseline.
+
+### Spec review
+
+One numerical issue was found and fixed: very long horizons could spuriously
+amplify the conserved transport mode. An independent recheck confirmed bounded,
+monotone predictions and agreement with the transport-invariant column response.
+
+Review totals: Standards — 0 findings; Spec — 1 resolved finding, 0 remaining.

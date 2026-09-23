@@ -147,3 +147,18 @@ def test_forward_jacobian_matches_finite_differences():
         minus = model.predict((parameters-offset)[:10], (parameters-offset)[10:], 0.6)
         numerical[:, column] = (np.r_[plus.stocks, plus.fm]-np.r_[minus.stocks, minus.fm])/2e-5
     np.testing.assert_allclose(jacobian, numerical, rtol=1e-4, atol=1e-9)
+
+
+def test_long_horizons_at_slow_broad_bounds_match_transport_invariant_column_fraction():
+    atm = AtmC14(np.array([0.]), np.array([1.]), 1.)
+    model = LayeredLognormal(1., 0.3, 30, atm)
+    times = np.array([1e12, 1e15, 1e35])
+    prediction = model.predict(np.full(10, -15.), np.full(10, 5.), 0.5, times)
+    column = prediction.fnew @ prediction.stocks / prediction.stocks.sum()
+    # Identical input-rate distributions make the column response invariant to
+    # transport; use the independently integrated single-layer reference.
+    expected = diskin_C_of_t(times, -15., 5.) / np.exp(15+25/2)
+    np.testing.assert_allclose(column, expected, rtol=1e-7)
+    assert np.all(prediction.fnew >= 0)
+    assert np.all(prediction.fnew <= 1+1e-10)
+    np.testing.assert_allclose(prediction.fnew[-1], 1, atol=1e-8)

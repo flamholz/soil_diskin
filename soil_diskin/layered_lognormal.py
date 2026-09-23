@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
+from math import ceil, ldexp, log2
 
 import numpy as np
 from numpy.typing import NDArray
@@ -30,6 +31,14 @@ def _expm(matrix: Array) -> Array:
     if not np.isfinite(result).all():
         raise FloatingPointError('nonfinite matrix exponential; check transport and time scales')
     return result
+
+
+def _stochastic(matrix: Array) -> Array:
+    """Remove roundoff from a transport transition's probability columns."""
+    if not np.isfinite(matrix).all() or np.min(matrix) < -1e-12:
+        raise FloatingPointError('invalid transport transition probabilities')
+    matrix = np.maximum(matrix, 0)
+    return matrix / matrix.sum(axis=0)
 
 
 def transport_matrix(diffusion: float, velocity: float) -> Array:
@@ -124,6 +133,20 @@ class LayeredLognormal:
         self._carbon = _resolvent(self.rates, diffusion, velocity)
         self._radio = self._radiocarbon_kernel(atmosphere)
 
+    def _time_scaling(self, time: float) -> tuple[int, float]:
+        norm = float(np.linalg.norm(self.transport, 1))
+        if time == 0 or norm == 0:
+            return 0, time
+        steps = max(0, int(ceil(log2(norm)+log2(time))))
+        return steps, ldexp(time, -steps)
+
+    def _transition(self, time: float) -> Array:
+        steps, dt = self._time_scaling(time)
+        transition = _stochastic(_expm(self.transport*dt))
+        for _ in range(steps):
+            transition = _stochastic(transition @ transition)
+        return transition
+
     def observables_and_jacobian(self, parameters: Array, npp: float) -> tuple[Array, Array]:
         """Return [stocks, fm] and its Jacobian for [ten mu, ten sigma]."""
         parameters = np.asarray(parameters, dtype=float)
@@ -191,8 +214,8 @@ class LayeredLognormal:
         for i, age in enumerate(jump_ages):
             step = float(age - previous_age)
             if step not in steps:
-                steps[step] = _expm(self.transport * step)
-            current = steps[step] @ current
+                steps[step] = self._transition(step)
+            current = _stochastic(steps[step] @ current)
             transitions[i] = current
             previous_age = float(age)
         for start in range(0, len(alphas), 64):
@@ -229,23 +252,38 @@ class LayeredLognormal:
             return np.zeros_like(self._carbon)
         if not np.any(self.transport):
             return (-np.expm1(-self.rates*time)/self.rates)[:, None, None]*np.eye(N_LAYERS)
+        steps, dt = self._time_scaling(time)
+        if steps:
+            # U(2t) = U(t) + exp(-k*t) P(t) U(t). Keep P stochastic at each
+            # doubling: an uncorrected zero eigenvalue otherwise grows into
+            # a spurious exponential at long horizons. This also avoids huge
+            # augmented exponentials for the slow tail near the search bounds.
+            result = self._new_carbon_kernel(dt).copy()
+            transition = self._transition(dt)
+            for _ in range(steps):
+                with np.errstate(over='ignore'):
+                    surviving = np.exp(-self.rates*dt)
+                result += surviving[:, None, None]*(transition @ result)
+                transition = _stochastic(transition @ transition)
+                dt *= 2
+            return result
         result = np.empty_like(self._carbon)
         kt = self.rates*time
         high = kt > 40
         result[high] = self._carbon[high]
         regular = (kt >= 0.01) & ~high
-        transition = _expm(self.transport*time)
+        transition = self._transition(time)
         result[regular] = self._carbon[regular] - np.exp(-kt[regular, None, None]) * (
             transition @ self._carbon[regular])
         # Block exponential integrates the source without cancellation at k*t≈0.
         block = np.zeros((2*N_LAYERS, 2*N_LAYERS))
         block[:N_LAYERS, N_LAYERS:] = np.eye(N_LAYERS)
-        block[:N_LAYERS, :N_LAYERS] = self.transport
+        block[:N_LAYERS, :N_LAYERS] = self.transport*time
         small = kt < 1e-11
-        result[small] = _expm(block*time)[:N_LAYERS, N_LAYERS:]
+        result[small] = time*_expm(block)[:N_LAYERS, N_LAYERS:]
         for i in np.flatnonzero(~small & ~regular & ~high):
-            block[:N_LAYERS, :N_LAYERS] = self.transport - self.rates[i]*np.eye(N_LAYERS)
-            result[i] = _expm(block*time)[:N_LAYERS, N_LAYERS:]
+            block[:N_LAYERS, :N_LAYERS] = (self.transport - self.rates[i]*np.eye(N_LAYERS))*time
+            result[i] = time*_expm(block)[:N_LAYERS, N_LAYERS:]
         return result
 
     def predict(self, mu: Array, sigma: Array, npp: float,
@@ -261,4 +299,8 @@ class LayeredLognormal:
         radio = np.einsum('kij,kj->i', self._radio, density, optimize=True)
         new = np.array([np.einsum('kij,kj->i', self._new_carbon_kernel(float(t)),
                                  density, optimize=True) for t in times]).reshape(-1, N_LAYERS)
-        return Prediction(stocks, radio/stocks, times, new/stocks)
+        fm, fnew = radio/stocks, new/stocks
+        if (not np.isfinite(fm).all() or not np.isfinite(fnew).all()
+                or np.any(fm < -1e-12) or np.any(fnew < -1e-10) or np.any(fnew > 1+1e-8)):
+            raise FloatingPointError('nonfinite or unphysical predicted carbon fractions')
+        return Prediction(stocks, fm, times, fnew)
