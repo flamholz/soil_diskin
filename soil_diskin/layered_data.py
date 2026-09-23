@@ -1,4 +1,4 @@
-"""Profile-preserving, complete-case inputs for the ten-layer model."""
+"""Profile-preserving inputs for complete or partially observed soil columns."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -30,12 +30,15 @@ def file_digest(path: str | Path, algorithm: str = 'sha256') -> str:
 
 
 def prepare_profiles(raw: pd.DataFrame, shi: xr.Dataset,
-                     npp: pd.DataFrame) -> PreparedProfiles:
-    """Return one row per eligible profile/layer and one per excluded profile.
+                     npp: pd.DataFrame, *, allow_partial: bool = False) -> PreparedProfiles:
+    """Return usable layers and exclusions, preserving the original depth indices.
 
     ``raw`` is the Balesdent Profiles sheet after its seven introductory rows;
     ``shi.temp`` is delta-14C in per mil at levels 0..99 (one cm increments);
     ``npp.NPP`` is in g C/m²/yr. No missing calibration values are filled.
+    By default a profile needs all ten layers. With allow_partial, each layer
+    needs stock and radiocarbon plus site NPP. A blank exclusion layer means
+    the whole profile was excluded; otherwise only that layer was excluded.
     """
     if raw.Internal_profile_ID.isna().any() or raw.Internal_profile_ID.duplicated().any():
         raise ValueError('Internal_profile_ID must be nonmissing and unique')
@@ -79,11 +82,16 @@ def prepare_profiles(raw: pd.DataFrame, shi: xr.Dataset,
     new_fraction[~evaluation_valid] = np.nan
     durations = pd.to_numeric(raw.get('Duration_labeling', pd.Series(np.nan, index=raw.index)),
                               errors='coerce').to_numpy(float)
-    good_stock = np.isfinite(stocks).all(axis=1) & (stocks > 0).all(axis=1)
-    good_radio = np.asarray(np.isfinite(fm).all(axis=1), dtype=bool)
+    stock_valid = np.isfinite(stocks) & (stocks > 0)
+    radio_valid = np.asarray(np.isfinite(fm), dtype=bool)
+    usable_layers = stock_valid & radio_valid
+    good_stock = stock_valid.all(axis=1)
+    good_radio = np.asarray(radio_valid.all(axis=1), dtype=bool)
     good_npp = np.isfinite(inputs) & (inputs > 0)
-    eligible = valid_coords & good_stock & good_radio & good_npp
-    records, exclusions = [], []
+    complete = valid_coords & good_stock & good_radio & good_npp
+    eligible = valid_coords & good_npp & usable_layers.any(axis=1) if allow_partial else complete
+    records: list[dict] = []
+    exclusions: list[dict] = []
     for row in range(len(raw)):
         profile_id = str(raw.Internal_profile_ID.iloc[row])
         if not eligible[row]:
@@ -95,6 +103,12 @@ def prepare_profiles(raw: pd.DataFrame, shi: xr.Dataset,
             exclusions.append({'profile_id': profile_id, 'reason': '; '.join(reasons)})
             continue
         for layer in range(N_LAYERS):
+            if not usable_layers[row, layer]:
+                reasons = [reason for valid, reason in [
+                    (stock_valid[row, layer], 'missing or nonpositive layer stock'),
+                    (radio_valid[row, layer], 'incomplete native-cell radiocarbon')] if not valid]
+                exclusions.append({'profile_id': profile_id, 'layer': layer, 'reason': '; '.join(reasons)})
+                continue
             records.append({'profile_id': profile_id, 'latitude': lat[row], 'longitude': lon[row],
                             'layer': layer, 'z_top_cm': layer*DZ, 'z_bottom_cm': (layer+1)*DZ,
                             'stock_kg_m2': stocks[row, layer], 'fm_obs': fm[row, layer],
@@ -105,18 +119,22 @@ def prepare_profiles(raw: pd.DataFrame, shi: xr.Dataset,
                'stock_kg_m2', 'fm_obs', 'npp_kg_m2_yr', 'duration_years', 'fnew_obs',
                'fnew_observation_valid']
     metadata = {'input_profile_count': len(raw), 'eligible_profile_count': int(eligible.sum()),
+                'allow_partial': allow_partial, 'eligible_layer_count': len(records),
+                'complete_profile_count': int(complete.sum()),
+                'partial_profile_count': int((eligible & ~complete).sum()),
                 'radiocarbon_depth_aggregation': 'mean of ten native one-cm values; no gap filling',
                 'radiocarbon_reference_year': 2000,
                 'reference_year_basis': 'inherited model convention; absent from NetCDF metadata',
                 'npp_conversion': 'cached g C/m²/yr divided by 1000 to kg C/m²/yr',
                 'fnew_observation': 'difference of cumulative Cnew divided by layer Ctotal'}
     return PreparedProfiles(pd.DataFrame(records, columns=columns),
-                            pd.DataFrame(exclusions, columns=['profile_id', 'reason']), metadata)
+                            pd.DataFrame(exclusions, columns=['profile_id', 'layer', 'reason']), metadata)
 
 
 def load_profiles(balesdent_path: str | Path = 'data/balesdent_2018/balesdent_2018_raw.xlsx',
                   shi_path: str | Path = 'data/shi_2020/global_delta_14C.nc',
-                  npp_path: str | Path = 'results/all_sites_14C_turnover.csv') -> PreparedProfiles:
+                  npp_path: str | Path = 'results/all_sites_14C_turnover.csv', *,
+                  allow_partial: bool = False) -> PreparedProfiles:
     """Read existing local inputs and verify the published Shi product identity."""
     checksum = file_digest(shi_path, 'md5')
     if checksum != SHI_MD5:
@@ -125,7 +143,7 @@ def load_profiles(balesdent_path: str | Path = 'data/balesdent_2018/balesdent_20
     raw = pd.read_excel(balesdent_path, sheet_name='Profiles', skiprows=7)
     npp = pd.read_csv(npp_path)
     with xr.open_dataset(shi_path) as dataset:
-        result = prepare_profiles(raw, dataset, npp)
+        result = prepare_profiles(raw, dataset, npp, allow_partial=allow_partial)
     result.metadata['sources'] = {
         name: {'path': str(Path(path).resolve()), 'sha256': file_digest(path)}
         for name, path in [('balesdent', balesdent_path), ('shi', shi_path), ('npp', npp_path)]}

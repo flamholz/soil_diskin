@@ -21,11 +21,28 @@ Each profile's observed labeling duration is always included.
 The current local inputs contain 50 complete profiles at 35 locations. Each
 profile contributes ten layer fits, so the full run contains 500 layer fits.
 
+## Include partial profiles
+
+```sh
+uv run python -m soil_diskin.layered_workflow --input-depth 10 --allow-partial \
+  --max-nfev 1000 --output-dir results/my_partial_profiles
+```
+
+`--allow-partial` includes every 10 cm layer with positive stock, finite native-cell
+radiocarbon, and positive site NPP, even if other layers in its profile are missing.
+Depth indices stay unchanged: a 60–70 cm layer receives the original 60–70 cm
+share of NPP. Inputs are still normalized over 0–100 cm, never over the observed
+subset. No missing values or local parameters are interpolated or imputed.
+
+The current inputs support **70 profiles at 49 locations and 642 layers** this way,
+adding 20 profiles and 142 layers. h = 10 is held fixed from the prior validation
+search. See the [results and coverage report](layered_partial_profiles.md).
+
 ## Follow the code in this order
 
 1. **Load data:** [`layered_data.py`](../../../soil_diskin/layered_data.py)
-   reads Balesdent stocks, Shi radiocarbon, and cached NPP. It retains complete
-   profiles, differences cumulative stocks into layers, converts NPP units,
+   reads Balesdent stocks, Shi radiocarbon, and cached NPP. It selects complete
+   profiles or usable individual layers, differences cumulative stocks, converts NPP units,
    and records exclusions.
 2. **Fit and predict one layer:**
    [`layered_lognormal.py`](../../../soil_diskin/layered_lognormal.py)
@@ -74,6 +91,8 @@ All starts are retained, including duplicates and unconverged results.
 Thus there are **20 local parameters per profile, plus one shared h**, replacing
 20 local parameters plus shared D, v, and h. Supplying h fixes it for that run;
 the pipeline does not estimate it from the new-carbon observations.
+For a partial profile, only the two parameters of each retained layer are fitted;
+no parameters or predictions are inferred for its excluded layers.
 
 ## Start with `layers.csv`
 
@@ -97,7 +116,7 @@ Other outputs:
 | `fits.csv` | All three optimization starts for every layer, best first |
 | `predictions.csv` | Every start's predictions at each requested time |
 | `prediction_spread.csv` | Min/max predictions from converged, numerically checked, near-best starts |
-| `exclusions.csv` | Profiles lacking complete calibration data and the reasons |
+| `exclusions.csv` | Excluded profiles/layers and reasons; a blank `layer` means the whole profile |
 | `run.json` | Settings, source fingerprints, counts, and run status |
 
 Candidate IDs now refer to starts **within a layer**, not coupled whole-profile
@@ -130,8 +149,12 @@ The old `--hyper D V H` command is replaced by `--input-depth H`; the old
 
 ## Data conventions
 
-- Complete calibration requires ten positive stocks, ten finite native-cell
-  radiocarbon targets, and positive NPP. Missing evaluation-only `f_new` is allowed.
+- Default selection requires ten positive stocks, ten finite native-cell
+  radiocarbon targets, and positive NPP. With `--allow-partial`, the same checks
+  apply per layer. Missing evaluation-only `f_new` is allowed for fitting, but
+  those layers cannot contribute to observed-versus-predicted scores.
+- Layer stocks use differences of adjacent cumulative stocks. A missing boundary
+  invalidates both adjacent differences; it is never bridged or interpolated.
 - Different named Balesdent profiles at the same coordinates remain separate.
 - NPP is converted from g C/m²/year to kg C/m²/year. Stocks use kg C/m².
 - Shi's ten 1 cm values are averaged within each model layer without filling gaps.

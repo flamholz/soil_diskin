@@ -161,6 +161,17 @@ This selects h by validation RMSE and then evaluates it against the fixed 30 cm
 baseline on the test split. See the [experiment report](docs/notes/modeling/layered_h_tuning.md)
 for the protocol, results, and calibration trade-off.
 
+To include usable layers from profiles with missing depth observations at h = 10 cm:
+
+```sh
+uv run python -m soil_diskin.layered_workflow --input-depth 10 --allow-partial \
+  --max-nfev 1000 --output-dir results/my_partial_profiles
+```
+
+Each retained layer still needs stock, radiocarbon, and site NPP. Missing inputs
+are not filled, and the allocation of NPP to depth stays unchanged. See the
+[partial-profile results](docs/notes/modeling/layered_partial_profiles.md).
+
 ## Citation
 
 If you use this code in your research, please cite:

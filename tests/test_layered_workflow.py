@@ -35,6 +35,21 @@ def test_pipeline_keeps_layer_identity_and_fnew_out_of_fitting(tmp_path, monkeyp
     assert metadata['status'] == 'complete'
     assert metadata['input_depth_cm'] == 30
     assert metadata['evaluation_used_for_parameter_fitting'] is False
+
+    # Removing layers must not reindex depths or redistribute their NPP inputs.
+    sparse = profiles.iloc[[0, 2, 8]].copy()
+    sparse.loc[sparse.layer == 8, 'fnew_obs'] = np.nan
+    partial_output = tmp_path/'partial'
+    run_profiles(PreparedProfiles(sparse, prepared.excluded), atm, partial_output, input_depth=30)
+    partial = pd.read_csv(partial_output/'layers.csv').set_index('layer')
+    reference = a.set_index('layer').loc[[0, 2, 8]]
+    assert partial.index.tolist() == [0, 2, 8]
+    np.testing.assert_allclose(partial[['mu', 'sigma', 'input_kg_m2_yr', 'fnew_pred']],
+                               reference[['mu', 'sigma', 'input_kg_m2_yr', 'fnew_pred']])
+    assert partial.input_kg_m2_yr.sum() < .5
+    assert len(partial) == 3 and partial.fnew_pred.notna().all()
+    assert pd.read_csv(partial_output/'metrics.csv').n_layer_pairs.iloc[0] == 2
+
     with pytest.raises(FileExistsError):
         run_profiles(prepared, atm, outputs[0])
 

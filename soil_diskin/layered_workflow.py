@@ -60,15 +60,15 @@ def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str
                  input_depth: float = 30., times: tuple[float, ...] = (),
                  max_nfev: int = 500, log_rate_step: float = .05,
                  verbose: bool = False) -> dict:
-    """Fit every complete profile; h is supplied and f_new is evaluation data only."""
+    """Fit every supplied layer; h is fixed and f_new is evaluation data only."""
     output = Path(output_dir)
     if output.exists() and any(output.iterdir()):
         raise FileExistsError('use a new or empty output directory; existing runs are preserved')
     if not len(prepared.profiles):
-        raise ValueError('no complete profiles to fit')
+        raise ValueError('no usable layers to fit')
     if not np.isfinite(times).all() or np.any(np.asarray(times) < 0):
         raise ValueError('times must be finite and nonnegative')
-    # 1. Allocate NPP and prepare the same independent-layer model for every site.
+    # 1. Allocate NPP over all ten depths, even when only some layers are observed.
     weights = input_weights(input_depth)
     model = LayerLognormal(atmosphere, log_rate_step=log_rate_step)
     refined = LayerLognormal(atmosphere, log_rate_step=log_rate_step/2)
@@ -87,8 +87,8 @@ def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str
     fit_rows, prediction_rows = [], []
     try:
         for profile_id, profile in prepared.profiles.groupby('profile_id', sort=False):
-            if not np.array_equal(np.sort(profile.layer), np.arange(10)):
-                raise ValueError(f'{profile_id}: expected exactly layers 0..9')
+            if profile.layer.duplicated().any() or not profile.layer.isin(range(10)).all():
+                raise ValueError(f'{profile_id}: expected distinct layer indices in 0..9')
             if profile.npp_kg_m2_yr.nunique(dropna=False) != 1:
                 raise ValueError(f'{profile_id}: inconsistent site NPP')
             if verbose:
@@ -170,6 +170,8 @@ def main() -> None:
     parser.add_argument('--output-dir', type=Path, default=Path('results/layered_no_transport'))
     parser.add_argument('--times', type=float, nargs='*', default=[], help='extra prediction times in years')
     parser.add_argument('--limit', type=int, help='first N eligible profiles; default: all')
+    parser.add_argument('--allow-partial', action='store_true',
+                        help='include usable layers from incomplete profiles; do not fill missing inputs')
     parser.add_argument('--max-nfev', type=int, default=500)
     parser.add_argument('--log-rate-step', type=float, default=.05)
     parser.add_argument('--balesdent', default='data/balesdent_2018/balesdent_2018_raw.xlsx')
@@ -181,7 +183,7 @@ def main() -> None:
         parser.error('--limit must be positive')
     if args.max_nfev < 1:
         parser.error('--max-nfev must be positive')
-    prepared = load_profiles(args.balesdent, args.shi, args.npp)
+    prepared = load_profiles(args.balesdent, args.shi, args.npp, allow_partial=args.allow_partial)
     if args.limit:
         ids = prepared.profiles.profile_id.drop_duplicates().head(args.limit)
         prepared.profiles = prepared.profiles[prepared.profiles.profile_id.isin(ids)]

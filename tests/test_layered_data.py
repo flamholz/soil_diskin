@@ -35,6 +35,15 @@ def test_profiles_remain_distinct_and_missing_layer_values_are_excluded():
     assert prepared.excluded.profile_id.tolist() == ['incomplete']
     assert 'stock' in prepared.excluded.reason.iloc[0]
 
+    partial = prepare_profiles(raw, shi, npp, allow_partial=True)
+    retained = partial.profiles.query("profile_id == 'incomplete'")
+    # A missing cumulative value at 50 cm removes both adjacent differences.
+    assert retained.layer.tolist() == [0, 1, 2, 3, 6, 7, 8, 9]
+    assert retained.z_top_cm.tolist() == [0., 10., 20., 30., 60., 70., 80., 90.]
+    assert partial.excluded.layer.tolist() == [4, 5]
+    np.testing.assert_allclose(retained.stock_kg_m2, 1.)
+    np.testing.assert_allclose(retained.npp_kg_m2_yr, .5)
+
 
 def test_missing_native_radiocarbon_is_excluded_but_missing_evaluation_data_is_allowed():
     raw = pd.DataFrame({'Internal_profile_ID': ['missing-radio', 'complete'],
@@ -51,6 +60,16 @@ def test_missing_native_radiocarbon_is_excluded_but_missing_evaluation_data_is_a
     assert prepared.profiles.fnew_obs.isna().all()
     assert prepared.profiles.duration_years.isna().all()
     assert prepared.excluded.reason.tolist() == ['incomplete native-cell radiocarbon']
+
+    partial = prepare_profiles(raw, shi, npp, allow_partial=True)
+    assert len(partial.profiles) == 19
+    assert partial.profiles.query("profile_id == 'missing-radio'").layer.tolist() == list(range(1, 10))
+    assert partial.profiles.fnew_obs.isna().all()  # Evaluation data never gates fitting.
+    assert partial.excluded.layer.tolist() == [0]
+    no_npp = prepare_profiles(raw, shi, npp.iloc[[1]], allow_partial=True)
+    assert no_npp.profiles.profile_id.unique().tolist() == ['complete']
+    assert 'missing or nonpositive NPP' in no_npp.excluded.reason.iloc[0]
+    assert pd.isna(no_npp.excluded.layer.iloc[0])  # Whole-profile exclusion.
     conflicting = pd.concat([npp, npp.iloc[[0]].assign(NPP=600.)], ignore_index=True)
     with pytest.raises(ValueError, match='conflicting cached NPP'):
         prepare_profiles(raw, shi, conflicting)
