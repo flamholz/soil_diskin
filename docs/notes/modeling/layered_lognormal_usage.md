@@ -146,9 +146,31 @@ Default files are `data/balesdent_2018/balesdent_2018_raw.xlsx`,
 `data/14C_atm_annot.csv`. Override them with `--balesdent`, `--shi`, `--npp`, and
 `--atmosphere`. See `--help` for the remaining run controls.
 
-Observed `f_new` never enters parameter fitting. However, these observations
+Observed `f_new` never enters local mu/sigma fitting. However, these observations
 informed the choice to remove transport, so the reported scores are development
 evaluation, not an independent test of model selection.
+
+## Tune the shared input depth
+
+The separate, readable experiment in
+[`notebooks/tune_layered_input_depth.py`](../../../notebooks/tune_layered_input_depth.py)
+reuses this pipeline. It groups profiles by location, fixes a train/validation/test
+split, refits local parameters for each candidate h, selects h using validation
+f_new, and then evaluates only that h and the predeclared 30 cm baseline on test.
+The test f_new values are masked during local fitting. No shared regression for
+mu/sigma is learned: a new profile still needs its own stock, radiocarbon, and NPP.
+
+```sh
+uv run python notebooks/tune_layered_input_depth.py --output-dir results/my_h_search
+```
+
+Defaults: seed 42; 60/20/20 by location; h in [5,10,15,20,30,40,60,80,120,200] cm;
+selection by validation RMSE. `--metric kge_2012` changes the selection criterion.
+Every candidate uses the same observations; a failed validation fit makes it
+ineligible, rather than removing difficult observations from its score.
+Settings, split assignments, validation scores, the locked selection, and final
+test scores are saved separately. The [experiment report](layered_h_tuning.md)
+records the completed study and explains its retrospective test split.
 
 ## Verification of the simplification
 

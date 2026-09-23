@@ -149,7 +149,17 @@ uv run python -m soil_diskin.layered_workflow --input-depth 30 \
 This runs all complete profiles and writes `layers.csv`, the f_new scatter plot,
 and RMSE/KGE values. Add `--limit 2` for a small run. The supplied 30 cm input
 depth is not a fitted estimate; observed new-carbon fractions do not enter
-parameter fitting. They informed the choice to remove transport.
+local mu/sigma fitting. They informed the choice to remove transport.
+
+To tune h with separate train/validation/test locations:
+
+```sh
+uv run python notebooks/tune_layered_input_depth.py --output-dir results/my_h_search
+```
+
+This selects h by validation RMSE and then evaluates it against the fixed 30 cm
+baseline on the test split. See the [experiment report](docs/notes/modeling/layered_h_tuning.md)
+for the protocol, results, and calibration trade-off.
 
 ## Citation
 
