@@ -73,3 +73,25 @@ def test_missing_native_radiocarbon_is_excluded_but_missing_evaluation_data_is_a
     conflicting = pd.concat([npp, npp.iloc[[0]].assign(NPP=600.)], ignore_index=True)
     with pytest.raises(ValueError, match='conflicting cached NPP'):
         prepare_profiles(raw, shi, conflicting)
+
+
+def test_npp_matching_recovers_coordinate_roundoff_without_borrowing_nearby_values():
+    latitude, longitude = -19.433333333333334, -44.166666666666664
+    raw = pd.DataFrame({'Internal_profile_ID': ['roundoff', 'nearby', 'missing'],
+                        'Latitude': [latitude, latitude + 1e-6, 10.], 'Longitude': longitude})
+    for i in range(11):
+        raw[f'Ctotal_0-{10*i}'] = float(i)
+    shi = xr.Dataset({'temp': (('level', 'lat', 'lon'), np.zeros((100, 1, 1)))},
+                     coords={'level': np.arange(100), 'lat': [latitude], 'lon': [longitude]})
+    npp = pd.DataFrame({'Latitude': [np.nextafter(latitude, -np.inf), 10.],
+                        'Longitude': longitude, 'NPP': [1093.076, np.nan]})
+    result = prepare_profiles(raw, shi, npp, allow_partial=True)
+    assert result.profiles.profile_id.unique().tolist() == ['roundoff']
+    np.testing.assert_allclose(result.profiles.npp_kg_m2_yr, 1.093076)
+    assert result.profiles.latitude.eq(latitude).all()  # Original coordinates are preserved.
+    assert result.excluded.profile_id.tolist() == ['nearby', 'missing']
+    assert result.excluded.reason.eq('missing or nonpositive NPP').all()
+
+    conflicting = pd.concat([npp, npp.iloc[[0]].assign(Latitude=latitude, NPP=900.)])
+    with pytest.raises(ValueError, match='conflicting cached NPP'):
+        prepare_profiles(raw, shi, conflicting)

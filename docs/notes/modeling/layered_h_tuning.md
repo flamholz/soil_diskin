@@ -1,5 +1,10 @@
 # Shared input-depth hyperparameter experiment
 
+**Cohort note:** this historical experiment used 50 profiles. A later
+[NPP coordinate-matching fix](layered_npp_recovery.md) expanded the available
+complete-data cohort to 61 profiles. h has not been retuned on that expanded
+cohort; the results and split recorded here remain those of the original study.
+
 The fixed-grid experiment selected **h = 10 cm** by validation RMSE. On the
 predeclared test split, it reduced f_new RMSE by **10.24%** relative to h = 30 cm.
 It also worsened the stock/radiocarbon calibration, which is a material trade-off.
@@ -78,6 +83,10 @@ accuracy would be a different selection rule and should be fixed before a new
 validation exercise; this report does not retroactively change the rule.
 
 ## Reproduce and inspect
+
+The original implementation is recorded at commit `6e93383`. Running the command
+below with current code starts a new search using the expanded cohort; it does
+not reproduce the historical 50-profile split.
 
 ```sh
 uv run python notebooks/tune_layered_input_depth.py \

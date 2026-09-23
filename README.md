@@ -169,8 +169,10 @@ uv run python -m soil_diskin.layered_workflow --input-depth 10 --allow-partial \
 ```
 
 Each retained layer still needs stock, radiocarbon, and site NPP. Missing inputs
-are not filled, and the allocation of NPP to depth stays unchanged. See the
-[partial-profile results](docs/notes/modeling/layered_partial_profiles.md).
+are not filled, and the allocation of NPP to depth stays unchanged. Matching
+cached NPP now tolerates coordinate roundoff, supporting 87 profiles and 800
+layers. See the [NPP recovery results](docs/notes/modeling/layered_npp_recovery.md)
+and the earlier [partial-profile results](docs/notes/modeling/layered_partial_profiles.md).
 
 ## Citation
 

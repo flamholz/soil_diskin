@@ -15,6 +15,7 @@ from .layered_lognormal import DZ, N_LAYERS
 # the original delta-14C NetCDF incorrectly labels its variable units as 'year'.
 # https://zenodo.org/records/3823612 (v1, checked 2026-09-23).
 SHI_MD5 = '645aa8d54cbc36cb329c29bcffc4352b'
+NPP_COORD_DECIMALS = 10  # Match CSV/Excel coordinate roundoff, not neighboring sites.
 
 
 @dataclass
@@ -54,10 +55,13 @@ def prepare_profiles(raw: pd.DataFrame, shi: xr.Dataset,
             raise ValueError(f'Shi {dim} coordinates must be finite and unique')
         shi = shi.sortby(dim)
     coords = ['Latitude', 'Longitude']
-    npp_values = npp[coords+['NPP']].drop_duplicates()
+    npp_values = npp[coords+['NPP']].copy()
+    npp_values[coords] = npp_values[coords].apply(pd.to_numeric, errors='coerce').round(NPP_COORD_DECIMALS)
+    npp_values = npp_values.drop_duplicates()
     if npp_values.duplicated(coords).any():
         raise ValueError('conflicting cached NPP values at the same coordinates')
-    joined = raw[coords].merge(npp_values, on=coords, how='left', validate='many_to_one')
+    join_coords = raw[coords].apply(pd.to_numeric, errors='coerce').round(NPP_COORD_DECIMALS)
+    joined = join_coords.merge(npp_values, on=coords, how='left', validate='many_to_one')
     inputs = pd.to_numeric(joined.NPP, errors='coerce').to_numpy(float)/1000
     lat = pd.to_numeric(raw.Latitude, errors='coerce').to_numpy(float)
     lon = pd.to_numeric(raw.Longitude, errors='coerce').to_numpy(float)
@@ -126,6 +130,8 @@ def prepare_profiles(raw: pd.DataFrame, shi: xr.Dataset,
                 'radiocarbon_reference_year': 2000,
                 'reference_year_basis': 'inherited model convention; absent from NetCDF metadata',
                 'npp_conversion': 'cached g C/m²/yr divided by 1000 to kg C/m²/yr',
+                'npp_coordinate_matching_decimals': NPP_COORD_DECIMALS,
+                'npp_imputed': False,
                 'fnew_observation': 'difference of cumulative Cnew divided by layer Ctotal'}
     return PreparedProfiles(pd.DataFrame(records, columns=columns),
                             pd.DataFrame(exclusions, columns=['profile_id', 'layer', 'reason']), metadata)

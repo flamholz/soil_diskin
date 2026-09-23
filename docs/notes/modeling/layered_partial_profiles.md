@@ -1,5 +1,10 @@
 # Extending h = 10 cm to partially observed profiles
 
+**Historical run, superseded by the [NPP matching correction](layered_npp_recovery.md).**
+The 21 profiles reported here as missing NPP actually have cached NPP; an exact
+coordinate-join bug excluded them. The saved scores below describe the original
+70-profile run. Corrected matching now supports 87 profiles and 800 layers.
+
 The no-transport model can fit available layers independently. Holding the
 previously selected **h = 10 cm** fixed adds **20 profiles and 142 layer pairs**,
 for **70 profiles at 49 locations and 642 evaluated layers** in total.

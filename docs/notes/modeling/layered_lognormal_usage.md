@@ -18,8 +18,9 @@ This fits all eligible profiles and creates an observed-versus-predicted
 Add `--limit 2` for a small run or `--times 1 10 100` for extra prediction times.
 Each profile's observed labeling duration is always included.
 
-The current local inputs contain 50 complete profiles at 35 locations. Each
-profile contributes ten layer fits, so the full run contains 500 layer fits.
+The current local inputs contain 61 complete profiles at 42 locations after
+correcting cached-NPP coordinate matching. Each contributes ten layer fits,
+so a complete-profile run contains 610 layer fits.
 
 ## Include partial profiles
 
@@ -34,9 +35,10 @@ Depth indices stay unchanged: a 60–70 cm layer receives the original 60–70 c
 share of NPP. Inputs are still normalized over 0–100 cm, never over the observed
 subset. No missing values or local parameters are interpolated or imputed.
 
-The current inputs support **70 profiles at 49 locations and 642 layers** this way,
-adding 20 profiles and 142 layers. h = 10 is held fixed from the prior validation
-search. See the [results and coverage report](layered_partial_profiles.md).
+The current inputs support **87 profiles at 57 locations and 800 layers** this way.
+h = 10 is held fixed from the prior validation search. See the
+[NPP recovery and coverage report](layered_npp_recovery.md). The earlier
+[partial-profile report](layered_partial_profiles.md) used the pre-fix 70-profile cohort.
 
 ## Follow the code in this order
 
@@ -157,6 +159,10 @@ The old `--hyper D V H` command is replaced by `--input-depth H`; the old
   invalidates both adjacent differences; it is never bridged or interpolated.
 - Different named Balesdent profiles at the same coordinates remain separate.
 - NPP is converted from g C/m²/year to kg C/m²/year. Stocks use kg C/m².
+- NPP join keys round latitude/longitude to ten decimal places to reconcile
+  workbook/CSV roundoff. Original coordinates used for Shi sampling are preserved.
+  Conflicting NPP values at the same normalized coordinates raise an error.
+  This recovers existing cached values; it does not extrapolate NPP across sites.
 - Shi's ten 1 cm values are averaged within each model layer without filling gaps.
   These are gridded estimates, not direct measurements at each Balesdent site.
 - The adapter verifies the [published Shi file checksum](https://zenodo.org/records/3823612):
@@ -194,10 +200,12 @@ ineligible, rather than removing difficult observations from its score.
 Settings, split assignments, validation scores, the locked selection, and final
 test scores are saved separately. The [experiment report](layered_h_tuning.md)
 records the completed study and explains its retrospective test split.
+That historical study used 50 profiles before the NPP matching fix. A new search
+now uses the expanded complete-data cohort and produces a different split.
 
 ## Verification of the simplification
 
-All 500 layer fits at h = 30 cm converged and passed the finer-grid check.
+In the historical 50-profile cohort, all 500 layer fits at h = 30 cm converged and passed the finer-grid check.
 Compared with the saved coupled implementation run at D = v = 0, the largest
 mu/sigma difference was below 1e-12 and the largest f_new difference across
 1,950 profile/layer/time predictions was below 1.5e-13. RMSE remains 0.117376
