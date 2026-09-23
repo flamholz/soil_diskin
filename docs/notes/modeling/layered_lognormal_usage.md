@@ -1,8 +1,9 @@
 # Independent-layer log-normal pipeline
 
 Each site has ten independent 10 cm layers. Each layer has its own `mu` and
-`sigma`. There is **no transport**. The only shared parameter is the input
-e-folding depth `h`, supplied in centimetres (default: 30).
+`sigma`. There is **no transport**. The input e-folding depth `h` is shared,
+supplied in centimetres (default: 30). An optional fixed surface-input fraction
+can add a direct input to the first layer (default: zero).
 
 ## Run all complete profiles
 
@@ -71,6 +72,14 @@ All site NPP is allocated within 0–100 cm. With no exchange between layers,
 turnover = observed_stock / input
 predicted_stock = input × exp(-mu + sigma²/2)
 ```
+
+An optional fixed `--surface-fraction s` puts that fraction of NPP directly into
+0–10 cm and distributes the remainder with the same exponential over **all ten
+layers**, including the top layer. If `w` is the exponential allocation above,
+the mixed weights are `(1-s)*w`, with `s` added to the first weight. Thus `s=0.5`
+gives the top layer **more than 50%** of total NPP. The default is zero, preserving
+the original model. The fraction must lie in `[0,1)` so deeper layers retain input.
+It is supplied, not fitted; `h` then describes the distributed component only.
 
 `mu` and `sigma` describe the normal distribution of **log decomposition rates
 in new inputs**, with rates in year⁻¹. Slow carbon accumulates at steady state:
@@ -217,6 +226,18 @@ Root biomass is assumed to represent input depth; all NPP remains allocated
 within 0–100 cm. No published coefficient or vegetation assignment is fitted to
 f_new. See the [comparison report](layered_jackson_inputs.md) for the exact
 assignments, results, limitations, and output files.
+
+To additionally compare 50% direct surface input plus 50% Jackson input against
+all three existing alternatives:
+
+```sh
+uv run python -m notebooks.compare_jackson_inputs --surface-fraction 0.5 \
+  --output-dir results/my_jackson_surface50
+```
+
+The [surface-input comparison](layered_jackson_surface50.md) records the results
+and exact interpretation. The surface fraction and full ten-layer weights are
+saved in each group's `run.json`, even when some layers lack observations.
 
 ## Verification of the simplification
 

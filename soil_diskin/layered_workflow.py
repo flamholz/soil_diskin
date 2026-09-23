@@ -43,9 +43,11 @@ def plot_comparison(predictions: pd.DataFrame, output: Path) -> None:
             ax.scatter(frame.fnew_obs, frame.fnew_pred, s=22, c=color, marker=marker,
                        alpha=.6, label=label)
     ax.plot([0, 1], [0, 1], '--', color='gray', lw=1)
+    surface_label = (f' · surface input = {pairs.surface_fraction.iloc[0]:.0%}'
+                     if 'surface_fraction' in pairs and pairs.surface_fraction.iloc[0] else '')
     ax.set(xlim=(-.02, 1.02), ylim=(-.02, 1.02), aspect='equal',
            xlabel='Observed new-carbon fraction', ylabel='Predicted new-carbon fraction',
-           title=f'No transport · h = {pairs.input_depth_cm.iloc[0]:g} cm\n'
+           title=f'No transport · h = {pairs.input_depth_cm.iloc[0]:g} cm{surface_label}\n'
                  f'{pairs.profile_id.nunique()} profiles · {len(pairs)} layer pairs')
     ax.text(.04, .96, f'RMSE = {rmse:.4f}\nKGE (2012) = {kge:.3f}', transform=ax.transAxes,
             va='top', bbox={'facecolor': 'white', 'edgecolor': 'lightgray', 'alpha': .9})
@@ -57,10 +59,10 @@ def plot_comparison(predictions: pd.DataFrame, output: Path) -> None:
 
 
 def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str | Path, *,
-                 input_depth: float = 30., times: tuple[float, ...] = (),
+                 input_depth: float = 30., surface_fraction: float = 0., times: tuple[float, ...] = (),
                  max_nfev: int = 500, log_rate_step: float = .05,
                  verbose: bool = False) -> dict:
-    """Fit every supplied layer; h is fixed and f_new is evaluation data only."""
+    """Fit every supplied layer; input allocation is fixed and f_new is evaluation only."""
     output = Path(output_dir)
     if output.exists() and any(output.iterdir()):
         raise FileExistsError('use a new or empty output directory; existing runs are preserved')
@@ -69,13 +71,14 @@ def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str
     if not np.isfinite(times).all() or np.any(np.asarray(times) < 0):
         raise ValueError('times must be finite and nonnegative')
     # 1. Allocate NPP over all ten depths, even when only some layers are observed.
-    weights = input_weights(input_depth)
+    weights = input_weights(input_depth, surface_fraction=surface_fraction)
     model = LayerLognormal(atmosphere, log_rate_step=log_rate_step)
     refined = LayerLognormal(atmosphere, log_rate_step=log_rate_step/2)
     output.mkdir(parents=True, exist_ok=True)
     prepared.excluded.to_csv(output/'exclusions.csv', index=False)
     metadata = {'status': 'running', 'started_utc': datetime.now(timezone.utc).isoformat(),
                 'model': 'independent lognormal layers; no transport', 'input_depth_cm': input_depth,
+                'surface_fraction': surface_fraction, 'layer_input_weights': weights.tolist(),
                 'max_nfev_per_start': max_nfev, 'starting_sigmas': [2.5, 1., 4.],
                 'mu_bounds': model.mu_bounds, 'sigma_bounds': model.sigma_bounds,
                 'stock_relative_scale': .1, 'fm_scale': .02, 'log_rate_step': log_rate_step,
@@ -96,6 +99,7 @@ def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str
             for _, observed in profile.sort_values('layer').iterrows():
                 rate = observed.npp_kg_m2_yr*weights[int(observed.layer)]
                 base = {**observed.to_dict(), 'input_depth_cm': input_depth,
+                        'surface_fraction': surface_fraction,
                         'input_kg_m2_yr': rate, 'observed_turnover_years': observed.stock_kg_m2/rate}
                 duration = observed.duration_years
                 prediction_times = sorted(set(times) | ({float(duration)} if np.isfinite(duration)
@@ -128,6 +132,7 @@ def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str
                         prediction_rows.append({'profile_id': profile_id, 'layer': observed.layer,
                             'z_top_cm': observed.z_top_cm, 'z_bottom_cm': observed.z_bottom_cm,
                             'input_depth_cm': input_depth, 'candidate_id': candidate['candidate_id'],
+                            'surface_fraction': surface_fraction,
                             'success': candidate['success'], 'near_best': candidate['near_best'],
                             'quadrature_ok': fitted['quadrature_ok'], 'time_years': elapsed,
                             'fnew_pred': value, 'at_label_duration': elapsed == duration,
@@ -167,6 +172,8 @@ def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input-depth', type=float, default=30., help='shared NPP e-folding depth in cm')
+    parser.add_argument('--surface-fraction', type=float, default=0.,
+                        help='direct NPP fraction in top 10 cm; remainder follows exponential over 0–100 cm')
     parser.add_argument('--output-dir', type=Path, default=Path('results/layered_no_transport'))
     parser.add_argument('--times', type=float, nargs='*', default=[], help='extra prediction times in years')
     parser.add_argument('--limit', type=int, help='first N eligible profiles; default: all')
@@ -190,7 +197,7 @@ def main() -> None:
     prepared.metadata['atmosphere'] = {'path': str(Path(args.atmosphere).resolve()),
                                       'sha256': file_digest(args.atmosphere)}
     result = run_profiles(prepared, load_atm14c(args.atmosphere), args.output_dir,
-                          input_depth=args.input_depth, times=tuple(args.times),
+                          input_depth=args.input_depth, surface_fraction=args.surface_fraction, times=tuple(args.times),
                           max_nfev=args.max_nfev, log_rate_step=args.log_rate_step, verbose=True)
     print(f"Saved {args.output_dir}: {result['converged_layers']}/{result['n_layers']} layer fits converged.")
 

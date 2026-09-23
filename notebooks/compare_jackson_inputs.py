@@ -3,6 +3,7 @@
 Run from the repo root: uv run python -m notebooks.compare_jackson_inputs
 The paper's beta parameter is exactly equivalent to h=-1/log(beta), so the
 existing model is reused. No coefficients or vegetation choices fit f_new.
+Add --surface-fraction 0.5 to compare mixtures with a direct top-layer input.
 """
 from __future__ import annotations
 
@@ -50,50 +51,65 @@ def jackson_assignments(raw: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
-def plot_results(layers: dict[str, pd.DataFrame], metrics: pd.DataFrame, output: Path) -> None:
+def plot_results(layers: dict[str, pd.DataFrame], metrics: pd.DataFrame, output: Path,
+                 surface_fraction: float = 0.) -> None:
     import matplotlib.pyplot as plt
 
-    fig, axes = plt.subplots(1, 3, figsize=(13, 5.1), sharex=True, sharey=True)
-    for ax, (name, frame), color in zip(axes, layers.items(), ['#2476b8', '#d66b22', '#298568']):
+    rows = 2 if len(layers) > 3 else 1
+    fig, axes = plt.subplots(rows, 3, figsize=(13, 4.5*rows+.6), sharex=True, sharey=True)
+    axes = np.asarray(axes).ravel()
+    for ax in axes[len(layers):]:
+        ax.set_visible(False)
+    for ax, (name, frame), color in zip(axes, layers.items(), ['#2476b8', '#d66b22', '#298568', '#9a5aaf', '#ad8730']):
         values = metrics.set_index('scheme').loc[name]
+        title = LABELS[name.removesuffix('_surface')]
+        if name.endswith('_surface'):
+            title = title.replace('Jackson:', f'{surface_fraction:.0%} surface + {1-surface_fraction:.0%} Jackson:\n')
         ax.scatter(frame.fnew_obs, frame.fnew_pred, s=15, alpha=.45, color=color, edgecolor='none')
         ax.plot([0, 1], [0, 1], '--', color='gray', lw=1)
         ax.set(xlim=(-.02, 1.02), ylim=(-.02, 1.02), aspect='equal',
-               xlabel='Observed new-carbon fraction', title=LABELS[name])
+               xlabel='Observed new-carbon fraction', title=title)
         ax.text(.04, .96, f'RMSE = {values.rmse:.4f}\nKGE (2012) = {values.kge_2012:.3f}',
                 transform=ax.transAxes, va='top', bbox={'facecolor': 'white', 'edgecolor': 'lightgray'})
         ax.grid(alpha=.15)
-    axes[0].set_ylabel('Predicted new-carbon fraction')
+    for ax in axes[::3]:
+        ax.set_ylabel('Predicted new-carbon fraction')
     frame = next(iter(layers.values()))
     fig.suptitle(f'Same {frame.profile_id.nunique()} profiles and {len(frame)} layer observations', y=.98)
     fig.text(.5, .035, 'Fixed published coefficients; root biomass used as a proxy for input depth. '
              'All NPP allocated within 0–100 cm.', ha='center', fontsize=9, color='#50565c')
-    fig.subplots_adjust(left=.06, right=.985, top=.82, bottom=.18, wspace=.13)
+    fig.subplots_adjust(left=.06, right=.985, top=.89 if rows > 1 else .82,
+                        bottom=.10 if rows > 1 else .18, wspace=.13, hspace=.35)
     for extension in ['png', 'pdf']:
         fig.savefig(output/f'comparison.{extension}', dpi=200)
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(6.7, 5.2), layout='constrained')
-    rows = []
+    fractions = [0., surface_fraction] if surface_fraction else [0.]
+    fig, axes = plt.subplots(1, len(fractions), figsize=(6.7*len(fractions), 5.2), layout='constrained')
+    weight_rows = []
     depths = [('h10_baseline', 10.)] + [(group, float(-1/np.log(beta))) for group, beta in JACKSON_BETA.items()]
-    for group, depth in depths:
-        weights = input_weights(depth)
-        label = 'Exponential h=10 cm' if group == 'h10_baseline' else f'{group.capitalize()}: beta={JACKSON_BETA[group]:.3f}'
-        ax.plot(weights, np.arange(5., 100., 10.), 'o-', label=label, ms=4)
-        for layer, weight in enumerate(weights):
-            rows.append({'group': group, 'input_depth_cm': depth, 'layer': layer,
-                         'z_top_cm': layer*10, 'z_bottom_cm': (layer+1)*10, 'npp_fraction': weight})
-    ax.set(xlabel='Fraction of site NPP per 10 cm layer', ylabel='Depth (cm)',
-           title='Input allocation within the modeled 0–100 cm column', ylim=(100, 0), xlim=(0, .67))
-    ax.grid(alpha=.15)
-    ax.legend()
+    for ax, fraction in zip(np.atleast_1d(axes), fractions):
+        for group, depth in depths:
+            direct = 0. if group == 'h10_baseline' else fraction
+            weights = input_weights(depth, surface_fraction=direct)
+            label = 'Exponential h=10 cm' if group == 'h10_baseline' else f'{group.capitalize()}: beta={JACKSON_BETA[group]:.3f}'
+            ax.plot(weights, np.arange(5., 100., 10.), 'o-', label=label, ms=4)
+            for layer, weight in enumerate(weights):
+                weight_rows.append({'group': group, 'input_depth_cm': depth, 'surface_fraction': direct, 'layer': layer,
+                                    'z_top_cm': layer*10, 'z_bottom_cm': (layer+1)*10, 'npp_fraction': weight})
+        title = f'{fraction:.0%} surface + {1-fraction:.0%} Jackson' if fraction else 'Jackson only'
+        ax.set(xlabel='Fraction of site NPP per 10 cm layer', ylabel='Depth (cm)',
+               title=title+' (0–100 cm)', ylim=(100, 0), xlim=(0, 1))
+        ax.grid(alpha=.15)
+        ax.legend()
     for extension in ['png', 'pdf']:
         fig.savefig(output/f'input_profiles.{extension}', dpi=200)
     plt.close(fig)
-    pd.DataFrame(rows).to_csv(output/'input_weights.csv', index=False)
+    pd.DataFrame(weight_rows).drop_duplicates().to_csv(output/'input_weights.csv', index=False)
 
 
-def run_comparison(output: Path, max_nfev: int = 1000) -> None:
+def run_comparison(output: Path, max_nfev: int = 1000, surface_fraction: float = 0.) -> None:
+    input_weights(30., surface_fraction=surface_fraction)  # Validate before loading data or creating outputs.
     if output.exists() and any(output.iterdir()):
         raise FileExistsError('use a new or empty output directory')
     # 1. Use the same eligible layers for every allocation, including partial profiles.
@@ -112,7 +128,9 @@ def run_comparison(output: Path, max_nfev: int = 1000) -> None:
     protocol = {'status': 'running', 'started_utc': datetime.now(timezone.utc).isoformat(),
         'paper': PAPER, 'jackson_beta': JACKSON_BETA, 'baseline_h_cm': 10.,
         'conversion': 'h_cm = -1 / log(beta); beta exponent uses depth in cm',
-        'input_assumption': 'root biomass profile represents total NPP input depth',
+        'input_assumption': 'root biomass profile represents the Jackson component; any direct surface fraction is added separately',
+        'surface_fraction': surface_fraction,
+        'surface_assumption': 'mixtures add direct input to 0–10 cm; remaining Jackson share spans 0–100 cm including top layer',
         'normalization': '0–100 cm; never renormalize to available layers',
         'mapping': 'crop/grass/tree by land use; explicit shrub override; global for sylvopastoral, savanna, Trifolium, unknown',
         'fnew_used_for_coefficients_or_mapping': False, 'evaluation': 'pooled descriptive comparison, not independent test',
@@ -130,6 +148,10 @@ def run_comparison(output: Path, max_nfev: int = 1000) -> None:
                                               jackson_group='global', jackson_beta=JACKSON_BETA['global'],
                                               global_fallback=False),
         'jackson_vegetation': assignments}
+    scenarios = {name: allocation.assign(surface_fraction=0.) for name, allocation in scenarios.items()}
+    if surface_fraction:
+        for name in ['jackson_global', 'jackson_vegetation']:
+            scenarios[name+'_surface'] = scenarios[name].assign(surface_fraction=surface_fraction)
     all_layers, summaries = {}, []
     try:
         # 3. Reuse the unchanged fitter for each coefficient group; refit local mu/sigma.
@@ -138,11 +160,12 @@ def run_comparison(output: Path, max_nfev: int = 1000) -> None:
             data = prepared.profiles.merge(allocation, on='profile_id', validate='many_to_one')
             for group, subset in data.groupby('jackson_group', sort=False):
                 depth = float(subset.input_depth_cm.iloc[0])
+                direct = float(subset.surface_fraction.iloc[0])
                 destination = output/name/str(group)
-                print(f'{name}: {group}, h={depth:.6f} cm, {len(subset)} layers', flush=True)
+                print(f'{name}: {group}, h={depth:.6f} cm, surface={direct:.0%}, {len(subset)} layers', flush=True)
                 metadata = {**prepared.metadata, 'input_scheme': name, 'jackson_group': group}
                 run_profiles(PreparedProfiles(subset, prepared.excluded, metadata), atmosphere,
-                             destination, input_depth=depth, max_nfev=max_nfev)
+                             destination, input_depth=depth, surface_fraction=direct, max_nfev=max_nfev)
                 frames.append(pd.read_csv(destination/'layers.csv', float_precision='round_trip'))
             fitted = pd.concat(frames, ignore_index=True).sort_values(['profile_id', 'layer'])
             expected = prepared.profiles[['profile_id', 'layer']].sort_values(['profile_id', 'layer'])
@@ -153,7 +176,7 @@ def run_comparison(output: Path, max_nfev: int = 1000) -> None:
             pd.DataFrame(summaries).to_csv(output/'metrics.csv', index=False)
         # 4. Report every scheme and calibration diagnostics; do not select on these outcomes.
         table = pd.DataFrame(summaries)
-        plot_results(all_layers, table, output)
+        plot_results(all_layers, table, output, surface_fraction)
         print(table.to_string(index=False), flush=True)
         protocol['status'] = 'complete'
     finally:
@@ -166,7 +189,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path, default=Path('results/layered_jackson_1996'))
     parser.add_argument('--max-nfev', type=int, default=1000)
+    parser.add_argument('--surface-fraction', type=float, default=0.,
+                        help='also compare this direct top-layer NPP fraction plus Jackson roots over 0–100 cm')
     args = parser.parse_args()
     if args.max_nfev < 1:
         parser.error('--max-nfev must be positive')
-    run_comparison(args.output_dir, args.max_nfev)
+    run_comparison(args.output_dir, args.max_nfev, args.surface_fraction)

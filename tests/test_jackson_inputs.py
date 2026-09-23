@@ -1,6 +1,7 @@
 """Published cumulative root fractions and outcome-independent assignments."""
 import numpy as np
 import pandas as pd
+import pytest
 
 from notebooks.compare_jackson_inputs import JACKSON_BETA, jackson_assignments
 from soil_diskin.layered_lognormal import input_weights
@@ -28,3 +29,18 @@ def test_vegetation_assignments_use_metadata_and_flag_ambiguous_groups():
     assert assignment.profile_id.tolist() == list('abcdefgh')
     assert assignment.global_fallback.tolist() == [False]*4 + [True]*4
     pd.testing.assert_frame_equal(assignment, jackson_assignments(raw.assign(fnew_obs=.9)))
+
+
+def test_half_surface_input_conserves_npp_and_keeps_jackson_roots_in_top_layer():
+    # Independent cumulative-root calculation with an extra half-NPP at the surface.
+    beta = .966
+    roots = np.diff(1-beta**np.arange(0., 101., 10.))/(1-beta**100)
+    weights = input_weights(float(-1/np.log(beta)), surface_fraction=.5)
+    np.testing.assert_allclose(weights[0], .5+.5*roots[0], rtol=1e-13)
+    np.testing.assert_allclose(weights[1:], .5*roots[1:], rtol=1e-13)
+    np.testing.assert_allclose(weights.sum(), 1., rtol=1e-14)
+    assert weights[0] > .5
+    # A wholly surface input would leave zero input for the fitted lower layers.
+    for invalid in [-.01, 1., np.nan, np.inf]:
+        with pytest.raises(ValueError, match='surface_fraction'):
+            input_weights(30., surface_fraction=invalid)

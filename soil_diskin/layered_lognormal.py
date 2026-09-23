@@ -18,13 +18,18 @@ N_LAYERS, DZ = 10, 10.0
 MU_BOUNDS, SIGMA_BOUNDS = (-15., 10.), (.05, 5.)
 
 
-def input_weights(input_depth: float) -> Array:
-    """Fraction of site NPP in each 10 cm layer; the ten fractions sum to one."""
+def input_weights(input_depth: float, *, surface_fraction: float = 0.) -> Array:
+    """Allocate a direct top-layer fraction plus an exponential over all ten layers."""
     if not np.isfinite(input_depth) or input_depth <= 0:
         raise ValueError('input_depth must be finite and positive')
+    if not np.isfinite(surface_fraction) or not 0 <= surface_fraction < 1:
+        raise ValueError('surface_fraction must be finite and in [0, 1)')
     tops = np.arange(N_LAYERS)*DZ
-    return (np.exp(-tops/input_depth)*-np.expm1(-DZ/input_depth)
-            / -np.expm1(-N_LAYERS*DZ/input_depth))
+    weights = (np.exp(-tops/input_depth)*-np.expm1(-DZ/input_depth)
+               / -np.expm1(-N_LAYERS*DZ/input_depth))
+    weights *= 1-surface_fraction
+    weights[0] += surface_fraction
+    return weights
 
 
 @dataclass

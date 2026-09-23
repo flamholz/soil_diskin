@@ -183,6 +183,9 @@ uv run python -m notebooks.compare_jackson_inputs --output-dir results/my_jackso
 
 The [comparison report](docs/notes/modeling/layered_jackson_inputs.md) includes
 the input assumptions, observed-versus-predicted scores, and calibration diagnostics.
+Add `--surface-fraction 0.5` with a new output directory to also compare
+50% direct top-layer input plus 50% Jackson input across the full column; see the
+[surface-input results](docs/notes/modeling/layered_jackson_surface50.md).
 
 ## Citation
 
