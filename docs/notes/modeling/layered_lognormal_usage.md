@@ -203,6 +203,21 @@ records the completed study and explains its retrospective test split.
 That historical study used 50 profiles before the NPP matching fix. A new search
 now uses the expanded complete-data cohort and produces a different split.
 
+## Compare published root-depth allocations
+
+```sh
+uv run python -m notebooks.compare_jackson_inputs --output-dir results/my_jackson_comparison
+```
+
+This runs h = 10 cm, Jackson et al. (1996)'s global coefficient, and published
+coefficients assigned by vegetation group on the same usable layers, including
+partial profiles. The paper's `1 - beta**depth` distribution is equivalent to
+the existing exponential with `h = -1 / log(beta)`, so the core fitter is reused.
+Root biomass is assumed to represent input depth; all NPP remains allocated
+within 0–100 cm. No published coefficient or vegetation assignment is fitted to
+f_new. See the [comparison report](layered_jackson_inputs.md) for the exact
+assignments, results, limitations, and output files.
+
 ## Verification of the simplification
 
 In the historical 50-profile cohort, all 500 layer fits at h = 30 cm converged and passed the finer-grid check.

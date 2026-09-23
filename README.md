@@ -174,6 +174,16 @@ cached NPP now tolerates coordinate roundoff, supporting 87 profiles and 800
 layers. See the [NPP recovery results](docs/notes/modeling/layered_npp_recovery.md)
 and the earlier [partial-profile results](docs/notes/modeling/layered_partial_profiles.md).
 
+To compare h = 10 cm with published Jackson et al. (1996) global and
+vegetation-dependent root-depth allocations on the same available layers:
+
+```sh
+uv run python -m notebooks.compare_jackson_inputs --output-dir results/my_jackson_comparison
+```
+
+The [comparison report](docs/notes/modeling/layered_jackson_inputs.md) includes
+the input assumptions, observed-versus-predicted scores, and calibration diagnostics.
+
 ## Citation
 
 If you use this code in your research, please cite:
