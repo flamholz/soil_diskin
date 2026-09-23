@@ -1,306 +1,149 @@
-"""Ten-layer log-normal input model; cm, years, and kg C / m² throughout.
+"""Independent log-normal soil layers: input allocation, prediction, and fitting.
 
-Transport preserves decomposition rate and closes both column boundaries.
-See docs/notes/modeling/layered_lognormal_design.md for the governing equations.
+Units: depth in cm, time in years, stocks in kg C/m², inputs in kg C/m²/year.
+mu and sigma describe log(k) in the INPUT; resident carbon has mean mu-sigma².
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
-from math import ceil, ldexp, log2
-
 import numpy as np
 from numpy.typing import NDArray
-from scipy.linalg import expm
+from scipy.optimize import least_squares
 
-from .lognormal import C14_MEAN_LIFE
+from .lognormal import C14_MEAN_LIFE, inner_integral
 from .radiocarbon_utils import AtmC14
 
 Array = NDArray[np.float64]
-N_LAYERS = 10
-DZ = 10.0
-MU_BOUNDS = (-15.0, 10.0)
-SIGMA_BOUNDS = (0.05, 5.0)
-
-
-def _expm(matrix: Array) -> Array:
-    # macOS BLAS can emit spurious matmul floating-point warnings inside expm.
-    # Check its output explicitly so real numerical failure is never hidden.
-    with np.errstate(over='ignore', invalid='ignore', divide='ignore'):
-        result = expm(matrix)
-    if not np.isfinite(result).all():
-        raise FloatingPointError('nonfinite matrix exponential; check transport and time scales')
-    return result
-
-
-def _stochastic(matrix: Array) -> Array:
-    """Remove roundoff from a transport transition's probability columns."""
-    if not np.isfinite(matrix).all() or np.min(matrix) < -1e-12:
-        raise FloatingPointError('invalid transport transition probabilities')
-    matrix = np.maximum(matrix, 0)
-    return matrix / matrix.sum(axis=0)
-
-
-def transport_matrix(diffusion: float, velocity: float) -> Array:
-    """Conservative operator on layer *stocks*, with downward velocity >= 0."""
-    if not np.isfinite([diffusion, velocity]).all() or min(diffusion, velocity) < 0:
-        raise ValueError('diffusion and velocity must be finite and nonnegative')
-    down = diffusion / DZ**2 + velocity / DZ
-    up = diffusion / DZ**2
-    operator = np.zeros((N_LAYERS, N_LAYERS))
-    for i in range(N_LAYERS - 1):
-        operator[i + 1, i] += down
-        operator[i, i] -= down
-        operator[i, i + 1] += up
-        operator[i + 1, i + 1] -= up
-    return operator
+N_LAYERS, DZ = 10, 10.0
+MU_BOUNDS, SIGMA_BOUNDS = (-15., 10.), (.05, 5.)
 
 
 def input_weights(input_depth: float) -> Array:
-    """Integrated exponential inputs, normalized over the 100 cm column."""
+    """Fraction of site NPP in each 10 cm layer; the ten fractions sum to one."""
     if not np.isfinite(input_depth) or input_depth <= 0:
         raise ValueError('input_depth must be finite and positive')
-    z = np.arange(N_LAYERS) * DZ
-    return (np.exp(-z / input_depth) * -np.expm1(-DZ / input_depth)
-            / -np.expm1(-N_LAYERS * DZ / input_depth))
-
-
-def _resolvent(rates: Array, diffusion: float, velocity: float) -> Array:
-    """Return (k I - T)^-1 without subtracting nearly equal slow-rate pivots.
-
-    The final Thomas pivot is O(k). Computing it by subtraction loses it when
-    k is much smaller than transport. Carry its positive recurrence instead.
-    Solve for k I first, giving bounded absorption probabilities, then / k.
-    This also works for pure advection and zero transport.
-    """
-    down = diffusion / DZ**2 + velocity / DZ
-    up = diffusion / DZ**2
-    rhs = rates[:, None, None] * np.broadcast_to(np.eye(N_LAYERS),
-                                                (len(rates), N_LAYERS, N_LAYERS))
-    pivots = np.empty((len(rates), N_LAYERS))
-    delta = rates.copy()
-    for i in range(N_LAYERS - 1):
-        pivots[:, i] = down + delta
-        rhs[:, i + 1] += (down / pivots[:, i])[:, None] * rhs[:, i]
-        delta = rates + up * (delta / pivots[:, i])
-    pivots[:, -1] = delta
-    rhs[:, -1] /= delta[:, None]
-    for i in range(N_LAYERS - 2, -1, -1):
-        rhs[:, i] = (rhs[:, i] + up * rhs[:, i + 1]) / pivots[:, i, None]
-    return rhs / rates[:, None, None]
+    tops = np.arange(N_LAYERS)*DZ
+    return (np.exp(-tops/input_depth)*-np.expm1(-DZ/input_depth)
+            / -np.expm1(-N_LAYERS*DZ/input_depth))
 
 
 @dataclass
 class Prediction:
-    """Layer stocks and fraction modern; fnew has shape (times, layers)."""
-
-    stocks: Array
-    fm: Array
+    stock: float
+    fm: float
     times: Array
     fnew: Array
 
 
-class LayeredLognormal:
-    """Reusable response kernels for one supplied (D, v, h) triple.
+class LayerLognormal:
+    """One independent layer, reusing the atmospheric response across all fits.
 
-    The uniform log-rate quadrature covers twelve normal standard deviations
-    around both input and stock-weighted distributions, including the shifted
-    slow-rate tail. ``log_rate_step`` must not exceed the minimum sigma.
-    Halve it to check convergence independently of optimization.
+    A normal density on log(k) is integrated on a fixed grid. The grid covers
+    12 standard deviations of every allowed resident-carbon distribution.
+    Halving log_rate_step provides an independent numerical accuracy check.
     """
 
-    def __init__(self, diffusion: float, velocity: float, input_depth: float,
-                 atmosphere: AtmC14, *, log_rate_step: float = 0.05,
+    def __init__(self, atmosphere: AtmC14, *, log_rate_step: float = .05,
                  mu_bounds: tuple[float, float] = MU_BOUNDS,
                  sigma_bounds: tuple[float, float] = SIGMA_BOUNDS):
-        self.transport = transport_matrix(diffusion, velocity)
-        self.weights = input_weights(input_depth)
-        self.diffusion, self.velocity, self.input_depth = diffusion, velocity, input_depth
         self.mu_bounds, self.sigma_bounds = mu_bounds, sigma_bounds
-        bounds = np.asarray([mu_bounds, sigma_bounds], dtype=float)
+        bounds = np.asarray([mu_bounds, sigma_bounds])
         if (bounds.shape != (2, 2) or not np.isfinite(bounds).all()
                 or np.any(bounds[:, 0] >= bounds[:, 1]) or sigma_bounds[0] <= 0):
-            raise ValueError('ordered finite bounds and positive sigma are required')
+            raise ValueError('ordered finite bounds and positive sigma required')
         if not np.isfinite(log_rate_step) or not 0 < log_rate_step <= sigma_bounds[0]:
             raise ValueError('log_rate_step must be positive and <= minimum sigma')
-        lo = mu_bounds[0] - sigma_bounds[1]**2 - 12*sigma_bounds[1]
-        hi = mu_bounds[1] + 12*sigma_bounds[1]
-        if lo < -600 or hi > 600 or (hi-lo)/log_rate_step > 100_000:
-            raise ValueError('quadrature range or size exceeds supported numerical limits')
-        self.u = np.linspace(lo, hi, int(np.ceil((hi-lo)/log_rate_step)) + 1)
-        self.log_rate_step = float(self.u[1] - self.u[0])
-        self.rates = np.exp(self.u)
-        self._carbon = _resolvent(self.rates, diffusion, velocity)
-        self._radio = self._radiocarbon_kernel(atmosphere)
-
-    def _time_scaling(self, time: float) -> tuple[int, float]:
-        norm = float(np.linalg.norm(self.transport, 1))
-        if time == 0 or norm == 0:
-            return 0, time
-        steps = max(0, int(ceil(log2(norm)+log2(time))))
-        return steps, ldexp(time, -steps)
-
-    def _transition(self, time: float) -> Array:
-        steps, dt = self._time_scaling(time)
-        transition = _stochastic(_expm(self.transport*dt))
-        for _ in range(steps):
-            transition = _stochastic(transition @ transition)
-        return transition
-
-    def observables_and_jacobian(self, parameters: Array, npp: float) -> tuple[Array, Array]:
-        """Return [stocks, fm] and its Jacobian for [ten mu, ten sigma]."""
-        parameters = np.asarray(parameters, dtype=float)
-        if parameters.shape != (2*N_LAYERS,):
-            raise ValueError('parameters must contain ten mu followed by ten sigma')
-        mu, sigma = parameters[:N_LAYERS], parameters[N_LAYERS:]
-        density = self._input_density(mu, sigma, npp)
-        z = (self.u[:, None]-mu)/sigma
-        derivatives = [density*z/sigma, density*(z*z-1)/sigma]
-        stocks = np.einsum('kij,kj->i', self._carbon, density, optimize=True)
-        radio = np.einsum('kij,kj->i', self._radio, density, optimize=True)
-        if not np.isfinite(stocks).all() or np.any(stocks <= 0):
-            raise FloatingPointError('modeled layer stock is nonpositive or nonfinite')
-        stock_jac = np.concatenate([np.einsum('kij,kj->ij', self._carbon, d,
-                                             optimize=True) for d in derivatives], axis=1)
-        radio_jac = np.concatenate([np.einsum('kij,kj->ij', self._radio, d,
-                                             optimize=True) for d in derivatives], axis=1)
-        fm = radio/stocks
-        fm_jac = (radio_jac-fm[:, None]*stock_jac)/stocks[:, None]
-        return np.r_[stocks, fm], np.vstack([stock_jac, fm_jac])
-
-    def _radiocarbon_kernel(self, atmosphere: AtmC14) -> Array:
-        ages = np.asarray(atmosphere.ages, dtype=float)
-        values = np.asarray(atmosphere.fm, dtype=float)
-        if (ages.ndim != 1 or len(ages) == 0 or values.shape != ages.shape
-                or not np.isfinite(ages).all() or not np.isfinite(values).all()
-                or ages[0] != 0 or np.any(np.diff(ages) <= 0)
-                or np.any(values < 0) or not np.isfinite(atmosphere.mean_R)
-                or atmosphere.mean_R < 0):
+        ages, fm = atmosphere.ages, atmosphere.fm
+        if (ages.ndim != 1 or not len(ages) or fm.shape != ages.shape
+                or not np.isfinite(ages).all() or not np.isfinite(fm).all()
+                or ages[0] != 0 or np.any(np.diff(ages) <= 0) or np.any(fm < 0)
+                or not np.isfinite(atmosphere.mean_R) or atmosphere.mean_R < 0):
             raise ValueError('atmosphere needs increasing ages from zero and finite nonnegative fm')
-        # Match AtmC14 exactly: last knot begins the constant mean_R tail.
-        levels = np.r_[values[:-1], atmosphere.mean_R]
-        jumps = np.diff(levels)
-        keep = jumps != 0
-        jump_ages, jumps = ages[1:][keep], jumps[keep]
-        lam = 1 / C14_MEAN_LIFE
-        alpha = self.rates + lam
-        response = levels[0] * _resolvent(alpha, self.diffusion, self.velocity)
-        if len(jumps) == 0:
-            return response
+        lo = mu_bounds[0]-sigma_bounds[1]**2-12*sigma_bounds[1]
+        hi = mu_bounds[1]+12*sigma_bounds[1]
+        if lo < -600 or hi > 600 or (hi-lo)/log_rate_step > 100_000:
+            raise ValueError('quadrature range or size exceeds numerical limits')
+        self.log_rates = np.linspace(lo, hi, int(np.ceil((hi-lo)/log_rate_step))+1)
+        self.step = float(self.log_rates[1]-self.log_rates[0])
+        self.rates = np.exp(self.log_rates)
+        # A rate class's fraction modern: k ∫ F_atm(age) exp(-(k+lambda) age) d(age).
+        self.radio_response = np.array([k*inner_integral(atmosphere, k+1/C14_MEAN_LIFE)
+                                        for k in self.rates])
 
-        # Below this threshold replacing k+lambda by lambda changes a positive
-        # Laplace integral by negligible relative error; upper rates have no
-        # measurable contribution from even the youngest atmospheric jump.
-        low = self.rates < lam * 1e-13
-        active = (~low) & (alpha * jump_ages[0] < 40)
-        indices = np.flatnonzero(active)
-        alphas = np.r_[lam, alpha[indices]]
-        if not np.any(self.transport):
-            for start in range(0, len(alphas), 64):
-                a = alphas[start:start + 64]
-                integral = (levels[0] + (np.exp(-a[:, None]*jump_ages)*jumps).sum(axis=1)) / a
-                matrices = integral[:, None, None] * np.eye(N_LAYERS)
-                if start == 0:
-                    response[low] = matrices[0]
-                    response[indices[:len(a)-1]] = matrices[1:]
-                else:
-                    response[indices[start-1:start+len(a)-1]] = matrices
-            return response
-
-        transitions = np.empty((len(jumps), N_LAYERS, N_LAYERS))
-        current = np.eye(N_LAYERS)
-        previous_age = 0.0
-        steps: dict[float, Array] = {}
-        for i, age in enumerate(jump_ages):
-            step = float(age - previous_age)
-            if step not in steps:
-                steps[step] = self._transition(step)
-            current = _stochastic(steps[step] @ current)
-            transitions[i] = current
-            previous_age = float(age)
-        for start in range(0, len(alphas), 64):
-            a = alphas[start:start + 64]
-            factors = np.exp(-a[:, None]*jump_ages) * jumps
-            boundary = levels[0]*np.eye(N_LAYERS) + np.einsum(
-                'ka,aij->kij', factors, transitions, optimize=True)
-            matrices = _resolvent(a, self.diffusion, self.velocity) @ boundary
-            if start == 0:
-                response[low] = matrices[0]
-                response[indices[:len(a)-1]] = matrices[1:]
-            else:
-                response[indices[start-1:start+len(a)-1]] = matrices
-        return response
-
-    def _input_density(self, mu: Array, sigma: Array, npp: float) -> Array:
-        mu, sigma = np.asarray(mu, dtype=float), np.asarray(sigma, dtype=float)
-        if (mu.shape != (N_LAYERS,) or sigma.shape != (N_LAYERS,)
-                or not np.isfinite(mu).all() or not np.isfinite(sigma).all()
-                or np.any(mu < self.mu_bounds[0]) or np.any(mu > self.mu_bounds[1])
-                or np.any(sigma < self.sigma_bounds[0]) or np.any(sigma > self.sigma_bounds[1])):
-            raise ValueError('mu and sigma must each have ten finite values inside model bounds')
-        if not np.isfinite(npp) or npp <= 0:
-            raise ValueError('npp must be finite and positive (kg C/m²/yr)')
-        z = (self.u[:, None] - mu) / sigma
-        density = np.exp(-0.5*z*z) / (np.sqrt(2*np.pi)*sigma)
-        density *= self.weights*npp*self.log_rate_step
-        density[[0, -1]] *= 0.5
-        return density
-
-    @lru_cache(maxsize=4)
-    def _new_carbon_kernel(self, time: float) -> Array:
-        if time == 0:
-            return np.zeros_like(self._carbon)
-        if not np.any(self.transport):
-            return (-np.expm1(-self.rates*time)/self.rates)[:, None, None]*np.eye(N_LAYERS)
-        steps, dt = self._time_scaling(time)
-        if steps:
-            # U(2t) = U(t) + exp(-k*t) P(t) U(t). Keep P stochastic at each
-            # doubling: an uncorrected zero eigenvalue otherwise grows into
-            # a spurious exponential at long horizons. This also avoids huge
-            # augmented exponentials for the slow tail near the search bounds.
-            result = self._new_carbon_kernel(dt).copy()
-            transition = self._transition(dt)
-            for _ in range(steps):
-                with np.errstate(over='ignore'):
-                    surviving = np.exp(-self.rates*dt)
-                result += surviving[:, None, None]*(transition @ result)
-                transition = _stochastic(transition @ transition)
-                dt *= 2
-            return result
-        result = np.empty_like(self._carbon)
-        kt = self.rates*time
-        high = kt > 40
-        result[high] = self._carbon[high]
-        regular = (kt >= 0.01) & ~high
-        transition = self._transition(time)
-        result[regular] = self._carbon[regular] - np.exp(-kt[regular, None, None]) * (
-            transition @ self._carbon[regular])
-        # Block exponential integrates the source without cancellation at k*t≈0.
-        block = np.zeros((2*N_LAYERS, 2*N_LAYERS))
-        block[:N_LAYERS, N_LAYERS:] = np.eye(N_LAYERS)
-        block[:N_LAYERS, :N_LAYERS] = self.transport*time
-        small = kt < 1e-11
-        result[small] = time*_expm(block)[:N_LAYERS, N_LAYERS:]
-        for i in np.flatnonzero(~small & ~regular & ~high):
-            block[:N_LAYERS, :N_LAYERS] = (self.transport - self.rates[i]*np.eye(N_LAYERS))*time
-            result[i] = time*_expm(block)[:N_LAYERS, N_LAYERS:]
-        return result
-
-    def predict(self, mu: Array, sigma: Array, npp: float,
-                times: Array | tuple[float, ...] = ()) -> Prediction:
-        """Predict stocks, fraction modern, and new fractions at elapsed years."""
+    def predict(self, mu: float, sigma: float, input_rate: float,
+                times: tuple[float, ...] | Array = ()) -> Prediction:
+        """Steady stock, historical radiocarbon, and new-carbon fractions."""
         times = np.asarray(times, dtype=float)
+        if (not np.isfinite([mu, sigma, input_rate]).all() or input_rate <= 0
+                or not self.mu_bounds[0] <= mu <= self.mu_bounds[1]
+                or not self.sigma_bounds[0] <= sigma <= self.sigma_bounds[1]):
+            raise ValueError('mu/sigma must be within bounds and input_rate positive')
         if times.ndim != 1 or not np.isfinite(times).all() or np.any(times < 0):
             raise ValueError('times must be a finite nonnegative one-dimensional array')
-        density = self._input_density(mu, sigma, npp)
-        stocks = np.einsum('kij,kj->i', self._carbon, density, optimize=True)
-        if not np.isfinite(stocks).all() or np.any(stocks <= 0):
-            raise FloatingPointError('modeled layer stock is nonpositive or nonfinite')
-        radio = np.einsum('kij,kj->i', self._radio, density, optimize=True)
-        new = np.array([np.einsum('kij,kj->i', self._new_carbon_kernel(float(t)),
-                                 density, optimize=True) for t in times]).reshape(-1, N_LAYERS)
-        fm, fnew = radio/stocks, new/stocks
-        if (not np.isfinite(fm).all() or not np.isfinite(fnew).all()
-                or np.any(fm < -1e-12) or np.any(fnew < -1e-10) or np.any(fnew > 1+1e-8)):
-            raise FloatingPointError('nonfinite or unphysical predicted carbon fractions')
-        return Prediction(stocks, fm, times, fnew)
+        stock = input_rate*np.exp(-mu+sigma**2/2)
+        # Weighting the input distribution by 1/k shifts its normal mean by -sigma².
+        z = (self.log_rates-(mu-sigma**2))/sigma
+        weights = np.exp(-.5*z*z)*self.step/(sigma*np.sqrt(2*np.pi))
+        weights[[0, -1]] *= .5
+        fm = float(np.sum(weights*self.radio_response))
+        with np.errstate(over='ignore'):
+            fnew = np.sum(weights*(-np.expm1(-times[:, None]*self.rates)), axis=1)
+        if (not np.isfinite(stock) or stock <= 0 or not np.isfinite(fm) or fm < 0
+                or not np.isfinite(fnew).all() or np.any(fnew < 0) or np.any(fnew > 1+1e-8)):
+            raise FloatingPointError('nonfinite or unphysical prediction')
+        return Prediction(float(stock), fm, times, fnew)
+
+
+def fit_layer(model: LayerLognormal, stock: float, fm: float, input_rate: float, *,
+              max_nfev: int = 500, stock_relative_scale: float = .1,
+              fm_scale: float = .02) -> list[dict]:
+    """Fit mu/sigma to stock and radiocarbon; return all three starts, best first.
+
+    Fixed starting sigmas make runs reproducible. Initialization uses the exact
+    no-transport identity stock/input = exp(-mu+sigma²/2). The two observations
+    still enter the same scaled least-squares objective as the previous model.
+    Observed f_new is deliberately absent from this interface.
+    """
+    if (not np.isfinite([stock, fm, input_rate, stock_relative_scale, fm_scale]).all()
+            or min(stock, input_rate, stock_relative_scale, fm_scale) <= 0
+            or not isinstance(max_nfev, int) or max_nfev < 1):
+        raise ValueError('finite observations, positive stock/input/scales, and positive max_nfev required')
+    lower = np.array([model.mu_bounds[0], model.sigma_bounds[0]])
+    upper = np.array([model.mu_bounds[1], model.sigma_bounds[1]])
+    scales = np.array([stock_relative_scale*stock, fm_scale])
+
+    def residual(parameters):
+        prediction = model.predict(*parameters, input_rate)
+        return (np.array([prediction.stock, prediction.fm])-[stock, fm])/scales
+
+    candidates = []
+    for start_id, sigma0 in enumerate([2.5, 1., 4.]):
+        sigma0 = np.clip(sigma0, lower[1], upper[1])
+        mu0 = sigma0**2/2 + np.log(input_rate)-np.log(stock)
+        row: dict = {'start_id': start_id, 'mu': np.nan, 'sigma': np.nan,
+               'stock_pred_kg_m2': np.nan, 'fm_pred': np.nan,
+               'stock_scaled_residual': np.nan, 'fm_scaled_residual': np.nan,
+               'success': False, 'objective': np.inf, 'nfev': 0,
+               'mu_at_bound': False, 'sigma_at_bound': False, 'jacobian_rank': 0}
+        try:
+            fit = least_squares(residual, np.clip([mu0, sigma0], lower, upper),
+                                bounds=(lower, upper), x_scale='jac', max_nfev=max_nfev,
+                                ftol=1e-10, xtol=1e-10, gtol=1e-10)
+            pred = model.predict(float(fit.x[0]), float(fit.x[1]), input_rate)
+            singular = np.linalg.svd(fit.jac*(upper-lower), compute_uv=False)
+            at_bound = np.minimum(fit.x-lower, upper-fit.x)/(upper-lower) < 1e-5
+            row.update(mu=fit.x[0], sigma=fit.x[1], stock_pred_kg_m2=pred.stock,
+                       fm_pred=pred.fm, stock_scaled_residual=fit.fun[0],
+                       fm_scaled_residual=fit.fun[1], success=bool(fit.success),
+                       objective=float(fit.fun@fit.fun), nfev=fit.nfev,
+                       mu_at_bound=bool(at_bound[0]), sigma_at_bound=bool(at_bound[1]),
+                       jacobian_rank=int(np.count_nonzero(singular > singular[0]*1e-8)),
+                       message=fit.message)
+        except (ValueError, FloatingPointError, np.linalg.LinAlgError) as error:
+            row['message'] = str(error)
+        candidates.append(row)
+    candidates.sort(key=lambda row: row['objective'])
+    for index, row in enumerate(candidates):
+        row['candidate_id'] = index
+        row['near_best'] = row['success'] and row['objective'] <= candidates[0]['objective']*1.01+1e-6
+    return candidates

@@ -135,18 +135,21 @@ Note: running the whole pipeline on a M2 MacBook Air takes about 2 days.
 
 ## Layered log-normal model
 
-Fit ten 10 cm soil layers conditional on shared diffusion, downward velocity,
-and input e-folding depth, then predict the new-carbon fraction in each layer.
-The [layered-model guide](docs/notes/modeling/layered_lognormal_usage.md) includes
-Python examples, batch fitting, sensitivity scans, diagnostics, and data requirements.
+Fit ten independent 10 cm soil layers with **no transport**, sharing only the
+NPP input e-folding depth. Each layer fits mu and sigma from its stock and
+radiocarbon, then predicts its new-carbon fraction. The
+[pipeline guide](docs/notes/modeling/layered_lognormal_usage.md) walks through the
+three source files and the equations.
 
 ```sh
-uv run python -m soil_diskin.layered_workflow --hyper 0.01 0.001 30 \
-  --limit 2 --output-dir results/layered_example
+uv run python -m soil_diskin.layered_workflow --input-depth 30 \
+  --output-dir results/layered_no_transport
 ```
 
-The example hyperparameters are illustrative. Measured new-carbon fractions
-are reserved for evaluation and do not enter fitting.
+This runs all complete profiles and writes `layers.csv`, the f_new scatter plot,
+and RMSE/KGE values. Add `--limit 2` for a small run. The supplied 30 cm input
+depth is not a fitted estimate; observed new-carbon fractions do not enter
+parameter fitting. They informed the choice to remove transport.
 
 ## Citation
 

@@ -1,244 +1,196 @@
-"""Run conditional fits and sensitivity scans: python -m soil_diskin.layered_workflow."""
+"""Run the no-transport pipeline: python -m soil_diskin.layered_workflow.
+
+Read run_profiles from top to bottom: allocate inputs, fit layers, predict, save.
+"""
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-import time
 
 import numpy as np
 import pandas as pd
 
 from .layered_data import PreparedProfiles, file_digest, load_profiles
-from .layered_fitting import FitSettings, fit_profile
-from .layered_lognormal import LayeredLognormal, MU_BOUNDS, SIGMA_BOUNDS, Prediction
+from .layered_lognormal import Array, LayerLognormal, fit_layer, input_weights
 from .radiocarbon_utils import AtmC14, load_atm14c
 
 
-def _append(path: Path, rows: list[dict] | pd.DataFrame) -> None:
-    frame = rows if isinstance(rows, pd.DataFrame) else pd.DataFrame(rows)
-    if len(frame):
-        frame.to_csv(path, index=False, mode='a', header=not path.exists())
+def plot_comparison(predictions: pd.DataFrame, output: Path) -> None:
+    """Evaluate primary predictions at observed labeling times; equal layer weights."""
+    import matplotlib.pyplot as plt
+    from permetrics.regression import RegressionMetric
+
+    pairs = predictions[(predictions.candidate_id == 0) & predictions.at_label_duration
+                        & predictions.quadrature_ok].dropna(subset=['fnew_obs', 'fnew_pred'])
+    if pairs.empty:
+        return
+    observed, predicted = pairs.fnew_obs.to_numpy(), pairs.fnew_pred.to_numpy()
+    rmse = float(np.sqrt(np.mean((predicted-observed)**2)))
+    kge = np.nan
+    if len(pairs) > 1 and min(observed.std(), predicted.std(), observed.mean(), predicted.mean()) > 1e-14:
+        kge = float(RegressionMetric(y_true=observed, y_pred=predicted)
+                    .kling_gupta_efficiency(force_finite=False))
+    pd.DataFrame([{'n_profiles': pairs.profile_id.nunique(), 'n_layer_pairs': len(pairs),
+                   'rmse': rmse, 'kge_2012': kge,
+                   'unconverged_layer_pairs': int((~pairs.success).sum())}]).to_csv(output/'metrics.csv', index=False)
+    fig, ax = plt.subplots(figsize=(5.6, 5.6), layout='constrained')
+    for success, color, marker, label in [(True, '#2373ac', 'o', 'Converged'),
+                                         (False, '#ce6428', 'x', 'Unconverged')]:
+        frame = pairs[pairs.success == success]
+        if len(frame):
+            ax.scatter(frame.fnew_obs, frame.fnew_pred, s=22, c=color, marker=marker,
+                       alpha=.6, label=label)
+    ax.plot([0, 1], [0, 1], '--', color='gray', lw=1)
+    ax.set(xlim=(-.02, 1.02), ylim=(-.02, 1.02), aspect='equal',
+           xlabel='Observed new-carbon fraction', ylabel='Predicted new-carbon fraction',
+           title=f'No transport · h = {pairs.input_depth_cm.iloc[0]:g} cm\n'
+                 f'{pairs.profile_id.nunique()} profiles · {len(pairs)} layer pairs')
+    ax.text(.04, .96, f'RMSE = {rmse:.4f}\nKGE (2012) = {kge:.3f}', transform=ax.transAxes,
+            va='top', bbox={'facecolor': 'white', 'edgecolor': 'lightgray', 'alpha': .9})
+    ax.legend(loc='lower right')
+    ax.grid(alpha=.15)
+    for extension in ['png', 'pdf']:
+        fig.savefig(output/f'fnew_scatter.{extension}', dpi=200)
+    plt.close(fig)
 
 
-def _save_metadata(path: Path, metadata: dict) -> None:
-    temporary = path.with_suffix('.tmp')
-    temporary.write_text(json.dumps(metadata, indent=2, allow_nan=False)+'\n')
-    temporary.replace(path)
-
-
-def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14,
-                 hyperparameters: list[tuple[float, float, float]], output_dir: str | Path, *,
-                 settings: FitSettings | None = None, times: tuple[float, ...] = (),
-                 log_rate_step: float = 0.05,
-                 mu_bounds: tuple[float, float] = MU_BOUNDS,
-                 sigma_bounds: tuple[float, float] = SIGMA_BOUNDS,
+def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str | Path, *,
+                 input_depth: float = 30., times: tuple[float, ...] = (),
+                 max_nfev: int = 500, log_rate_step: float = .05,
                  verbose: bool = False) -> dict:
-    """Write linked CSVs, checking each candidate on a twice-finer quadrature.
-
-    Each shared triple reuses one forward model across profiles. Partial CSVs
-    survive an interrupted run; use a new directory to avoid mixing runs.
-    A completed run can include failed profile fits: inspect fits/attempts.
-    """
-    settings = settings or FitSettings()
-    if not hyperparameters:
-        raise ValueError('supply at least one explicit (D, v, h) triple')
-    for triple in hyperparameters:
-        if (len(triple) != 3 or not np.isfinite(triple).all()
-                or triple[0] < 0 or triple[1] < 0 or triple[2] <= 0):
-            raise ValueError('each triple requires finite D >= 0, v >= 0, h > 0')
-    if not np.isfinite(times).all() or np.any(np.asarray(times) < 0):
-        raise ValueError('prediction times must be finite and nonnegative')
+    """Fit every complete profile; h is supplied and f_new is evaluation data only."""
     output = Path(output_dir)
     if output.exists() and any(output.iterdir()):
-        raise FileExistsError('output directory must be new or empty; existing runs are preserved')
+        raise FileExistsError('use a new or empty output directory; existing runs are preserved')
+    if not len(prepared.profiles):
+        raise ValueError('no complete profiles to fit')
+    if not np.isfinite(times).all() or np.any(np.asarray(times) < 0):
+        raise ValueError('times must be finite and nonnegative')
+    # 1. Allocate NPP and prepare the same independent-layer model for every site.
+    weights = input_weights(input_depth)
+    model = LayerLognormal(atmosphere, log_rate_step=log_rate_step)
+    refined = LayerLognormal(atmosphere, log_rate_step=log_rate_step/2)
     output.mkdir(parents=True, exist_ok=True)
-    prepared.profiles.to_csv(output/'profiles.csv', index=False)
     prepared.excluded.to_csv(output/'exclusions.csv', index=False)
-    started = time.perf_counter()
-    metadata = {
-        'status': 'running', 'started_utc': datetime.now(timezone.utc).isoformat(),
-        'settings': asdict(settings), 'hyperparameters_D_v_h': hyperparameters,
-        'requested_times_years': list(times), 'mu_bounds': mu_bounds, 'sigma_bounds': sigma_bounds,
-        'log_rate_step_requested': log_rate_step, 'quadrature_refinement_factor': 2,
-        'quadrature_scaled_tolerance': 1e-3, 'quadrature_fnew_absolute_tolerance': 1e-6,
-        'evaluation_used_for_fitting': False, 'data': prepared.metadata,
-        'profile_ids': prepared.profiles.profile_id.drop_duplicates().tolist(),
-        'profile_triples_with_candidates': 0, 'profile_triples_without_candidates': 0,
-        'primary_converged': 0, 'primary_quadrature_ok': 0, 'primary_prediction_success': 0,
-        'source_code_sha256': {name: file_digest(Path(__file__).with_name(name)) for name in
-                               ['layered_lognormal.py', 'layered_fitting.py',
-                                'layered_data.py', 'layered_workflow.py']}}
-    _save_metadata(output/'run.json', metadata)
+    metadata = {'status': 'running', 'started_utc': datetime.now(timezone.utc).isoformat(),
+                'model': 'independent lognormal layers; no transport', 'input_depth_cm': input_depth,
+                'max_nfev_per_start': max_nfev, 'starting_sigmas': [2.5, 1., 4.],
+                'mu_bounds': model.mu_bounds, 'sigma_bounds': model.sigma_bounds,
+                'stock_relative_scale': .1, 'fm_scale': .02, 'log_rate_step': log_rate_step,
+                'requested_times_years': list(times), 'evaluation_used_for_parameter_fitting': False,
+                'model_selection_used_fnew': True, 'data': prepared.metadata,
+                'source_code_sha256': {name: file_digest(Path(__file__).with_name(name)) for name in
+                                      ['layered_lognormal.py', 'layered_data.py', 'layered_workflow.py']}}
+    (output/'run.json').write_text(json.dumps(metadata, indent=2)+'\n')
+    fit_rows, prediction_rows = [], []
     try:
-        for triple_index, (diffusion, velocity, depth) in enumerate(hyperparameters):
-            common = {'hyper_id': triple_index, 'D_cm2_yr': diffusion,
-                      'v_cm_yr': velocity, 'h_cm': depth}
-            try:
-                model = LayeredLognormal(diffusion, velocity, depth, atmosphere,
-                                        log_rate_step=log_rate_step, mu_bounds=mu_bounds,
-                                        sigma_bounds=sigma_bounds)
-                refined = LayeredLognormal(diffusion, velocity, depth, atmosphere,
-                                          log_rate_step=log_rate_step/2, mu_bounds=mu_bounds,
-                                          sigma_bounds=sigma_bounds)
-            except (ValueError, FloatingPointError, np.linalg.LinAlgError) as error:
-                _append(output/'attempts.csv', [{**common, 'profile_id': '', 'start_index': -1,
-                        'success': False, 'objective': np.nan, 'nfev': 0,
-                        'message': f'forward model initialization failed: {error}'}])
-                metadata['profile_triples_without_candidates'] += prepared.profiles.profile_id.nunique()
-                continue
-            for profile_id, frame in prepared.profiles.groupby('profile_id', sort=False):
-                frame = frame.sort_values('layer').reset_index(drop=True)
-                identity = {**common, 'profile_id': profile_id}
-                if verbose:
-                    print(f"Fitting triple {triple_index}, profile {profile_id}", flush=True)
+        for profile_id, profile in prepared.profiles.groupby('profile_id', sort=False):
+            if not np.array_equal(np.sort(profile.layer), np.arange(10)):
+                raise ValueError(f'{profile_id}: expected exactly layers 0..9')
+            if profile.npp_kg_m2_yr.nunique(dropna=False) != 1:
+                raise ValueError(f'{profile_id}: inconsistent site NPP')
+            if verbose:
+                print(f'Fitting {profile_id}', flush=True)
+            for _, observed in profile.sort_values('layer').iterrows():
+                rate = observed.npp_kg_m2_yr*weights[int(observed.layer)]
+                base = {**observed.to_dict(), 'input_depth_cm': input_depth,
+                        'input_kg_m2_yr': rate, 'observed_turnover_years': observed.stock_kg_m2/rate}
+                duration = observed.duration_years
+                prediction_times = sorted(set(times) | ({float(duration)} if np.isfinite(duration)
+                                                       and duration >= 0 else set()))
+                # 2. Each layer fits only its own stock and radiocarbon observations.
                 try:
-                    if not np.array_equal(frame.layer.to_numpy(), np.arange(10)):
-                        raise ValueError('a profile must contain exactly layers 0..9')
-                    for column in ('npp_kg_m2_yr', 'duration_years'):
-                        if frame[column].nunique(dropna=False) != 1:
-                            raise ValueError(f'inconsistent {column} within profile')
-                    npp = float(frame.npp_kg_m2_yr.iloc[0])
-                    stocks, fm = frame.stock_kg_m2.to_numpy(float), frame.fm_obs.to_numpy(float)
-                    fit = fit_profile(model, stocks, fm, npp, settings=settings)
-                    # Fixed columns keep append-mode CSVs consistent after failed starts.
-                    attempts = [{**identity, 'start_index': a['start_index'], 'success': a['success'],
-                                 'objective': a.get('objective', np.nan), 'nfev': a.get('nfev', 0),
-                                 'message': a['message']} for a in fit.attempts]
-                    _append(output/'attempts.csv', attempts)
-                    if not fit.candidates:
-                        metadata['profile_triples_without_candidates'] += 1
-                        continue
-                    metadata['profile_triples_with_candidates'] += 1
-                    duration = float(frame.duration_years.iloc[0])
-                    prediction_times = sorted(set(times) | ({duration} if np.isfinite(duration)
-                                                           and duration >= 0 else set()))
-                    spread_predictions = []
-                    for candidate_id, candidate in enumerate(fit.candidates):
-                        key = {**identity, 'candidate_id': candidate_id}
-                        prediction_error = ''
-                        try:
-                            pred = model.predict(candidate.mu, candidate.sigma, npp, tuple(prediction_times))
-                            fine = refined.predict(candidate.mu, candidate.sigma, npp, tuple(prediction_times))
-                            stock_error = float(np.max(np.abs(pred.stocks-fine.stocks)
-                                                       / (settings.stock_relative_scale*stocks)))
-                            fm_error = float(np.max(np.abs(pred.fm-fine.fm)/settings.fm_scale))
-                            new_error = float(np.max(np.abs(pred.fnew-fine.fnew), initial=0))
-                            quadrature_ok = max(stock_error, fm_error) <= 1e-3 and new_error <= 1e-6
-                        except (ValueError, FloatingPointError, np.linalg.LinAlgError) as error:
-                            # Preserve a fitted candidate even if its requested predictions fail.
-                            prediction_error = str(error)
-                            pred = Prediction(candidate.prediction.stocks, candidate.prediction.fm,
-                                              np.asarray(prediction_times),
-                                              np.full((len(prediction_times), 10), np.nan))
-                            stock_error = fm_error = new_error = np.nan
-                            quadrature_ok = False
-                        _append(output/'fits.csv', [{**key, 'is_primary': candidate_id == 0,
-                            'success': candidate.success, 'objective': candidate.objective,
-                            'near_best': candidate.near_best, 'start_index': candidate.start_index,
-                            'nfev': candidate.nfev, 'optimality': candidate.optimality,
-                            'jacobian_rank': candidate.jacobian_rank,
-                            'singular_values': json.dumps(candidate.singular_values.tolist()),
-                            'parameters_at_bounds': int(candidate.at_bounds.sum()),
-                            'quadrature_stock_scaled_error': stock_error,
-                            'quadrature_fm_scaled_error': fm_error,
-                            'quadrature_fnew_absolute_error': new_error,
-                            'quadrature_ok': quadrature_ok, 'prediction_success': not prediction_error,
-                            'prediction_error': prediction_error, 'message': candidate.message}])
-                        if candidate_id == 0:
-                            metadata['primary_converged'] += int(candidate.success)
-                            metadata['primary_quadrature_ok'] += int(quadrature_ok)
-                            metadata['primary_prediction_success'] += int(not prediction_error)
-                        parameters = frame.copy().assign(**key, mu=candidate.mu, sigma=candidate.sigma,
-                            stock_pred_kg_m2=pred.stocks, fm_pred=pred.fm,
-                            stock_scaled_residual=candidate.residuals[:10],
-                            fm_scaled_residual=candidate.residuals[10:],
-                            mu_at_bound=candidate.at_bounds[:10], sigma_at_bound=candidate.at_bounds[10:])
-                        _append(output/'parameters.csv', parameters)
-                        for time_index, elapsed in enumerate(prediction_times):
-                            _append(output/'predictions.csv', [
-                                {**key, 'layer': layer, 'z_top_cm': float(frame.z_top_cm.iloc[layer]),
-                                 'z_bottom_cm': float(frame.z_bottom_cm.iloc[layer]),
-                                 'time_years': elapsed, 'fnew_pred': float(pred.fnew[time_index, layer]),
-                                 'fnew_obs': float(frame.fnew_obs.iloc[layer]) if elapsed == duration else np.nan,
-                                 'at_label_duration': elapsed == duration}
-                                for layer in range(10)])
-                        if candidate.near_best and quadrature_ok:
-                            spread_predictions.append(pred.fnew)
-                    if spread_predictions and prediction_times:
-                        stacked = np.stack(spread_predictions)
-                        low, high = stacked.min(axis=0), stacked.max(axis=0)
-                        _append(output/'prediction_spread.csv', [
-                            {**identity, 'time_years': elapsed, 'layer': layer,
-                             'candidate_count': len(stacked), 'fnew_min': low[t, layer],
-                             'fnew_max': high[t, layer]}
-                            for t, elapsed in enumerate(prediction_times) for layer in range(10)])
+                    candidates = fit_layer(model, observed.stock_kg_m2, observed.fm_obs, rate,
+                                           max_nfev=max_nfev)
                 except (ValueError, FloatingPointError, np.linalg.LinAlgError) as error:
-                    metadata['profile_triples_without_candidates'] += 1
-                    _append(output/'attempts.csv', [{**identity, 'start_index': -1, 'success': False,
-                        'objective': np.nan, 'nfev': 0, 'message': f'profile processing failed: {error}'}])
-                finally:
-                    _save_metadata(output/'run.json', metadata)
-        metadata['status'] = 'complete'
-    except BaseException:
-        metadata['status'] = 'interrupted_or_failed'
-        raise
+                    candidates = [{'candidate_id': 0, 'mu': np.nan, 'sigma': np.nan,
+                                   'success': False, 'near_best': False, 'message': str(error)}]
+                for candidate in candidates:
+                    fitted = {**base, **candidate, 'quadrature_ok': False, 'prediction_error': ''}
+                    values: Array = np.full(len(prediction_times), np.nan)
+                    # 3. Predict new carbon after fitting; check a twice-finer integration grid.
+                    try:
+                        args = (candidate['mu'], candidate['sigma'], rate, tuple(prediction_times))
+                        prediction, fine = model.predict(*args), refined.predict(*args)
+                        values = prediction.fnew
+                        fm_error = abs(prediction.fm-fine.fm)
+                        new_error = float(np.max(np.abs(values-fine.fnew), initial=0))
+                        fitted.update(quadrature_fm_error=fm_error, quadrature_fnew_error=new_error,
+                                      quadrature_ok=fm_error <= 2e-5 and new_error <= 1e-6)
+                    except (ValueError, FloatingPointError, np.linalg.LinAlgError) as error:
+                        fitted['prediction_error'] = str(error)
+                    fitted['fnew_pred'] = (values[prediction_times.index(duration)]
+                                           if duration in prediction_times else np.nan)
+                    fit_rows.append(fitted)
+                    for elapsed, value in zip(prediction_times, values):
+                        prediction_rows.append({'profile_id': profile_id, 'layer': observed.layer,
+                            'z_top_cm': observed.z_top_cm, 'z_bottom_cm': observed.z_bottom_cm,
+                            'input_depth_cm': input_depth, 'candidate_id': candidate['candidate_id'],
+                            'success': candidate['success'], 'near_best': candidate['near_best'],
+                            'quadrature_ok': fitted['quadrature_ok'], 'time_years': elapsed,
+                            'fnew_pred': value, 'at_label_duration': elapsed == duration,
+                            'fnew_obs': observed.fnew_obs if elapsed == duration else np.nan})
+        metadata['status'] = 'fits_complete'
     finally:
-        metadata['elapsed_seconds'] = time.perf_counter()-started
-        _save_metadata(output/'run.json', metadata)
+        # 4. Save the primary result, all starts, predictions, and settings (partial on interruption).
+        if metadata['status'] != 'fits_complete':
+            metadata['status'] = 'interrupted_or_failed'
+        fits = pd.DataFrame(fit_rows)
+        if len(fits):
+            fits.to_csv(output/'fits.csv', index=False)
+            layers = fits[fits.candidate_id == 0]
+            layers.to_csv(output/'layers.csv', index=False)
+            metadata.update(n_layers=len(layers), n_profiles=layers.profile_id.nunique(),
+                            converged_layers=int(layers.success.sum()),
+                            numerically_checked_layers=int(layers.quadrature_ok.sum()))
+        predictions = pd.DataFrame(prediction_rows)
+        if len(predictions):
+            predictions.to_csv(output/'predictions.csv', index=False)
+            near = predictions[predictions.near_best & predictions.quadrature_ok]
+            near.groupby(['profile_id', 'layer', 'time_years']).fnew_pred.agg(
+                fnew_min='min', fnew_max='max', start_count='size').to_csv(output/'prediction_spread.csv')
+        (output/'run.json').write_text(json.dumps(metadata, indent=2)+'\n')
+    # 5. Compare predicted and observed f_new only after fitting is finished.
+    try:
+        if len(predictions):
+            plot_comparison(predictions, output)
+        metadata['status'] = 'complete'
+    finally:
+        if metadata['status'] != 'complete':
+            metadata['status'] = 'interrupted_or_failed'
+        (output/'run.json').write_text(json.dumps(metadata, indent=2)+'\n')
     return metadata
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--hyper', nargs=3, type=float, action='append', required=True,
-                        metavar=('D', 'V', 'H'), help='repeat for a sensitivity scan; cm²/yr, cm/yr, cm')
-    parser.add_argument('--output-dir', type=Path, required=True)
-    parser.add_argument('--balesdent', type=Path, default=Path('data/balesdent_2018/balesdent_2018_raw.xlsx'))
-    parser.add_argument('--shi', type=Path, default=Path('data/shi_2020/global_delta_14C.nc'))
-    parser.add_argument('--npp', type=Path, default=Path('results/all_sites_14C_turnover.csv'))
-    parser.add_argument('--atmosphere', type=Path, default=Path('data/14C_atm_annot.csv'))
-    parser.add_argument('--profile', action='append', help='exact Internal_profile_ID; repeat to select profiles')
-    parser.add_argument('--limit', type=int, help='first N eligible profiles, for a smoke run')
-    parser.add_argument('--times', type=float, nargs='*', default=[])
-    parser.add_argument('--starts', type=int, default=4)
-    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--input-depth', type=float, default=30., help='shared NPP e-folding depth in cm')
+    parser.add_argument('--output-dir', type=Path, default=Path('results/layered_no_transport'))
+    parser.add_argument('--times', type=float, nargs='*', default=[], help='extra prediction times in years')
+    parser.add_argument('--limit', type=int, help='first N eligible profiles; default: all')
     parser.add_argument('--max-nfev', type=int, default=500)
-    parser.add_argument('--stock-relative-scale', type=float, default=0.10)
-    parser.add_argument('--fm-scale', type=float, default=0.02)
-    parser.add_argument('--near-relative', type=float, default=0.01)
-    parser.add_argument('--near-absolute', type=float, default=1e-6)
-    parser.add_argument('--distinct-distance', type=float, default=1e-3)
-    parser.add_argument('--log-rate-step', type=float, default=0.05)
-    parser.add_argument('--mu-bounds', type=float, nargs=2, default=MU_BOUNDS)
-    parser.add_argument('--sigma-bounds', type=float, nargs=2, default=SIGMA_BOUNDS)
+    parser.add_argument('--log-rate-step', type=float, default=.05)
+    parser.add_argument('--balesdent', default='data/balesdent_2018/balesdent_2018_raw.xlsx')
+    parser.add_argument('--shi', default='data/shi_2020/global_delta_14C.nc')
+    parser.add_argument('--npp', default='results/all_sites_14C_turnover.csv')
+    parser.add_argument('--atmosphere', default='data/14C_atm_annot.csv')
     args = parser.parse_args()
-    settings = FitSettings(args.starts, args.seed, args.max_nfev, args.stock_relative_scale,
-                           args.fm_scale, args.near_relative, args.near_absolute, args.distinct_distance)
+    if args.limit is not None and args.limit < 1:
+        parser.error('--limit must be positive')
+    if args.max_nfev < 1:
+        parser.error('--max-nfev must be positive')
     prepared = load_profiles(args.balesdent, args.shi, args.npp)
-    selected = prepared.profiles.profile_id.drop_duplicates().tolist()
-    if args.profile:
-        missing = set(args.profile)-set(selected)
-        if missing:
-            parser.error(f'unknown or ineligible profiles: {sorted(missing)}')
-        selected = [p for p in selected if p in args.profile]
-    if args.limit is not None:
-        if args.limit <= 0:
-            parser.error('--limit must be positive')
-        selected = selected[:args.limit]
-    prepared.profiles = prepared.profiles[prepared.profiles.profile_id.isin(selected)]
-    prepared.metadata['atmosphere'] = {'path': str(args.atmosphere.resolve()),
+    if args.limit:
+        ids = prepared.profiles.profile_id.drop_duplicates().head(args.limit)
+        prepared.profiles = prepared.profiles[prepared.profiles.profile_id.isin(ids)]
+    prepared.metadata['atmosphere'] = {'path': str(Path(args.atmosphere).resolve()),
                                       'sha256': file_digest(args.atmosphere)}
-    result = run_profiles(prepared, load_atm14c(str(args.atmosphere)),
-                          [tuple(t) for t in args.hyper], args.output_dir,
-                          settings=settings, times=tuple(args.times),
-                          log_rate_step=args.log_rate_step,
-                          mu_bounds=tuple(args.mu_bounds), sigma_bounds=tuple(args.sigma_bounds),
-                          verbose=True)
-    print(f"Wrote {args.output_dir}: {result['primary_converged']} converged primary fits; "
-          f"{result['profile_triples_without_candidates']} failed profile/triple runs.")
+    result = run_profiles(prepared, load_atm14c(args.atmosphere), args.output_dir,
+                          input_depth=args.input_depth, times=tuple(args.times),
+                          max_nfev=args.max_nfev, log_rate_step=args.log_rate_step, verbose=True)
+    print(f"Saved {args.output_dir}: {result['converged_layers']}/{result['n_layers']} layer fits converged.")
 
 
 if __name__ == '__main__':

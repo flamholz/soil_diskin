@@ -1,51 +1,49 @@
 # Soil carbon dynamics
 
-This project studies soil carbon storage and replacement using decomposition-rate distributions and isotope information.
+This project studies soil carbon storage and replacement using decomposition-rate
+distributions and isotope information. The active layered model has no transport.
 
 ## Language
 
-**Soil column**:
-The soil from the surface to 100 cm depth at a site, composed of ten adjacent 10 cm layers in the proposed layered model.
+**Soil column**: Soil from the surface to 100 cm, represented by ten independent
+10 cm layers.
 
-**Layer carbon stock**:
-The mass of carbon per unit ground area within one depth interval, distinct from the cumulative stock between the surface and a given depth.
+**Layer carbon stock**: Carbon mass per ground area within one depth interval,
+not the cumulative stock from the surface.
 
-**Complete calibration profile**:
-A soil profile with ten finite, positive layer carbon stocks, ten finite layer radiocarbon values, and finite, positive site NPP. Observed new-carbon fractions are evaluation data and are not required to fit the profile.
+**Calibration profile**: A named Balesdent profile with its own stocks, labeling
+duration, and fitted layer parameters. Profiles at the same coordinates remain
+separate and may share gridded NPP and Shi radiocarbon targets.
 
-**Calibration profile**:
-A named Balesdent soil profile with its own layer stocks, labeling duration, and fitted layer parameters. Profiles at the same geographic coordinates remain distinct and can share gridded NPP and radiocarbon targets.
-_Avoid_: Unique coordinate pair as a synonym for profile
+**Complete calibration profile**: Ten positive layer stocks, ten finite native-cell
+radiocarbon targets, and positive NPP. New-carbon observations are evaluation data;
+they are not required for fitting.
 
-**Vertical redistribution**:
-Transfer of existing soil carbon between layers, conserving the total column stock when considered separately from external inputs and decomposition.
+**Input e-folding depth (h)**: The depth increment over which input density drops
+by a factor of e. It is the only shared model parameter and is supplied per run.
 
-**Closed transport boundary**:
-A column boundary across which no carbon passes through vertical redistribution; external carbon inputs and decomposition remain possible within the column.
+**Layer input**: The part of site NPP allocated directly to a layer by integrating
+the exponential profile over its depth interval and normalizing over 0–100 cm.
+The layer inputs sum to NPP. There are no imports or exports between layers.
 
-**Effective downward velocity**:
-The velocity parameter representing downward redistribution of bulk soil carbon.
-_Avoid_: Pore-water velocity
+**Input decomposition-rate distribution**: A normal distribution of log(k), where
+k is a decomposition rate in year⁻¹. Each layer has its own mu and sigma.
 
-**Input e-folding depth**:
-The depth increment over which the external carbon input density decreases by a factor of e in an exponential depth profile; the proposed layered model uses the same value at every site.
+**Resident-carbon rate distribution**: At steady state without transport, the
+normal distribution of log(k) has mean mu - sigma² and standard deviation sigma.
+Slow classes accumulate more carbon than fast classes.
 
-**Layer external input**:
-The part of site NPP entering a layer directly, allocated by integrating an exponential depth profile over that layer and normalizing over 0–100 cm. The ten layer external inputs sum to site NPP and exclude carbon transferred from other layers.
+**Layer turnover time**: Stock divided by layer input, in years. Without transport,
+this equals exp(-mu + sigma²/2) for the modeled steady stock.
 
-**Shared hyperparameters**:
-The diffusion coefficient D, effective downward velocity v, and input e-folding depth h, each taking one common value across all modeled sites.
+**New-carbon fraction (f_new)**: The fraction of a layer's steady-state carbon
+that entered after labeling began, under unchanged inputs and decomposition.
 
-**Input decomposition-rate distribution**:
-The distribution of first-order decomposition rates among newly entering external carbon; each layer's mu and sigma describe the natural logarithm of this rate. The distribution of carbon already resident in a layer need not be log-normal.
+**Primary fit**: The optimization start with the smallest stock/radiocarbon
+objective for one layer. Its convergence and numerical checks remain explicit.
+Different layers choose their primary fits independently.
 
-**Energy class**:
-A carbon class identified by its first-order decomposition rate k, which remains unchanged when the carbon moves between layers.
-_Avoid_: Layer-relative rate class
-
-**Coupled carbon steady state**:
-The layer and energy-class carbon stocks that remain constant under fixed external inputs, decomposition rates, and vertical redistribution. Each layer's balance includes imports and exports as well as its external input and decomposition.
-
-**New-carbon fraction (f_new)**:
-The fraction of a layer's current carbon that entered the column as external input after labeling began, starting from the coupled carbon steady state with unchanged inputs and parameters. Carbon retains its new or old status when it moves between layers.
-_Avoid_: Fraction newly arrived in the layer
+**Model-selection evaluation**: The observed new-carbon fractions informed the
+choice to remove transport. They do not enter local parameter fitting, but the
+reported scores are development evaluation rather than independent validation
+of that choice.
