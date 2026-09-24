@@ -58,7 +58,7 @@ constant old-age tail, and year-2000 reference remain unchanged.
   scatter plot and RMSE/KGE directly at the end of the run.
 
 Complete-data selection remains the default: ten positive layer stocks, ten
-finite native-cell Shi targets, and positive cached NPP. The optional
+finite Shi targets after nearest-neighbor spatial filling, and positive cached NPP. The optional
 `--allow-partial` mode fits usable layers independently and records the excluded
 layers. Every retained layer still needs stock, radiocarbon, and site NPP.
 Keep original depth indices and normalize NPP over all ten layers; missing
@@ -67,6 +67,8 @@ Missing f_new does not exclude a layer from fitting, only from evaluation.
 Different named profiles at shared coordinates remain distinct. Preserve units,
 source checksums, and labeling duration. See the
 [partial-profile analysis](layered_partial_profiles.md).
+The [radiocarbon parity check](layered_radiocarbon_parity.md) records the correction
+that aligns spatial filling and numerical precision with the original notebook.
 
 ## Validation
 

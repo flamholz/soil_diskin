@@ -15,8 +15,8 @@ not the cumulative stock from the surface.
 duration, and fitted layer parameters. Profiles at the same coordinates remain
 separate and may share gridded NPP and Shi radiocarbon targets.
 
-**Complete calibration profile**: Ten positive layer stocks, ten finite native-cell
-radiocarbon targets, and positive NPP. New-carbon observations are evaluation data;
+**Complete calibration profile**: Ten positive layer stocks, ten finite radiocarbon
+targets after the original nearest-neighbor spatial filling, and positive NPP. New-carbon observations are evaluation data;
 they are not required for fitting.
 
 **Input e-folding depth (h)**: The depth increment over which input density drops

@@ -168,11 +168,13 @@ uv run python -m soil_diskin.layered_workflow --input-depth 10 --allow-partial \
   --max-nfev 1000 --output-dir results/my_partial_profiles
 ```
 
-Each retained layer still needs stock, radiocarbon, and site NPP. Missing inputs
-are not filled, and the allocation of NPP to depth stays unchanged. Matching
-cached NPP now tolerates coordinate roundoff, supporting 87 profiles and 800
-layers. See the [NPP recovery results](docs/notes/modeling/layered_npp_recovery.md)
-and the earlier [partial-profile results](docs/notes/modeling/layered_partial_profiles.md).
+Each retained layer still needs stock, radiocarbon, and site NPP. Missing stocks
+and NPP are not filled, and the allocation of NPP to depth stays unchanged.
+Shi radiocarbon now uses the original analysis's nearest-neighbor spatial filling,
+supporting 101 profiles and 914 layers. See the
+[radiocarbon parity check](docs/notes/modeling/layered_radiocarbon_parity.md),
+[NPP recovery results](docs/notes/modeling/layered_npp_recovery.md), and earlier
+[partial-profile results](docs/notes/modeling/layered_partial_profiles.md).
 
 To compare h = 10 cm with published Jackson et al. (1996) global and
 vegetation-dependent root-depth allocations on the same available layers:

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import rioxarray  # noqa: F401 -- registers the .rio accessor used by the original analysis
 import xarray as xr
 
 from .layered_lognormal import DZ, N_LAYERS
@@ -36,7 +37,9 @@ def prepare_profiles(raw: pd.DataFrame, shi: xr.Dataset,
 
     ``raw`` is the Balesdent Profiles sheet after its seven introductory rows;
     ``shi.temp`` is delta-14C in per mil at levels 0..99 (one cm increments);
-    ``npp.NPP`` is in g C/m²/yr. No missing calibration values are filled.
+    ``npp.NPP`` is in g C/m²/yr. Shi spatial gaps are filled at each one-cm
+    depth by nearest neighbor, matching 02_get_turnover_14C.py lines 36–67.
+    Missing stocks and NPP are not filled.
     By default a profile needs all ten layers. With allow_partial, each layer
     needs stock and radiocarbon plus site NPP. A blank exclusion layer means
     the whole profile was excluded; otherwise only that layer was excluded.
@@ -53,7 +56,8 @@ def prepare_profiles(raw: pd.DataFrame, shi: xr.Dataset,
         values = shi[dim].values
         if not np.isfinite(values).all() or len(np.unique(values)) != len(values):
             raise ValueError(f'Shi {dim} coordinates must be finite and unique')
-        shi = shi.sortby(dim)
+        # Match rasterio's north-to-south rows, including nearest-fill tie order.
+        shi = shi.sortby(dim, ascending=(dim == 'lon'))
     coords = ['Latitude', 'Longitude']
     npp_values = npp[coords+['NPP']].copy()
     npp_values[coords] = npp_values[coords].apply(pd.to_numeric, errors='coerce').round(NPP_COORD_DECIMALS)
@@ -67,12 +71,18 @@ def prepare_profiles(raw: pd.DataFrame, shi: xr.Dataset,
     lon = pd.to_numeric(raw.Longitude, errors='coerce').to_numpy(float)
     valid_coords = np.isfinite(lat) & np.isfinite(lon) & (np.abs(lat) <= 90) & (np.abs(lon) <= 180)
     delta = np.full((len(raw), N_LAYERS), np.nan)
+    spatially_filled = np.zeros((len(raw), N_LAYERS), dtype=bool)
     if np.any(valid_coords):
-        sampled = shi['temp'].sel(
-            lat=xr.DataArray(lat[valid_coords], dims='profile'),
-            lon=xr.DataArray(lon[valid_coords], dims='profile'), method='nearest')
-        # Ordinary mean deliberately propagates missing one-cm values.
-        delta[valid_coords] = sampled.transpose('profile', 'level').values.reshape(-1, 10, 10).mean(axis=2)
+        raster = shi['temp'].rename({'lat': 'y', 'lon': 'x'}).transpose('level', 'y', 'x')
+        raster = raster.rio.write_crs('EPSG:4326').rio.write_nodata(np.nan)
+        sample_coords = {'y': xr.DataArray(lat[valid_coords], dims='profile'),
+                         'x': xr.DataArray(lon[valid_coords], dims='profile')}
+        native = raster.sel(sample_coords, method='nearest').transpose('profile', 'level').values
+        filled = raster.rio.interpolate_na(method='nearest')
+        sampled = filled.sel(sample_coords, method='nearest').transpose('profile', 'level').values
+        spatially_filled[valid_coords] = (np.isnan(native) & np.isfinite(sampled)).reshape(-1, 10, 10).any(axis=2)
+        # Same arithmetic mean and float precision as original line 66; no depth interpolation.
+        delta[valid_coords] = sampled.reshape(-1, 10, 10).mean(axis=2)
     fm = 1+delta/1000
     stocks = raw[[f'Ctotal_0-{z}' for z in range(0, 101, 10)]].apply(
         pd.to_numeric, errors='coerce').diff(axis=1).iloc[:, 1:].to_numpy(float)
@@ -102,7 +112,7 @@ def prepare_profiles(raw: pd.DataFrame, shi: xr.Dataset,
             reasons = [reason for valid, reason in [
                 (valid_coords[row], 'invalid coordinates'),
                 (good_stock[row], 'incomplete or nonpositive layer stocks'),
-                (good_radio[row], 'incomplete native-cell radiocarbon'),
+                (good_radio[row], 'incomplete radiocarbon after spatial filling'),
                 (good_npp[row], 'missing or nonpositive NPP')] if not valid]
             exclusions.append({'profile_id': profile_id, 'reason': '; '.join(reasons)})
             continue
@@ -110,23 +120,27 @@ def prepare_profiles(raw: pd.DataFrame, shi: xr.Dataset,
             if not usable_layers[row, layer]:
                 reasons = [reason for valid, reason in [
                     (stock_valid[row, layer], 'missing or nonpositive layer stock'),
-                    (radio_valid[row, layer], 'incomplete native-cell radiocarbon')] if not valid]
+                    (radio_valid[row, layer], 'incomplete radiocarbon after spatial filling')] if not valid]
                 exclusions.append({'profile_id': profile_id, 'layer': layer, 'reason': '; '.join(reasons)})
                 continue
             records.append({'profile_id': profile_id, 'latitude': lat[row], 'longitude': lon[row],
                             'layer': layer, 'z_top_cm': layer*DZ, 'z_bottom_cm': (layer+1)*DZ,
                             'stock_kg_m2': stocks[row, layer], 'fm_obs': fm[row, layer],
+                            'radiocarbon_spatially_filled': bool(spatially_filled[row, layer]),
                             'npp_kg_m2_yr': inputs[row], 'duration_years': durations[row],
                             'fnew_obs': new_fraction[row, layer],
                             'fnew_observation_valid': bool(evaluation_valid[row, layer])})
     columns = ['profile_id', 'latitude', 'longitude', 'layer', 'z_top_cm', 'z_bottom_cm',
                'stock_kg_m2', 'fm_obs', 'npp_kg_m2_yr', 'duration_years', 'fnew_obs',
-               'fnew_observation_valid']
+               'fnew_observation_valid', 'radiocarbon_spatially_filled']
     metadata = {'input_profile_count': len(raw), 'eligible_profile_count': int(eligible.sum()),
                 'allow_partial': allow_partial, 'eligible_layer_count': len(records),
                 'complete_profile_count': int(complete.sum()),
                 'partial_profile_count': int((eligible & ~complete).sum()),
-                'radiocarbon_depth_aggregation': 'mean of ten native one-cm values; no gap filling',
+                'radiocarbon_spatial_filling': 'rioxarray nearest at each one-cm depth before site selection; matches 02_get_turnover_14C.py',
+                'radiocarbon_spatially_filled_raw_layer_count': int(spatially_filled.sum()),
+                'radiocarbon_spatially_filled_layer_count': sum(r['radiocarbon_spatially_filled'] for r in records),
+                'radiocarbon_depth_aggregation': 'ordinary mean of ten one-cm values after spatial filling; no depth interpolation',
                 'radiocarbon_reference_year': 2000,
                 'reference_year_basis': 'inherited model convention; absent from NetCDF metadata',
                 'npp_conversion': 'cached g C/m²/yr divided by 1000 to kg C/m²/yr',

@@ -19,9 +19,9 @@ This fits all eligible profiles and creates an observed-versus-predicted
 Add `--limit 2` for a small run or `--times 1 10 100` for extra prediction times.
 Each profile's observed labeling duration is always included.
 
-The current local inputs contain 61 complete profiles at 42 locations after
-correcting cached-NPP coordinate matching. Each contributes ten layer fits,
-so a complete-profile run contains 610 layer fits.
+The current local inputs contain 68 complete profiles at 47 locations after
+matching the original radiocarbon spatial filling. Each contributes ten layer
+fits, so a complete-profile run contains 680 layer fits.
 
 ## Include partial profiles
 
@@ -30,16 +30,19 @@ uv run python -m soil_diskin.layered_workflow --input-depth 10 --allow-partial \
   --max-nfev 1000 --output-dir results/my_partial_profiles
 ```
 
-`--allow-partial` includes every 10 cm layer with positive stock, finite native-cell
+`--allow-partial` includes every 10 cm layer with positive stock, finite spatially filled
 radiocarbon, and positive site NPP, even if other layers in its profile are missing.
 Depth indices stay unchanged: a 60–70 cm layer receives the original 60–70 cm
 share of NPP. Inputs are still normalized over 0–100 cm, never over the observed
-subset. No missing values or local parameters are interpolated or imputed.
+subset. Stocks, NPP, and local parameters are not imputed. Shi spatial gaps are
+filled at each one-cm depth, matching the original analysis.
 
-The current inputs support **87 profiles at 57 locations and 800 layers** this way.
-h = 10 is held fixed from the prior validation search. See the
-[NPP recovery and coverage report](layered_npp_recovery.md). The earlier
-[partial-profile report](layered_partial_profiles.md) used the pre-fix 70-profile cohort.
+The current inputs support **101 profiles at 65 locations and 914 layers** this way.
+See the [radiocarbon parity check](layered_radiocarbon_parity.md). Earlier saved
+comparisons used 87 profiles and 800 layers before spatial filling was aligned;
+their performance metrics have not been rerun as part of this data check.
+The [NPP recovery report](layered_npp_recovery.md) and
+[partial-profile report](layered_partial_profiles.md) document those earlier cohorts.
 
 ## Follow the code in this order
 
@@ -160,7 +163,7 @@ The old `--hyper D V H` command is replaced by `--input-depth H`; the old
 
 ## Data conventions
 
-- Default selection requires ten positive stocks, ten finite native-cell
+- Default selection requires ten positive stocks, ten finite spatially filled
   radiocarbon targets, and positive NPP. With `--allow-partial`, the same checks
   apply per layer. Missing evaluation-only `f_new` is allowed for fitting, but
   those layers cannot contribute to observed-versus-predicted scores.
@@ -172,7 +175,10 @@ The old `--hyper D V H` command is replaced by `--input-depth H`; the old
   workbook/CSV roundoff. Original coordinates used for Shi sampling are preserved.
   Conflicting NPP values at the same normalized coordinates raise an error.
   This recovers existing cached values; it does not extrapolate NPP across sites.
-- Shi's ten 1 cm values are averaged within each model layer without filling gaps.
+- Shi spatial gaps are filled with `rio.interpolate_na(method='nearest')` at each
+  one-cm depth before nearest-cell site selection. The ten values are then averaged,
+  using the original line-66 arithmetic and precision. No values are borrowed from
+  other depths. Layers using a filled value have `radiocarbon_spatially_filled=True`.
   These are gridded estimates, not direct measurements at each Balesdent site.
 - The adapter verifies the [published Shi file checksum](https://zenodo.org/records/3823612):
   the NetCDF incorrectly labels its delta-14C variable as years.
