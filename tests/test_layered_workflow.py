@@ -25,8 +25,8 @@ def test_pipeline_keeps_layer_identity_and_fnew_out_of_fitting(tmp_path, monkeyp
     prepared = PreparedProfiles(profiles, pd.DataFrame(columns=['profile_id', 'reason']))
     outputs = [tmp_path/'original', tmp_path/'changed_evaluation']
     for output in outputs:
-        run_profiles(prepared, atm, output, input_depth=30, surface_fraction=surface_fraction,
-                     soil_npp_fraction=soil_npp_fraction, times=(1., 100.))
+        run_profiles(prepared, atm, output, allocation=InputAllocation(30, surface_fraction, soil_npp_fraction),
+                     times=(1., 100.))
         prepared.profiles['fnew_obs'] = .9
     a, b = [pd.read_csv(o/'layers.csv') for o in outputs]
     np.testing.assert_array_equal(a[['mu','sigma']], b[['mu','sigma']])
@@ -90,7 +90,7 @@ def test_invalid_soil_npp_fraction_rejected_before_outputs(tmp_path, fraction):
     atmosphere = AtmC14(np.array([0.]), np.array([1.]), 1.)
     output = tmp_path/'invalid'
     with pytest.raises(ValueError, match='soil_npp_fraction'):
-        run_profiles(prepared, atmosphere, output, soil_npp_fraction=fraction)
+        run_profiles(prepared, atmosphere, output, allocation=InputAllocation(soil_npp_fraction=fraction))
     with pytest.raises(ValueError, match='soil_npp_fraction'):
         run_comparison(output, soil_npp_fraction=fraction)
     assert not output.exists()

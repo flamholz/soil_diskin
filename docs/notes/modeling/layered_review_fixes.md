@@ -1,5 +1,10 @@
 # Layered workflow review fixes
 
+Historical record for commit `b7f6de5`. The later readability cleanup removed
+legacy Python keyword/dictionary adapters; see the current
+[short run guide](layered_lognormal_usage.md). Scientific calculations, CLI
+flags, and saved CSV fields remain the same.
+
 The supplied review was checked against `08c5d3f` plus the related uncommitted
 half-NPP changes. This change includes those allocation changes and their
 matching documentation; unrelated workspace files are outside its scope.

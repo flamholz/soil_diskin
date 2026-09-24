@@ -12,7 +12,6 @@ from numpy.typing import NDArray
 from scipy.optimize import least_squares
 
 from .continuum_models import LognormalDisKinFast
-from .lognormal import LognormalPrediction as Prediction  # noqa: F401 -- public compatibility alias
 from .radiocarbon_utils import AtmC14
 
 Array: TypeAlias = NDArray[np.float64]
@@ -60,12 +59,8 @@ class InputAllocation:
         return npp*self.soil_npp_fraction*self.soil_input_fractions
 
     @property
-    def parameters(self) -> dict:
-        return asdict(self)
-
-    @property
     def metadata(self) -> dict:
-        return {**self.parameters, 'layer_input_weights': self.soil_input_fractions.tolist(),
+        return {**asdict(self), 'layer_input_weights': self.soil_input_fractions.tolist(),
                 'layer_npp_fractions': self.npp_fractions.tolist()}
 
 
@@ -89,10 +84,6 @@ class FitResult:
     candidate_id: int = 0
     near_best: bool = False
     model_turnover_years: float = np.nan
-
-    def __getitem__(self, key: str):
-        """Preserve historical fit['mu'] access; internal code uses typed attributes."""
-        return getattr(self, key)
 
 
 class LayerLognormal(LognormalDisKinFast):

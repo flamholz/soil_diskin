@@ -705,23 +705,10 @@ class LognormalDisKinFast(AbstractDiskinModel):
     ):
         # All base state (T, A, interp_14c) is set below. The fast model uses
         # its supplied atmosphere and does not load the unused default interpolator.
-        self.mu = mu
-        self.k_star = np.exp(mu)
-        self.sigma = sigma
-    
-        # steady-state transit time and mean age
-        self.T = lognormal_turnover(self.mu, self.sigma)
-        self.A = self.T * np.exp(self.sigma ** 2)
-
+        self.set_parameters(mu, sigma)
         self.atm = atm
         self.fast_rtol = fast_rtol
-
-        # We intentionally do not use interpolator-based radiocarbon
-        # calculations in this class.
         self.interp_14c = None
-
-        # keep k bounds available; numeric routines may reference `k_min`/`k_max`
-        # but we don't build discrete ks/I arrays in the fast implementation.
 
     def set_parameters(self, mu, sigma):
         """Update the existing model in place during calibration."""

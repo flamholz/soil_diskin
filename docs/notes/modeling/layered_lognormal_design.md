@@ -70,6 +70,12 @@ follow the original model.
 
 ## Implementation, fitting, and outputs
 
+`run_profiles` is the entry point: it allocates inputs, calls `_fit_and_predict`
+for each layer, and calls `_save_tables` before evaluation. All output tables
+come from those fit records; prediction-time arrays expand into rows only when
+saving. The public Python interface uses one `InputAllocation` object and
+`FitResult` attributes, without legacy keyword or dictionary-access adapters.
+
 The existing `LognormalDisKinFast` owns the numerical evaluator and updates
 mu/sigma in place. Its optional cached quadrature integrates the resident
 density across the fitting bounds. Its separate survival discretization uses
