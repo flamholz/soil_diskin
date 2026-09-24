@@ -26,11 +26,8 @@ class InputAllocation:
 
     @property
     def soil_input_fractions(self) -> np.ndarray:
-        h = self.input_depth_cm
-        weights = np.exp(-np.arange(N_LAYERS)*DZ/h)*-np.expm1(-DZ/h)/-np.expm1(-N_LAYERS*DZ/h)
-        weights *= 1-self.surface_fraction
-        weights[0] += self.surface_fraction
-        return weights
+        tops = np.arange(N_LAYERS)*DZ
+        return self._weights(tops, tops+DZ)
 
     @property
     def npp_fractions(self) -> np.ndarray:
@@ -40,6 +37,25 @@ class InputAllocation:
         if not np.isfinite(npp) or npp <= 0:
             raise ValueError('site NPP must be finite and positive')
         return npp*self.soil_npp_fraction*self.soil_input_fractions
+
+    def __call__(self, *, latitude, longitude, z_top_cm, z_bottom_cm,
+                 land_use, vegetation, npp_kg_m2_yr):
+        """Layer input in kg C/m²/year; this exponential ignores location/vegetation.
+
+        All arguments are same-length columns. Replace this callable to use the
+        site metadata. Integrate over depth intervals, normalized over 0–100 cm.
+        """
+        return np.asarray(npp_kg_m2_yr)*self.soil_npp_fraction*self._weights(z_top_cm, z_bottom_cm)
+
+    def _weights(self, z_top_cm, z_bottom_cm):
+        top, bottom = np.asarray(z_top_cm), np.asarray(z_bottom_cm)
+        if not (np.isfinite([top, bottom]).all() and ((0 <= top) & (top < bottom) & (bottom <= 100)).all()):
+            raise ValueError('depth intervals must be finite and within 0–100 cm')
+        h = self.input_depth_cm
+        weights = np.exp(-top/h)*-np.expm1(-(bottom-top)/h)/-np.expm1(-100/h)
+        weights *= 1-self.surface_fraction
+        weights += self.surface_fraction*np.maximum(0, np.minimum(bottom, 10)-top)/10
+        return weights
 
     @property
     def metadata(self) -> dict:

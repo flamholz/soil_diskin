@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 
 from soil_diskin.layered_evaluation import score
-from soil_diskin.layered_data import PreparedProfiles, file_digest, load_profiles
+from soil_diskin.layered_data import PreparedProfiles, allocate_inputs, file_digest, load_profiles
 from soil_diskin.layered_lognormal import InputAllocation
 from soil_diskin.run_output import require_empty_output, run_record
 from soil_diskin.layered_workflow import source_hashes, run_profiles
@@ -35,8 +35,7 @@ def jackson_assignments(raw: pd.DataFrame) -> pd.DataFrame:
     Forests in this dataset are temperate/tropical, matching the paper's tree
     group. This is not a map of all eleven biomes or an inferred root mixture.
     """
-    result = raw[['Internal_profile_ID', 'Land_Use', 'Vegetation']].rename(columns={
-        'Internal_profile_ID': 'profile_id', 'Land_Use': 'land_use', 'Vegetation': 'vegetation'}).copy()
+    result = raw[['profile_id', 'land_use', 'vegetation']].drop_duplicates().copy()
     if result.profile_id.isna().any() or result.profile_id.duplicated().any():
         raise ValueError('unique nonmissing profile identities required')
     land = result.land_use.astype('string').str.strip().str.upper().fillna('')
@@ -122,7 +121,7 @@ def run_comparison(output: Path, max_nfev: int = 1000, surface_fraction: float =
     atmosphere = load_atm14c()
     prepared.metadata['atmosphere'] = {'path': str(Path('data/14C_atm_annot.csv').resolve()),
                                       'sha256': file_digest('data/14C_atm_annot.csv')}
-    assignments = jackson_assignments(prepared.raw_profiles)
+    assignments = jackson_assignments(prepared.profiles)
     assignments = assignments[assignments.profile_id.isin(prepared.profiles.profile_id)].copy()
     if not np.isfinite(prepared.profiles.fnew_obs).all() or not prepared.profiles.duration_years.gt(0).all():
         raise ValueError('comparison requires observed f_new and positive labeling durations for every layer')
@@ -160,7 +159,8 @@ def run_comparison(output: Path, max_nfev: int = 1000, surface_fraction: float =
         # 3. Reuse the unchanged fitter for each coefficient group; refit local mu/sigma.
         for name, allocation in scenarios.items():
             frames = []
-            data = prepared.profiles.merge(allocation, on='profile_id', validate='many_to_one')
+            data = prepared.profiles.drop(columns=['input_depth_cm', 'surface_fraction', 'land_use', 'vegetation']).merge(
+                allocation, on='profile_id', validate='many_to_one')
             for group, subset in data.groupby('jackson_group', sort=False):
                 depth = float(subset.input_depth_cm.iloc[0])
                 direct = float(subset.surface_fraction.iloc[0])
@@ -168,9 +168,9 @@ def run_comparison(output: Path, max_nfev: int = 1000, surface_fraction: float =
                 print(f'{name}: {group}, h={depth:.6f} cm, surface={direct:.0%}, '
                       f'NPP to soil={soil_npp_fraction:.0%}, {len(subset)} layers', flush=True)
                 metadata = {**prepared.metadata, 'input_scheme': name, 'jackson_group': group}
+                subset = allocate_inputs(subset, InputAllocation(depth, direct, soil_npp_fraction))
                 run_profiles(PreparedProfiles(subset, prepared.excluded, metadata), atmosphere,
-                             destination, allocation=InputAllocation(depth, direct, soil_npp_fraction),
-                             max_nfev=max_nfev)
+                             destination, max_nfev=max_nfev)
                 frames.append(pd.read_csv(destination/'layers.csv', float_precision='round_trip'))
             fitted = pd.concat(frames, ignore_index=True).sort_values(['profile_id', 'layer'])
             expected = prepared.profiles[['profile_id', 'layer']].sort_values(['profile_id', 'layer'])

@@ -1,6 +1,6 @@
 import argparse
 import pandas as pd
-from soil_diskin.data_wrangling import process_balesdent_data
+from soil_diskin.data_wrangling import process_balesdent_data, balesdent_layers
 from soil_diskin.soilgrids_utils_w_unc import backfill_missing_soc
 
 """
@@ -26,6 +26,8 @@ def parse_args():
         description='Process Balesdent et al. 2018 soil carbon data.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
+    parser.add_argument('--depth-resolved', action='store_true',
+                        help='Keep original profiles and ten 10-cm layers; no stock backfilling')
     
     parser.add_argument(
         '-i', '--raw-file-path',
@@ -51,11 +53,16 @@ def parse_args():
     parser.add_argument(
         '-o', '--output',
         type=str,
-        default='results/processed_balesdent_2018.csv',
+        default=None,
         help='Output path for processed data'
     )
     
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.depth_resolved and args.backfill:
+        parser.error('--backfill is only supported for bulk stocks')
+    args.output = args.output or ('results/processed_balesdent_2018_depth.csv' if args.depth_resolved
+                                 else 'results/processed_balesdent_2018.csv')
+    return args
 
 
 if __name__ == "__main__":
@@ -63,6 +70,10 @@ if __name__ == "__main__":
     
     print(f"Loading raw data from {args.raw_file_path}...")
     raw_data = pd.read_excel(args.raw_file_path, skiprows=7)
+    if args.depth_resolved:
+        balesdent_layers(raw_data).to_csv(args.output, index=False)
+        print(f'Saved depth-resolved observations to {args.output}')
+        raise SystemExit
 
     # Count the number of unique locations in the raw data
     print("Loaded raw data...")

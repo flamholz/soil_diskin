@@ -21,7 +21,10 @@ def check_radiocarbon(output: Path) -> None:
         raise FileExistsError('use a new or empty output directory')
     prepared = load_profiles(allow_partial=True)
     sources = prepared.metadata['sources']
-    raw = pd.read_excel(sources['balesdent']['path'], sheet_name='Profiles', skiprows=7)
+    processed = pd.read_csv(sources['processed_layers']['path'], dtype={'profile_id': str}, float_precision='round_trip')
+    raw = processed.drop_duplicates('profile_id').rename(columns={'profile_id': 'Internal_profile_ID',
+                                                                 'latitude': 'Latitude', 'longitude': 'Longitude'})
+    raw = raw.reset_index(drop=True)
     # Independently reproduce the original rasterio path, rather than reuse the adapter.
     raster = rio.open_rasterio(sources['shi']['path'], masked=True)
     if not isinstance(raster, xr.DataArray):

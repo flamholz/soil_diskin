@@ -1,16 +1,18 @@
 # Layered pipeline: where to start
 
-Read [`run_profiles`](../../../soil_diskin/layered_workflow.py) first.
-It follows four steps:
+The pipeline now has three separate steps:
 
-1. Allocate site NPP over ten 10 cm layers.
-2. Fit each layer's `mu` and `sigma` to stock and radiocarbon.
-3. Predict `f_new` and check numerical accuracy.
-4. Save tables and compare predicted versus observed `f_new`.
+1. `01_preprocess_balesdent_data.py --depth-resolved` creates one row per original
+   profile and 10 cm layer, including stock, `f_new`, coordinates, land use, and vegetation.
+2. `02_get_turnover_14C.py --depth-resolved` attaches cached site NPP and layer
+   radiocarbon, allocates NPP, and saves stock/input turnover in a reusable CSV.
+3. [`run_profiles`](../../../soil_diskin/layered_workflow.py) fits those prepared
+   inputs, predicts `f_new`, checks numerical accuracy, and saves/evaluates results.
 
-In the same file, `_fit_and_predict` handles one layer and `_save_tables`
-creates every output from the fit records. No separate prediction-record list
-needs to be kept in sync. Output rows are sorted by profile and layer.
+Without `--depth-resolved`, both original preparation scripts retain their bulk
+calculations. Depth mode uses the existing site NPP cache and requires no Earth
+Engine connection. It retains missing observations; the CSV reader selects either
+complete profiles or usable layers from partial profiles.
 
 For the fitting equations, read `fit_layer` in
 [`layered_lognormal.py`](../../../soil_diskin/layered_lognormal.py).
@@ -21,17 +23,30 @@ calculates stock, radiocarbon, and new carbon. The
 
 ## Run the pipeline
 
-From the repository root, using a new output directory:
+From the repository root (use new output paths if these already exist):
 
 ```sh
-uv run python -m soil_diskin.layered_workflow \
-  --input-depth 10 --allow-partial --max-nfev 1000 \
+uv run python notebooks/01_preprocess_balesdent_data.py --depth-resolved
+uv run python notebooks/02_get_turnover_14C.py --depth-resolved
+uv run python -m soil_diskin.layered_workflow --allow-partial --max-nfev 1000 \
   --output-dir results/my_layered_run
+```
+
+The default prepared file is `results/all_sites_14C_turnover_depth.csv`, with
+`h=30 cm`, no direct surface input, and all NPP entering soil. Set `--input-depth`,
+`--surface-fraction`, and `--soil-npp-fraction` on **script 02**, not the fitter.
+For example:
+
+```sh
+uv run python notebooks/02_get_turnover_14C.py --depth-resolved --input-depth 10 \
+  --output results/my_turnover_h10.csv
+uv run python -m soil_diskin.layered_workflow --input-table results/my_turnover_h10.csv \
+  --allow-partial --output-dir results/my_fit_h10
 ```
 
 Omit `--allow-partial` to require ten usable layers per profile. Add `--limit 2`
 for a small run, or `--times 1 10 100` for extra prediction times. Valid labeling
-durations are always included. See `--help` for input-file overrides.
+durations are always included. Each fit saves its actual `prepared_inputs.csv`.
 
 Current data support 68 complete profiles/680 layers, or 101 profiles/914 layers
 with partial profiles enabled. Each retained layer needs positive stock and NPP
@@ -42,34 +57,48 @@ or NPP gaps, and matches the original radiocarbon spatial filling. See the
 [radiocarbon check](layered_radiocarbon_parity.md) and
 [current results](layered_radiocarbon_refit.md).
 
-## One way to specify inputs
+## Change the NPP distribution without repeating spatial extraction
+
+`allocate_inputs` takes a table and a callable. The callable receives seven named
+columns: `latitude`, `longitude`, `z_top_cm`, `z_bottom_cm`, `land_use`,
+`vegetation`, and `npp_kg_m2_yr`. It returns one layer input per row, in the same
+order, in kg C/m²/year. It receives no stock, radiocarbon, or `f_new` observations.
+Use absolute depth intervals and normalize over 0–100 cm, including missing layers.
 
 ```python
-from soil_diskin.layered_data import load_profiles
+import numpy as np
+from soil_diskin.layered_data import allocate_inputs, load_profiles
 from soil_diskin.layered_lognormal import InputAllocation
 from soil_diskin.layered_workflow import run_profiles
 from soil_diskin.radiocarbon_utils import load_atm14c
 
-allocation = InputAllocation(input_depth_cm=10, surface_fraction=0.5, soil_npp_fraction=0.5)
-run_profiles(load_profiles(allow_partial=True), load_atm14c(),
-             "results/my_python_run", allocation=allocation)
+# Example only: choose a deeper exponential for forest rows.
+def npp_by_land_use(**columns):
+    shallow = InputAllocation(10)(**columns)
+    deep = InputAllocation(30)(**columns)
+    return np.where(columns['land_use'].eq('FOREST'), deep, shallow)
+
+prepared = load_profiles(allow_partial=True)
+prepared.profiles = allocate_inputs(prepared.profiles, npp_by_land_use)
+run_profiles(prepared, load_atm14c(), 'results/my_custom_inputs')
 ```
 
-- `input_depth_cm` is the exponential e-folding depth h (default 30 cm).
-- `surface_fraction` is the share of soil input placed directly in 0–10 cm
-  (default 0; allowed range `[0,1)`). The remainder is distributed over **all**
-  ten layers, including the top layer.
-- `soil_npp_fraction` is the share of site NPP entering soil (default 1;
-  allowed range `(0,1]`). The other share is outside the model.
+For a fixed exponential, simply use `allocate_inputs(layers, InputAllocation(10))`.
+This updates `input_kg_m2_yr` and `implied_turnover_years` without rereading the
+workbook or Shi raster. To save the alternative table, call `.to_csv(new_path,
+index=False)` and pass that path as `--input-table` in future runs. Retain the full
+prepared table when saving if you also need its excluded layers and profile counts.
 
-With both fractions set to 0.5, 25% of original NPP enters the surface directly
-and another 25% follows the depth distribution. `soil_input_fractions` sum to
-one; `npp_fractions` sum to `soil_npp_fraction`; `layer_inputs(npp)` returns
-kg C/m²/year. Read weights through `allocation.soil_input_fractions`; the separate
-`input_weights` wrapper has been removed. The Python function accepts only
-`allocation=...`; the old separate
-`input_depth`, `surface_fraction`, and `soil_npp_fraction` arguments were removed.
-CLI flags and saved CSV field names are unchanged.
+`InputAllocation(h, s, q)` has three settings:
+
+- `h`: exponential e-folding depth in cm (default 30).
+- `s`: share placed in the top 10 cm (default 0, allowed `[0,1)`). The rest
+  follows the exponential over all ten layers, including the top one.
+- `q`: share of site NPP entering soil (default 1, allowed `(0,1]`).
+
+Both `s=q=0.5` place 25% of original NPP directly in the surface layer and
+another 25% along the exponential. `soil_input_fractions` sum to one;
+`npp_fractions` sum to `q`; `layer_inputs(npp)` returns kg C/m²/year.
 
 ## Fit and predict one layer
 
@@ -77,7 +106,7 @@ CLI flags and saved CSV field names are unchanged.
 from soil_diskin.layered_lognormal import layer_model, fit_layer
 
 model = layer_model(load_atm14c())
-layer_input = allocation.layer_inputs(npp=0.5)[0]
+layer_input = InputAllocation(10).layer_inputs(npp=0.5)[0]
 best = fit_layer(model, stock=2.0, fm=0.95, input_rate=layer_input)[0]
 prediction = model.predict(best.mu, best.sigma, layer_input, times=(20.,))
 print(prediction.fnew[0])
@@ -99,6 +128,7 @@ parameters, predicted stock/radiocarbon/`f_new`, and diagnostics. Check both
 
 | Output | Contains |
 | --- | --- |
+| `prepared_inputs.csv` | Exact layer inputs consumed by this fit |
 | `fits.csv` | All three starts, including unsuccessful fits |
 | `predictions.csv` | Each start's predictions at requested and labeling times |
 | `prediction_spread.csv` | Range across near-best, converged, checked starts; not a confidence interval |

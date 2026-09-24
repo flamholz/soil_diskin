@@ -1,3 +1,25 @@
+import sys
+
+# The existing bulk path below is unchanged; depth mode reuses its cached site NPP.
+if __name__ == '__main__' and '--depth-resolved' in sys.argv:
+    import argparse
+    from soil_diskin.layered_data import save_depth_turnover
+    from soil_diskin.layered_lognormal import InputAllocation
+
+    parser = argparse.ArgumentParser(description='Prepare 10-cm radiocarbon, NPP inputs, and turnover.')
+    parser.add_argument('--depth-resolved', action='store_true')
+    parser.add_argument('-i', '--input', default='results/processed_balesdent_2018_depth.csv')
+    parser.add_argument('-o', '--output', default='results/all_sites_14C_turnover_depth.csv')
+    parser.add_argument('--shi', default='data/shi_2020/global_delta_14C.nc')
+    parser.add_argument('--npp', default='results/all_sites_14C_turnover.csv')
+    parser.add_argument('--input-depth', type=float, default=30.)
+    parser.add_argument('--surface-fraction', type=float, default=0.)
+    parser.add_argument('--soil-npp-fraction', type=float, default=1.)
+    args = parser.parse_args()
+    save_depth_turnover(args.input, args.shi, args.npp, args.output,
+                        InputAllocation(args.input_depth, args.surface_fraction, args.soil_npp_fraction))
+    print(f'Saved depth-resolved turnover to {args.output}')
+    raise SystemExit
 
 #%% load libraries
 import pandas as pd

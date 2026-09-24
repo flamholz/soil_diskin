@@ -6,7 +6,13 @@ import rioxarray as rio
 import xarray as xr
 import pytest
 
-from soil_diskin.layered_data import prepare_profiles
+from soil_diskin.data_wrangling import balesdent_layers
+from soil_diskin.layered_data import prepare_profiles as select_profiles, prepare_turnover
+
+
+def prepare_profiles(raw, shi, npp, *, allow_partial=False):
+    layers = prepare_turnover(balesdent_layers(raw), shi, npp)
+    return select_profiles(layers, allow_partial=allow_partial)
 
 
 def test_radiocarbon_matches_original_raster_extraction_and_precision(tmp_path):
@@ -47,7 +53,7 @@ def test_profiles_remain_distinct_and_missing_layer_values_are_excluded():
     shi = xr.Dataset({'temp': (('lon', 'level', 'lat'), np.arange(100.).reshape(1,100,1))},
                      coords={'lat': [1.], 'lon': [2.], 'level': np.arange(100)})
     prepared = prepare_profiles(raw, shi, npp)
-    pd.testing.assert_frame_equal(prepared.raw_profiles, raw)
+    assert prepared.profiles.profile_id.nunique() == 2
     assert prepared.profiles.profile_id.unique().tolist() == ['pasture', 'forest']
     assert len(prepared.profiles) == 20
     pasture = prepared.profiles.query("profile_id == 'pasture'")
@@ -135,3 +141,51 @@ def test_npp_matching_recovers_coordinate_roundoff_without_borrowing_nearby_valu
     conflicting = pd.concat([npp, npp.iloc[[0]].assign(Latitude=latitude, NPP=900.)])
     with pytest.raises(ValueError, match='conflicting cached NPP'):
         prepare_profiles(raw, shi, conflicting)
+
+
+def test_prepared_csv_roundtrip_and_custom_distribution(tmp_path, monkeypatch):
+    from soil_diskin.layered_data import allocate_inputs, load_profiles
+    from soil_diskin.layered_lognormal import InputAllocation
+
+    raw = pd.DataFrame({'Internal_profile_ID': ['001', '002'], 'Latitude': [1., 2.],
+                        'Longitude': [3., 4.], 'Land_Use': ['FOREST', 'CROP'],
+                        'Vegetation': ['pine', 'maize'], 'Duration_labeling': 20.})
+    for i in range(11):
+        raw[f'Ctotal_0-{10*i}'] = float(i)
+    observations = balesdent_layers(raw)
+    shi = xr.Dataset({'temp': (('level', 'lat', 'lon'), np.zeros((100, 1, 1)))},
+                     coords={'level': np.arange(100), 'lat': [0.], 'lon': [0.]})
+    npp = raw[['Latitude', 'Longitude']].assign(NPP=500.)
+    table = prepare_turnover(observations, shi, npp)
+    path = tmp_path/'layers.csv'
+    table.to_csv(path, index=False)
+
+    def no_spatial_read(*args, **kwargs):
+        raise AssertionError('fitting inputs must come from the prepared CSV')
+
+    monkeypatch.setattr(pd, 'read_excel', no_spatial_read)
+    monkeypatch.setattr(xr, 'open_dataset', no_spatial_read)
+    restored = load_profiles(path).profiles
+    pd.testing.assert_frame_equal(restored, table)
+    assert restored.profile_id.unique().tolist() == ['001', '002']
+
+    def distribution(*, latitude, longitude, z_top_cm, z_bottom_cm, land_use, vegetation, npp_kg_m2_yr):
+        assert set(latitude) == {1., 2.} and set(longitude) == {3., 4.}
+        assert set(land_use) == {'FOREST', 'CROP'} and set(vegetation) == {'pine', 'maize'}
+        # A test distribution with a different surface share at each site.
+        surface = np.where(land_use.eq('FOREST') & vegetation.eq('pine'), .4, .7)
+        return npp_kg_m2_yr*np.where(z_top_cm.eq(0), surface, (1-surface)*(z_bottom_cm-z_top_cm)/90)
+
+    custom = allocate_inputs(restored, distribution)
+    np.testing.assert_allclose(custom.groupby('profile_id').input_kg_m2_yr.sum(), .5)
+    np.testing.assert_allclose(custom.query('layer == 0').input_kg_m2_yr, [.2, .35])
+    np.testing.assert_allclose(custom.implied_turnover_years, custom.stock_kg_m2/custom.input_kg_m2_yr)
+    pd.testing.assert_frame_equal(custom[table.columns[:table.columns.get_loc('input_depth_cm')]],
+                                  table[table.columns[:table.columns.get_loc('input_depth_cm')]])
+    changed = allocate_inputs(restored.assign(fnew_obs=.9, fm_obs=.8, stock_kg_m2=2.), distribution)
+    np.testing.assert_array_equal(changed.input_kg_m2_yr, custom.input_kg_m2_yr)
+    # Reallocation at a new h uses no external data, and missing layers get no redistribution.
+    shallow = allocate_inputs(restored.iloc[[0, 3, 8]], InputAllocation(10, .5, .5))
+    np.testing.assert_array_equal(shallow.input_kg_m2_yr, InputAllocation(10, .5, .5).layer_inputs(.5)[[0, 3, 8]])
+    with pytest.raises(ValueError, match='one nonnegative input per row'):
+        allocate_inputs(restored, lambda **columns: np.ones(1))

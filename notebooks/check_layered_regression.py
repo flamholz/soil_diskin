@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from soil_diskin.layered_data import PreparedProfiles, file_digest
+from soil_diskin.layered_data import PreparedProfiles, allocate_inputs, file_digest
 from soil_diskin.layered_lognormal import InputAllocation, layer_model
 from soil_diskin.layered_workflow import run_profiles, source_hashes
 from soil_diskin.radiocarbon_utils import load_atm14c
@@ -58,9 +58,9 @@ def run_regression(output: Path, reference: Path, coupled: Path, current: Path |
     with run_record(output/'regression.json', report):
         # No raw workbook/raster reload: these are the original inputs, before
         # coordinate recovery and the radiocarbon spatial-filling correction.
-        prepared = PreparedProfiles(frozen[CALIBRATION_COLUMNS], pd.DataFrame(), settings['data'])
+        inputs = allocate_inputs(frozen[CALIBRATION_COLUMNS], InputAllocation(settings['input_depth_cm']))
+        prepared = PreparedProfiles(inputs, pd.DataFrame(), settings['data'])
         run_profiles(prepared, atmosphere, output/'refit',
-                     allocation=InputAllocation(settings['input_depth_cm']),
                      times=tuple(settings['requested_times_years']),
                      max_nfev=settings['max_nfev_per_start'], log_rate_step=settings['log_rate_step'])
         fitted = pd.read_csv(output/'refit/layers.csv', float_precision='round_trip')

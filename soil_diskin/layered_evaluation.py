@@ -51,8 +51,10 @@ def plot_comparison(layers: pd.DataFrame, output: Path) -> None:
             ax.text(.04, .04, 'Orange: failed or unchecked', color='#ce6428', transform=ax.transAxes)
         ax.plot([0, 1], [0, 1], '--', color='gray', lw=1)
         setting = pairs.iloc[0]
-        ax.set_title(f'No transport · h = {setting.input_depth_cm:g} cm · surface = {setting.surface_fraction:.0%}\n'
-                     f'{summary["n_profiles"]} profiles · {len(pairs)} pairs · {setting.soil_npp_fraction:.0%} NPP to soil')
+        settings = pairs[['input_depth_cm', 'surface_fraction', 'soil_npp_fraction']].drop_duplicates()
+        label = (f'h = {setting.input_depth_cm:g} cm · surface = {setting.surface_fraction:.0%} · {setting.soil_npp_fraction:.0%} NPP'
+                 if len(settings) == 1 and np.isfinite(settings).all().all() else 'specified layer inputs')
+        ax.set_title(f'No transport · {label}\n{summary["n_profiles"]} profiles · {len(pairs)} pairs')
         ax.text(.04, .96, f'RMSE = {summary["rmse"]:.4f}\nKGE (2012) = {summary["kge_2012"]:.3f}',
                 transform=ax.transAxes, va='top', bbox={'facecolor': 'white', 'edgecolor': 'lightgray'})
     ax.grid(alpha=.15)

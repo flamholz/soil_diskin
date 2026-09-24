@@ -47,6 +47,28 @@ def balesdent_layer_stocks(raw: pd.DataFrame, *, new_carbon: bool = False) -> pd
     return cumulative.apply(pd.to_numeric, errors='coerce').diff(axis=1).iloc[:, 1:]
 
 
+def balesdent_layers(raw: pd.DataFrame) -> pd.DataFrame:
+    """One row per original profile and 10-cm layer, including missing observations."""
+    if raw.Internal_profile_ID.isna().any() or raw.Internal_profile_ID.duplicated().any():
+        raise ValueError('Internal_profile_ID must be nonmissing and unique')
+    columns = {'Internal_profile_ID': 'profile_id', 'Latitude': 'latitude',
+               'Longitude': 'longitude', 'Duration_labeling': 'duration_years',
+               'Land_Use': 'land_use', 'Vegetation': 'vegetation'}
+    sites = raw.reindex(columns=columns).rename(columns=columns).reset_index(drop=True)
+    sites['profile_id'] = sites.profile_id.astype(str)
+    for name in ['latitude', 'longitude', 'duration_years']:
+        sites[name] = pd.to_numeric(sites[name], errors='coerce')
+    layers = sites.loc[sites.index.repeat(10)].reset_index(drop=True)
+    layers['layer'] = np.tile(np.arange(10), len(raw))
+    layers['z_top_cm'], layers['z_bottom_cm'] = layers.layer*10., (layers.layer+1)*10.
+    layers['stock_kg_m2'] = balesdent_layer_stocks(raw).to_numpy(float).ravel()
+    with np.errstate(invalid='ignore', divide='ignore'):
+        fraction = balesdent_layer_stocks(raw, new_carbon=True).to_numpy(float).ravel()/layers.stock_kg_m2
+    layers['fnew_observation_valid'] = fraction.between(0, 1)
+    layers['fnew_obs'] = fraction.where(layers.fnew_observation_valid)
+    return layers
+
+
 def process_balesdent_data(raw_data: pd.DataFrame, keep_missing_soc: bool = False) -> pd.DataFrame:
     """
     Processes the raw Balesdent et al. 2018 data.

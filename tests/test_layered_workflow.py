@@ -4,10 +4,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from soil_diskin.layered_data import PreparedProfiles
+from soil_diskin.layered_data import PreparedProfiles, allocate_inputs
 from soil_diskin.layered_lognormal import InputAllocation, layer_model
 from soil_diskin.layered_workflow import run_profiles
 from soil_diskin.radiocarbon_utils import AtmC14
+
+
+def run_pipeline(prepared, atmosphere, output, *, allocation=InputAllocation(), **kwargs):
+    inputs = allocate_inputs(prepared.profiles, allocation)
+    return run_profiles(PreparedProfiles(inputs, prepared.excluded, prepared.metadata), atmosphere, output, **kwargs)
 
 
 @pytest.mark.parametrize('surface_fraction', [0., .5])
@@ -25,7 +30,7 @@ def test_pipeline_keeps_layer_identity_and_fnew_out_of_fitting(tmp_path, monkeyp
     prepared = PreparedProfiles(profiles, pd.DataFrame(columns=['profile_id', 'reason']))
     outputs = [tmp_path/'original', tmp_path/'changed_evaluation']
     for output in outputs:
-        run_profiles(prepared, atm, output, allocation=InputAllocation(30, surface_fraction, soil_npp_fraction),
+        run_pipeline(prepared, atm, output, allocation=InputAllocation(30, surface_fraction, soil_npp_fraction),
                      times=(1., 100.))
         prepared.profiles['fnew_obs'] = .9
     a, b = [pd.read_csv(o/'layers.csv') for o in outputs]
@@ -57,7 +62,7 @@ def test_pipeline_keeps_layer_identity_and_fnew_out_of_fitting(tmp_path, monkeyp
     sparse = profiles.iloc[[2, 8]].copy()
     sparse.loc[sparse.layer == 8, 'fnew_obs'] = np.nan
     partial_output = tmp_path/'partial'
-    run_profiles(PreparedProfiles(sparse, prepared.excluded), atm, partial_output,
+    run_pipeline(PreparedProfiles(sparse, prepared.excluded), atm, partial_output,
                  allocation=InputAllocation(30, surface_fraction, soil_npp_fraction))
     partial = pd.read_csv(partial_output/'layers.csv').set_index('layer')
     reference = a.set_index('layer').loc[[2, 8]]
@@ -69,7 +74,7 @@ def test_pipeline_keeps_layer_identity_and_fnew_out_of_fitting(tmp_path, monkeyp
     assert pd.read_csv(partial_output/'metrics.csv').n_layer_pairs.iloc[0] == 1
 
     with pytest.raises(FileExistsError):
-        run_profiles(prepared, atm, outputs[0])
+        run_pipeline(prepared, atm, outputs[0])
 
     def failed_plot(*args):
         raise RuntimeError('plot failed')
@@ -77,7 +82,7 @@ def test_pipeline_keeps_layer_identity_and_fnew_out_of_fitting(tmp_path, monkeyp
     monkeypatch.setattr('soil_diskin.layered_workflow.plot_comparison', failed_plot)
     failed = tmp_path/'failed_plot'
     with pytest.raises(RuntimeError, match='plot failed'):
-        run_profiles(prepared, atm, failed)
+        run_pipeline(prepared, atm, failed)
     assert pd.read_csv(failed/'layers.csv').success.all()
     assert json.loads((failed/'run.json').read_text())['status'] == 'interrupted_or_failed'
 
@@ -90,7 +95,7 @@ def test_invalid_soil_npp_fraction_rejected_before_outputs(tmp_path, fraction):
     atmosphere = AtmC14(np.array([0.]), np.array([1.]), 1.)
     output = tmp_path/'invalid'
     with pytest.raises(ValueError, match='soil_npp_fraction'):
-        run_profiles(prepared, atmosphere, output, allocation=InputAllocation(soil_npp_fraction=fraction))
+        run_pipeline(prepared, atmosphere, output, allocation=InputAllocation(soil_npp_fraction=fraction))
     with pytest.raises(ValueError, match='soil_npp_fraction'):
         run_comparison(output, soil_npp_fraction=fraction)
     assert not output.exists()
@@ -102,7 +107,7 @@ def test_missing_evaluation_still_writes_metrics_and_plot(tmp_path, duration):
     profiles = pd.DataFrame({'profile_id': ['no-evaluation'], 'layer': [0],
         'z_top_cm': [0.], 'z_bottom_cm': [10.], 'stock_kg_m2': [1.], 'fm_obs': [.9],
         'npp_kg_m2_yr': [.5], 'duration_years': [duration], 'fnew_obs': [np.nan]})
-    run_profiles(PreparedProfiles(profiles, pd.DataFrame()), atmosphere, tmp_path)
+    run_pipeline(PreparedProfiles(profiles, pd.DataFrame()), atmosphere, tmp_path)
     metrics = pd.read_csv(tmp_path/'metrics.csv').iloc[0]
     assert metrics.n_layer_pairs == 0
     assert metrics.evaluation_status == 'no_evaluable_observations'
@@ -125,7 +130,7 @@ def test_failed_fits_keep_complete_schema_and_invalidate_evaluation(tmp_path, mo
     profiles = pd.DataFrame({'profile_id': ['failed'], 'latitude': [0.], 'longitude': [0.],
         'layer': [4], 'z_top_cm': [40.], 'z_bottom_cm': [50.], 'stock_kg_m2': [1.],
         'fm_obs': [.9], 'npp_kg_m2_yr': [.5], 'duration_years': [20.], 'fnew_obs': [.2]})
-    run_profiles(PreparedProfiles(profiles, pd.DataFrame()), atmosphere, tmp_path,
+    run_pipeline(PreparedProfiles(profiles, pd.DataFrame()), atmosphere, tmp_path,
                  allocation=InputAllocation(10., .5, .5))
     layers = pd.read_csv(tmp_path/'layers.csv')
     assert layers.message.iloc[0] == 'synthetic integration failure'
@@ -157,6 +162,6 @@ def test_fit_interruption_preserves_completed_layers(tmp_path, monkeypatch):
         'z_top_cm': [0., 10.], 'z_bottom_cm': [10., 20.], 'stock_kg_m2': [1., 1.],
         'fm_obs': [.9, .9], 'npp_kg_m2_yr': .5, 'duration_years': 20., 'fnew_obs': .2})
     with pytest.raises(KeyboardInterrupt):
-        run_profiles(PreparedProfiles(profiles, pd.DataFrame()), atmosphere, tmp_path)
+        run_pipeline(PreparedProfiles(profiles, pd.DataFrame()), atmosphere, tmp_path)
     assert pd.read_csv(tmp_path/'layers.csv').layer.tolist() == [0]
     assert json.loads((tmp_path/'run.json').read_text())['status'] == 'interrupted_or_failed'

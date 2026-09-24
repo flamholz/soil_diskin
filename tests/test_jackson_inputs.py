@@ -19,9 +19,9 @@ def test_published_root_cdf_matches_existing_exponential_layer_inputs():
 
 
 def test_vegetation_assignments_use_metadata_and_flag_ambiguous_groups():
-    raw = pd.DataFrame({'Internal_profile_ID': list('abcdefgh'),
-        'Land_Use': ['CROP', 'GRASSLAND', 'FOREST', 'FOREST', 'FOREST', 'GRASSLAND', 'GRASSLAND', 'unknown'],
-        'Vegetation': ['C3C4 mix', 'Brachiaria pasture', 'Pinus', 'Shrub Prosopsis glandulosa',
+    raw = pd.DataFrame({'profile_id': list('abcdefgh'),
+        'land_use': ['CROP', 'GRASSLAND', 'FOREST', 'FOREST', 'FOREST', 'GRASSLAND', 'GRASSLAND', 'unknown'],
+        'vegetation': ['C3C4 mix', 'Brachiaria pasture', 'Pinus', 'Shrub Prosopsis glandulosa',
                        'C3C4 sylvopastoral', 'C4 savanna', 'FACE Trifolium', 'unknown'],
         'fnew_obs': np.arange(8)/10})
     assignment = jackson_assignments(raw)
@@ -49,17 +49,17 @@ def test_half_surface_input_conserves_npp_and_keeps_jackson_roots_in_top_layer()
 def test_comparison_uses_retained_metadata_and_shared_allocation(tmp_path, monkeypatch):
     import json
     from notebooks import compare_jackson_inputs as experiment
-    from soil_diskin.layered_data import PreparedProfiles
+    from soil_diskin.layered_data import PreparedProfiles, allocate_inputs
     from soil_diskin.radiocarbon_utils import AtmC14
 
     profiles = pd.DataFrame({'profile_id': ['a', 'b'], 'layer': [0, 4],
         'latitude': [0., 1.], 'longitude': [0., 1.], 'z_top_cm': [0., 40.], 'z_bottom_cm': [10., 50.],
         'stock_kg_m2': [1., 1.], 'fm_obs': [.9, .8], 'npp_kg_m2_yr': [.5, .5],
         'duration_years': [20., 20.], 'fnew_obs': [.2, .1]})
-    raw = pd.DataFrame({'Internal_profile_ID': ['a', 'b'], 'Land_Use': ['CROP', 'FOREST'],
-                        'Vegetation': ['maize', 'pine']})
+    raw = pd.DataFrame({'profile_id': ['a', 'b'], 'land_use': ['CROP', 'FOREST'],
+                        'vegetation': ['maize', 'pine']})
     # No workbook path is present: the driver must use the retained metadata.
-    prepared = PreparedProfiles(profiles, pd.DataFrame(), raw_profiles=raw)
+    prepared = PreparedProfiles(allocate_inputs(profiles.merge(raw, on='profile_id')), pd.DataFrame())
     monkeypatch.setattr(experiment, 'load_profiles', lambda **kwargs: prepared)
     monkeypatch.setattr(experiment, 'load_atm14c', lambda: AtmC14(np.array([0.]), np.array([1.]), 1.))
     experiment.run_comparison(tmp_path, surface_fraction=.5, soil_npp_fraction=.5)

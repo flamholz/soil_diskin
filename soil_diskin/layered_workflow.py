@@ -1,6 +1,6 @@
 """Run the no-transport pipeline: python -m soil_diskin.layered_workflow.
 
-Read run_profiles from top to bottom: allocate inputs, fit layers, predict, save.
+Read run_profiles from top to bottom: read prepared inputs, fit layers, predict, save.
 """
 from __future__ import annotations
 
@@ -28,23 +28,27 @@ def source_hashes() -> dict[str, str]:
 
 
 def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str | Path, *,
-                 allocation: InputAllocation = InputAllocation(), times: tuple[float, ...] = (),
+                 times: tuple[float, ...] = (),
                  max_nfev: int = 500, log_rate_step: float = .05, verbose: bool = False) -> dict:
-    """Allocate inputs → fit and predict each layer → save tables → evaluate f_new."""
+    """Fit prepared layer inputs → predict → save tables → evaluate f_new."""
     output = Path(output_dir)
     require_empty_output(output)
     if prepared.profiles.empty:
         raise ValueError('no usable layers to fit')
-    profiles = prepared.profiles.sort_values(['profile_id', 'layer']).assign(**asdict(allocation))
+    profiles = prepared.profiles.sort_values(['profile_id', 'layer'])
     if profiles.duplicated(['profile_id', 'layer']).any() or not profiles.layer.isin(range(10)).all():
         raise ValueError('expected distinct layer indices in 0..9 for each profile')
     if profiles.groupby('profile_id').npp_kg_m2_yr.nunique(dropna=False).ne(1).any():
         raise ValueError('inconsistent site NPP')
     if not np.isfinite(times).all() or np.any(np.asarray(times) < 0):
         raise ValueError('times must be finite and nonnegative')
+    if 'input_kg_m2_yr' not in profiles:
+        raise ValueError('prepare layer NPP inputs before fitting, using 02 or allocate_inputs')
     model = layer_model(atmosphere, log_rate_step=log_rate_step)
     refined = layer_model(atmosphere, log_rate_step=log_rate_step/2)
-    metadata = {'model': 'independent lognormal layers; no transport', **allocation.metadata,
+    settings = profiles[['input_depth_cm', 'surface_fraction', 'soil_npp_fraction']].drop_duplicates()
+    allocation = InputAllocation(*settings.iloc[0]).metadata if len(settings) == 1 and np.isfinite(settings).all().all() else {}
+    metadata = {'model': 'independent lognormal layers; no transport', **allocation,
                 'max_nfev_per_start': max_nfev, 'starting_sigmas': [2.5, 1., 4.],
                 'mu_bounds': model.mu_bounds, 'sigma_bounds': model.sigma_bounds,
                 'stock_relative_scale': .1, 'fm_scale': .02, 'log_rate_step': log_rate_step,
@@ -53,13 +57,13 @@ def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str
                 'source_code_sha256': source_hashes()}
     output.mkdir(parents=True, exist_ok=True)
     prepared.excluded.to_csv(output/'exclusions.csv', index=False)
+    profiles.to_csv(output/'prepared_inputs.csv', index=False)
     if verbose:
         print(f'Fitting {len(profiles)} layers from {profiles.profile_id.nunique()} profiles', flush=True)
     rows = []
     with run_record(output/'run.json', metadata):
         try:
             for _, observed in profiles.iterrows():
-                observed['input_kg_m2_yr'] = allocation.layer_inputs(observed.npp_kg_m2_yr)[int(observed.layer)]
                 rows.extend(_fit_and_predict(observed, model, refined, times, max_nfev))
         finally:
             layers = _save_tables(rows, output, metadata)  # Keep completed layers on interruption.
@@ -100,7 +104,6 @@ def _save_tables(rows: list[dict], output: Path, metadata: dict) -> pd.DataFrame
     if not rows:
         return pd.DataFrame()
     fits = pd.DataFrame(rows)
-    fits['implied_turnover_years'] = fits.stock_kg_m2/fits.input_kg_m2_yr
     fits['observed_turnover_years'] = fits.implied_turnover_years  # Existing CSV alias.
     fits.drop(columns=['time_years', 'fnew_at_times']).to_csv(output/'fits.csv', index=False)
     primary = fits[fits.candidate_id == 0].drop(columns=['time_years', 'fnew_at_times'])
@@ -125,11 +128,7 @@ def _save_tables(rows: list[dict], output: Path, metadata: dict) -> pd.DataFrame
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--input-depth', type=float, default=30., help='shared NPP e-folding depth in cm')
-    parser.add_argument('--surface-fraction', type=float, default=0.,
-                        help='direct share of soil input in top 10 cm; remainder follows exponential over 0–100 cm')
-    parser.add_argument('--soil-npp-fraction', type=float, default=1.,
-                        help='fraction of site NPP entering the modeled soil column, in (0, 1]')
+    parser.add_argument('--input-table', default='results/all_sites_14C_turnover_depth.csv')
     parser.add_argument('--output-dir', type=Path, default=Path('results/layered_no_transport'))
     parser.add_argument('--times', type=float, nargs='*', default=[], help='extra prediction times in years')
     parser.add_argument('--limit', type=int, help='first N eligible profiles; default: all')
@@ -137,23 +136,20 @@ def main() -> None:
                         help='include usable layers from incomplete profiles; do not fill missing inputs')
     parser.add_argument('--max-nfev', type=int, default=500)
     parser.add_argument('--log-rate-step', type=float, default=.05)
-    parser.add_argument('--balesdent', default='data/balesdent_2018/balesdent_2018_raw.xlsx')
-    parser.add_argument('--shi', default='data/shi_2020/global_delta_14C.nc')
-    parser.add_argument('--npp', default='results/all_sites_14C_turnover.csv')
     parser.add_argument('--atmosphere', default='data/14C_atm_annot.csv')
     args = parser.parse_args()
     if args.limit is not None and args.limit < 1:
         parser.error('--limit must be positive')
     if args.max_nfev < 1:
         parser.error('--max-nfev must be positive')
-    prepared = load_profiles(args.balesdent, args.shi, args.npp, allow_partial=args.allow_partial)
+    prepared = load_profiles(args.input_table, allow_partial=args.allow_partial)
     if args.limit:
         ids = prepared.profiles.profile_id.drop_duplicates().head(args.limit)
         prepared.profiles = prepared.profiles[prepared.profiles.profile_id.isin(ids)]
     prepared.metadata['atmosphere'] = {'path': str(Path(args.atmosphere).resolve()),
                                       'sha256': file_digest(args.atmosphere)}
     result = run_profiles(prepared, load_atm14c(args.atmosphere), args.output_dir,
-                          allocation=InputAllocation(args.input_depth, args.surface_fraction, args.soil_npp_fraction), times=tuple(args.times),
+                          times=tuple(args.times),
                           max_nfev=args.max_nfev, log_rate_step=args.log_rate_step, verbose=True)
     print(f"Saved {args.output_dir}: {result['converged_layers']}/{result['n_layers']} layer fits converged.")
 

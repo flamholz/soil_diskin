@@ -70,11 +70,15 @@ follow the original model.
 
 ## Implementation, fitting, and outputs
 
-`run_profiles` is the entry point: it allocates inputs, calls `_fit_and_predict`
+`01` and `02` have depth-resolved preparation branches that save layer observations,
+allocated NPP inputs, and implied turnover. `run_profiles` consumes this prepared
+table, calls `_fit_and_predict`
 for each layer, and calls `_save_tables` before evaluation. All output tables
 come from those fit records; prediction-time arrays expand into rows only when
-saving. The public Python interface uses one `InputAllocation` object and
-`FitResult` attributes, without legacy keyword or dictionary-access adapters.
+saving. `allocate_inputs(table, distribution)` accepts a callable receiving
+coordinates, depth bounds, land use, vegetation, and site NPP columns. It returns
+layer input rates; `InputAllocation` supplies the existing exponential distribution.
+Local fitting and the numerical solver are unchanged.
 
 The existing `LognormalDisKinFast` owns the numerical evaluator and updates
 mu/sigma in place. Its optional cached quadrature integrates the resident
@@ -117,7 +121,7 @@ nearest-neighbor spatial filling, and positive cached NPP. Partial selection
 applies these requirements per layer, preserving original depth indices.
 Stocks, NPP, and excluded-layer parameters are not imputed. Missing f_new
 removes only an evaluation pair. Named profiles at shared coordinates stay
-separate. The data adapter retains raw metadata for vegetation assignment and
+separate. The prepared CSV retains land use and vegetation for allocation experiments and
 reuses gap-preserving stock differencing from `data_wrangling.py` without the
 original analysis's profile grouping or weight imputation.
 

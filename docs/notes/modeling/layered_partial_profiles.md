@@ -74,8 +74,11 @@ estimated from a single calibration target with the current independent fits.
 
 ## Reproduce and inspect
 
+Prepare the depth-resolved h=10 table first using the [run guide](layered_lognormal_usage.md).
+
 ```sh
-uv run python -m soil_diskin.layered_workflow --input-depth 10 --allow-partial \
+uv run python -m soil_diskin.layered_workflow \
+  --input-table results/all_sites_14C_turnover_depth_h10.csv --allow-partial \
   --max-nfev 1000 --output-dir results/my_partial_profiles
 ```
 

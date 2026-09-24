@@ -142,7 +142,9 @@ radiocarbon, then predicts its new-carbon fraction. The
 three source files and the equations.
 
 ```sh
-uv run python -m soil_diskin.layered_workflow --input-depth 30 \
+uv run python notebooks/01_preprocess_balesdent_data.py --depth-resolved
+uv run python notebooks/02_get_turnover_14C.py --depth-resolved
+uv run python -m soil_diskin.layered_workflow \
   --output-dir results/layered_no_transport
 ```
 
@@ -164,7 +166,10 @@ for the protocol, results, and calibration trade-off.
 To include usable layers from profiles with missing depth observations at h = 10 cm:
 
 ```sh
-uv run python -m soil_diskin.layered_workflow --input-depth 10 --allow-partial \
+uv run python notebooks/02_get_turnover_14C.py --depth-resolved --input-depth 10 \
+  --output results/all_sites_14C_turnover_depth_h10.csv
+uv run python -m soil_diskin.layered_workflow \
+  --input-table results/all_sites_14C_turnover_depth_h10.csv --allow-partial \
   --max-nfev 1000 --output-dir results/my_partial_profiles
 ```
 

@@ -15,7 +15,7 @@ import pandas as pd
 from soil_diskin.layered_evaluation import score as score
 
 from soil_diskin.layered_lognormal import InputAllocation
-from soil_diskin.layered_data import PreparedProfiles, file_digest, load_profiles
+from soil_diskin.layered_data import PreparedProfiles, allocate_inputs, file_digest, load_profiles
 from soil_diskin.run_output import require_empty_output, run_record
 from soil_diskin.layered_workflow import source_hashes, plot_comparison, run_profiles
 from soil_diskin.radiocarbon_utils import load_atm14c
@@ -103,8 +103,8 @@ def run_experiment(output: Path, *, metric: str = 'rmse', seed: int = 42, max_nf
         for h in H_VALUES:
             print(f'Development h={h:g} cm', flush=True)
             destination = output/'development'/f'h_{h:g}'
-            run_profiles(PreparedProfiles(development, prepared.excluded, prepared.metadata),
-                         atmosphere, destination, allocation=InputAllocation(h), max_nfev=max_nfev)
+            run_profiles(PreparedProfiles(allocate_inputs(development, InputAllocation(h)), prepared.excluded, prepared.metadata),
+                         atmosphere, destination, max_nfev=max_nfev)
             layers = pd.read_csv(destination/'layers.csv')
             expected = development[['profile_id', 'layer', 'split']]
             layers = expected.merge(layers.drop(columns='split'), on=['profile_id', 'layer'],
@@ -129,8 +129,8 @@ def run_experiment(output: Path, *, metric: str = 'rmse', seed: int = 42, max_nf
         for h in dict.fromkeys([selected_h, BASELINE_H]):
             destination = output/'test'/f'h_{h:g}'
             print(f'Final test evaluation h={h:g} cm', flush=True)
-            run_profiles(PreparedProfiles(test.assign(fnew_obs=np.nan), prepared.excluded, prepared.metadata),
-                         atmosphere, destination, allocation=InputAllocation(h), max_nfev=max_nfev)
+            run_profiles(PreparedProfiles(allocate_inputs(test.assign(fnew_obs=np.nan), InputAllocation(h)), prepared.excluded, prepared.metadata),
+                         atmosphere, destination, max_nfev=max_nfev)
             labels = test[['profile_id', 'layer', 'fnew_obs']]
             layers = pd.read_csv(destination/'layers.csv').drop(columns='fnew_obs').merge(
                 labels, on=['profile_id', 'layer'], validate='one_to_one')
