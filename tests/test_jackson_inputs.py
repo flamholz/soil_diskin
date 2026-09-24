@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from notebooks.compare_jackson_inputs import JACKSON_BETA, jackson_assignments
-from soil_diskin.layered_lognormal import input_weights
+from soil_diskin.layered_lognormal import InputAllocation
 
 
 def test_published_root_cdf_matches_existing_exponential_layer_inputs():
@@ -13,7 +13,7 @@ def test_published_root_cdf_matches_existing_exponential_layer_inputs():
         depths = np.arange(0., 101., 10.)
         # Independent paper equation: integrate its cumulative distribution.
         expected = np.diff(1-beta**depths)/(1-beta**100)
-        weights = input_weights(float(-1/np.log(beta)))
+        weights = InputAllocation(float(-1/np.log(beta))).soil_input_fractions
         np.testing.assert_allclose(weights, expected, rtol=1e-13, atol=1e-15)
         np.testing.assert_allclose(weights.sum(), 1., rtol=1e-14)
 
@@ -35,7 +35,7 @@ def test_half_surface_input_conserves_npp_and_keeps_jackson_roots_in_top_layer()
     # Independent cumulative-root calculation with an extra half-NPP at the surface.
     beta = .966
     roots = np.diff(1-beta**np.arange(0., 101., 10.))/(1-beta**100)
-    weights = input_weights(float(-1/np.log(beta)), surface_fraction=.5)
+    weights = InputAllocation(float(-1/np.log(beta)), .5).soil_input_fractions
     np.testing.assert_allclose(weights[0], .5+.5*roots[0], rtol=1e-13)
     np.testing.assert_allclose(weights[1:], .5*roots[1:], rtol=1e-13)
     np.testing.assert_allclose(weights.sum(), 1., rtol=1e-14)
@@ -43,7 +43,7 @@ def test_half_surface_input_conserves_npp_and_keeps_jackson_roots_in_top_layer()
     # A wholly surface input would leave zero input for the fitted lower layers.
     for invalid in [-.01, 1., np.nan, np.inf]:
         with pytest.raises(ValueError, match='surface_fraction'):
-            input_weights(30., surface_fraction=invalid)
+            InputAllocation(30., invalid)
 
 
 def test_comparison_uses_retained_metadata_and_shared_allocation(tmp_path, monkeypatch):

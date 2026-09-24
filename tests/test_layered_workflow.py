@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from soil_diskin.layered_data import PreparedProfiles
-from soil_diskin.layered_lognormal import InputAllocation, LayerLognormal, input_weights
+from soil_diskin.layered_lognormal import InputAllocation, layer_model
 from soil_diskin.layered_workflow import run_profiles
 from soil_diskin.radiocarbon_utils import AtmC14
 
@@ -15,8 +15,8 @@ from soil_diskin.radiocarbon_utils import AtmC14
 def test_pipeline_keeps_layer_identity_and_fnew_out_of_fitting(tmp_path, monkeypatch, surface_fraction,
                                                              soil_npp_fraction):
     atm = AtmC14(np.array([0.]), np.array([1.]), 1.)
-    model = LayerLognormal(atm)
-    weights = input_weights(30, surface_fraction=surface_fraction)
+    model = layer_model(atm)
+    weights = InputAllocation(30, surface_fraction).soil_input_fractions
     truth = [model.predict(-1., 2.5, rate) for rate in .5*soil_npp_fraction*weights]
     profiles = pd.DataFrame({'profile_id': ['synthetic']*10, 'layer': np.arange(10),
         'z_top_cm': np.arange(10)*10, 'z_bottom_cm': np.arange(1,11)*10,

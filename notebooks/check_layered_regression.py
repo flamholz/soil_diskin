@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from soil_diskin.layered_data import PreparedProfiles, file_digest
-from soil_diskin.layered_lognormal import InputAllocation, LayerLognormal
+from soil_diskin.layered_lognormal import InputAllocation, layer_model
 from soil_diskin.layered_workflow import run_profiles, source_hashes
 from soil_diskin.radiocarbon_utils import load_atm14c
 from soil_diskin.run_output import require_empty_output, run_record
@@ -88,7 +88,7 @@ def run_regression(output: Path, reference: Path, coupled: Path, current: Path |
             paths = sorted(current.glob('npp*/*/layers.csv'))
             if not paths:
                 raise ValueError(f'no saved corrected-target fits under {current}')
-            model = LayerLognormal(atmosphere)
+            model = layer_model(atmosphere)
             checks = []
             for path in paths:
                 saved = pd.read_csv(path, float_precision='round_trip')

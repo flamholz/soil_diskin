@@ -79,8 +79,8 @@ saving. The public Python interface uses one `InputAllocation` object and
 The existing `LognormalDisKinFast` owns the numerical evaluator and updates
 mu/sigma in place. Its optional cached quadrature integrates the resident
 density across the fitting bounds. Its separate survival discretization uses
-the input density; those weights are intentionally different. `LayerLognormal`
-is a compatibility constructor configuring that existing model for layer fits.
+the input density; those weights are intentionally different. `layer_model(atmosphere)`
+is a small factory configuring that existing model for layer fits.
 Both lognormal classes share the analytic turnover helper in `lognormal.py`.
 
 - Fit stock residual / (0.1 × observed stock) and fm residual / 0.02.

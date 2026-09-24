@@ -135,11 +135,9 @@ def run_experiment(output: Path, *, metric: str = 'rmse', seed: int = 42, max_nf
             layers = pd.read_csv(destination/'layers.csv').drop(columns='fnew_obs').merge(
                 labels, on=['profile_id', 'layer'], validate='one_to_one')
             layers.to_csv(destination/'evaluated_layers.csv', index=False)
-            prediction = pd.read_csv(destination/'predictions.csv').drop(columns='fnew_obs').merge(
-                labels, on=['profile_id', 'layer'], validate='many_to_one')
             evaluation = destination/'evaluation'
             evaluation.mkdir()
-            plot_comparison(prediction, evaluation)
+            plot_comparison(layers, evaluation)
             test_scores.append({'h_cm': h, 'selected': h == selected_h, 'baseline': h == BASELINE_H,
                                 'split': 'test', **score(layers)})
             pd.DataFrame(test_scores).to_csv(output/'test_scores.csv', index=False)

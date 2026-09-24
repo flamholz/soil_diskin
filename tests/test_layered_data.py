@@ -107,6 +107,9 @@ def test_radiocarbon_uses_spatial_filling_but_never_borrows_other_depths():
     assert no_npp.profiles.profile_id.unique().tolist() == ['complete']
     assert 'missing or nonpositive NPP' in no_npp.excluded.reason.iloc[0]
     assert pd.isna(no_npp.excluded.layer.iloc[0])  # Whole-profile exclusion.
+    empty = prepare_profiles(raw, shi, npp.iloc[:0], allow_partial=True)
+    assert empty.profiles.empty and len(empty.excluded) == 2
+    assert empty.excluded.reason.eq('missing or nonpositive NPP').all()
     conflicting = pd.concat([npp, npp.iloc[[0]].assign(NPP=600.)], ignore_index=True)
     with pytest.raises(ValueError, match='conflicting cached NPP'):
         prepare_profiles(raw, shi, conflicting)

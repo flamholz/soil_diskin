@@ -14,7 +14,7 @@ needs to be kept in sync. Output rows are sorted by profile and layer.
 
 For the fitting equations, read `fit_layer` in
 [`layered_lognormal.py`](../../../soil_diskin/layered_lognormal.py).
-`LayerLognormal` configures the existing `LognormalDisKinFast`; its `predict`
+`layer_model(atmosphere)` configures the existing `LognormalDisKinFast`; its `predict`
 method in [`continuum_models.py`](../../../soil_diskin/continuum_models.py)
 calculates stock, radiocarbon, and new carbon. The
 [design note](layered_lognormal_design.md) contains the equations and assumptions.
@@ -65,16 +65,18 @@ run_profiles(load_profiles(allow_partial=True), load_atm14c(),
 With both fractions set to 0.5, 25% of original NPP enters the surface directly
 and another 25% follows the depth distribution. `soil_input_fractions` sum to
 one; `npp_fractions` sum to `soil_npp_fraction`; `layer_inputs(npp)` returns
-kg C/m²/year. The Python function accepts only `allocation=...`; the old separate
+kg C/m²/year. Read weights through `allocation.soil_input_fractions`; the separate
+`input_weights` wrapper has been removed. The Python function accepts only
+`allocation=...`; the old separate
 `input_depth`, `surface_fraction`, and `soil_npp_fraction` arguments were removed.
 CLI flags and saved CSV field names are unchanged.
 
 ## Fit and predict one layer
 
 ```python
-from soil_diskin.layered_lognormal import LayerLognormal, fit_layer
+from soil_diskin.layered_lognormal import layer_model, fit_layer
 
-model = LayerLognormal(load_atm14c())
+model = layer_model(load_atm14c())
 layer_input = allocation.layer_inputs(npp=0.5)[0]
 best = fit_layer(model, stock=2.0, fm=0.95, input_rate=layer_input)[0]
 prediction = model.predict(best.mu, best.sigma, layer_input, times=(20.,))
@@ -103,6 +105,11 @@ parameters, predicted stock/radiocarbon/`f_new`, and diagnostics. Check both
 | `metrics.csv`, `fnew_scatter.png` / `.pdf` | RMSE, KGE (2012), and observed versus predicted `f_new` |
 | `exclusions.csv` | Excluded profiles/layers and reasons |
 | `run.json` | Settings, counts, source hashes, and completion status |
+
+`score(layers)` and `plot_comparison(layers, output)` both consume the primary
+layer-fit table. The plot uses its labeling-time predictions directly, so no
+second predictions-table join is needed. Metrics also include convergence and
+calibration diagnostics from that same scoring function.
 
 With no evaluable observations, the metrics contain zero pairs and NaN scores,
 and the figure explains why. Failed predictions remain visible and invalidate

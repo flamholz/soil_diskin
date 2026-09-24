@@ -2,14 +2,14 @@
 import numpy as np
 import pytest
 
-from soil_diskin.layered_lognormal import LayerLognormal, input_weights
+from soil_diskin.layered_lognormal import InputAllocation, layer_model
 from soil_diskin.lognormal import diskin_C_of_t, lognormal_radiocarbon
 from soil_diskin.radiocarbon_utils import AtmC14
 
 
 @pytest.mark.parametrize('depth', [0.01, 30, 1e12])
 def test_exponential_input_weights_sum_to_one(depth):
-    weights = input_weights(depth)
+    weights = InputAllocation(depth).soil_input_fractions
     np.testing.assert_allclose(weights.sum(), 1, rtol=1e-14)
     assert np.all(weights >= 0)
     assert np.all(np.diff(weights) <= 0)
@@ -17,7 +17,7 @@ def test_exponential_input_weights_sum_to_one(depth):
 
 def test_layer_prediction_matches_existing_independent_model():
     atm = AtmC14(np.array([0., 20., 100., 1000.]), np.array([1.1, 1.4, .95, 1.]), 1.02)
-    model = LayerLognormal(atm)
+    model = layer_model(atm)
     times = (0., 1., 100.)
     for mu, sigma in [(-2., .4), (1., 2.5)]:
         tau = np.exp(-mu+sigma**2/2)
@@ -30,7 +30,7 @@ def test_layer_prediction_matches_existing_independent_model():
 
 def test_broad_bound_adjacent_distributions_and_long_horizons():
     atm = AtmC14(np.array([0.]), np.array([1.]), 1.)
-    coarse, fine = LayerLognormal(atm), LayerLognormal(atm, log_rate_step=.025)
+    coarse, fine = layer_model(atm), layer_model(atm, log_rate_step=.025)
     times = (0., 1e-8, 1., 1e12, 1e35)
     for mu, sigma in [(-15., 5.), (10., .05), (-2., 2.)]:
         pred, reference = [m.predict(mu, sigma, .5, times) for m in (coarse, fine)]
@@ -44,15 +44,15 @@ def test_broad_bound_adjacent_distributions_and_long_horizons():
 
 def test_invalid_inputs_fail_clearly():
     atm = AtmC14(np.array([0.]), np.array([1.]), 1.)
-    model = LayerLognormal(atm)
+    model = layer_model(atm)
     with pytest.raises(ValueError):
         model.predict(0, 0, .5)
     with pytest.raises(ValueError):
         model.predict(0, 1, .5, (-1.,))
     with pytest.raises(ValueError):
-        input_weights(0)
+        InputAllocation(0)
     with pytest.raises(ValueError):
-        LayerLognormal(atm, log_rate_step=.5)
+        layer_model(atm, log_rate_step=.5)
 
 
 def test_layer_api_works_outside_repository_with_supplied_atmosphere(tmp_path):
@@ -65,9 +65,9 @@ def test_layer_api_works_outside_repository_with_supplied_atmosphere(tmp_path):
 import sys
 sys.path.insert(0, {str(repo)!r})
 import numpy as np
-from soil_diskin.layered_lognormal import InputAllocation, LayerLognormal
+from soil_diskin.layered_lognormal import InputAllocation, layer_model
 from soil_diskin.radiocarbon_utils import AtmC14
-model = LayerLognormal(AtmC14(np.array([0.]), np.array([1.]), 1.))
+model = layer_model(AtmC14(np.array([0.]), np.array([1.]), 1.))
 assert model.predict(-1., 2., InputAllocation().layer_inputs(.5)[0], (20.,)).stock > 0
 '''
     result = subprocess.run([sys.executable, '-c', program], cwd=tmp_path, text=True, capture_output=True)

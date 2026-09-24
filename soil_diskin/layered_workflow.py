@@ -13,7 +13,7 @@ import pandas as pd
 
 from .layered_data import PreparedProfiles, file_digest, load_profiles
 from .layered_evaluation import plot_comparison as plot_comparison
-from .layered_lognormal import FitResult, InputAllocation, LayerLognormal, fit_layer
+from .layered_lognormal import FitResult, InputAllocation, layer_model, fit_layer
 from .radiocarbon_utils import AtmC14, load_atm14c
 from .run_output import require_empty_output, run_record
 
@@ -42,8 +42,8 @@ def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str
         raise ValueError('inconsistent site NPP')
     if not np.isfinite(times).all() or np.any(np.asarray(times) < 0):
         raise ValueError('times must be finite and nonnegative')
-    model = LayerLognormal(atmosphere, log_rate_step=log_rate_step)
-    refined = LayerLognormal(atmosphere, log_rate_step=log_rate_step/2)
+    model = layer_model(atmosphere, log_rate_step=log_rate_step)
+    refined = layer_model(atmosphere, log_rate_step=log_rate_step/2)
     metadata = {'model': 'independent lognormal layers; no transport', **allocation.metadata,
                 'max_nfev_per_start': max_nfev, 'starting_sigmas': [2.5, 1., 4.],
                 'mu_bounds': model.mu_bounds, 'sigma_bounds': model.sigma_bounds,
@@ -62,8 +62,8 @@ def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str
                 observed['input_kg_m2_yr'] = allocation.layer_inputs(observed.npp_kg_m2_yr)[int(observed.layer)]
                 rows.extend(_fit_and_predict(observed, model, refined, times, max_nfev))
         finally:
-            predictions = _save_tables(rows, output, metadata)  # Keep completed layers on interruption.
-        plot_comparison(predictions, output)
+            layers = _save_tables(rows, output, metadata)  # Keep completed layers on interruption.
+        plot_comparison(layers, output)
     return metadata
 
 
@@ -120,7 +120,7 @@ def _save_tables(rows: list[dict], output: Path, metadata: dict) -> pd.DataFrame
     near_best = predictions[predictions.near_best & predictions.quadrature_ok]
     near_best.groupby(['profile_id', 'layer', 'time_years']).fnew_pred.agg(
         fnew_min='min', fnew_max='max', start_count='size').to_csv(output/'prediction_spread.csv')
-    return predictions
+    return primary
 
 
 def main() -> None:
