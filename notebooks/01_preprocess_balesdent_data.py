@@ -1,7 +1,9 @@
 import argparse
+import json
+from pathlib import Path
 import pandas as pd
 from soil_diskin.data_wrangling import process_balesdent_data, balesdent_layers, balesdent_sampled_layers
-from soil_diskin.soilgrids_utils_w_unc import backfill_missing_soc
+from soil_diskin.soilgrids_utils_w_unc import backfill_missing_soc, backfill_layer_stocks
 
 """
 All scripts to be run from project root directory.
@@ -11,7 +13,7 @@ which is used to calculate soil carbon turnover times. The processed data is
 saved to a CSV file in the results folder.
 
 For sites lacking SOC data, values can optionally be backfilled from SoilGrids 
-using Google Earth Engine.
+using the SoilGrids WCS service.
 
 Usage:
     python notebooks/01_preprocess_balesdent_data.py -i data/balesdent_2018/balesdent_2018_raw.xlsx --backfill
@@ -27,9 +29,11 @@ def parse_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('--depth-resolved', action='store_true',
-                        help='Keep original profiles and ten 10-cm layers; no stock backfilling')
+                        help='Keep original profiles and ten 10-cm layers')
     parser.add_argument('--sampled-layers', action='store_true',
                         help='Use reported intervals, stocks, f_new and zmid from the Layers sheet')
+    parser.add_argument('--soilgrids-cache', default='results/soilgrids_layer_cache.json',
+                        help='Cache WCS SOC and bulk-density means for layer-stock backfilling')
     
     parser.add_argument(
         '-i', '--raw-file-path',
@@ -42,7 +46,7 @@ def parse_args():
         '--backfill',
         action='store_true',
         default=False,
-        help='Backfill missing SOC data from SoilGrids using Google Earth Engine'
+        help='Backfill missing SOC data from SoilGrids using WCS'
     )
     
     parser.add_argument(
@@ -61,11 +65,10 @@ def parse_args():
     
     args = parser.parse_args()
     args.depth_resolved = args.depth_resolved or args.sampled_layers
+    suffix = '_sampled' if args.sampled_layers else '_depth' if args.depth_resolved else ''
     if args.depth_resolved and args.backfill:
-        parser.error('--backfill is only supported for bulk stocks')
-    args.output = args.output or ('results/processed_balesdent_2018_sampled.csv' if args.sampled_layers else
-                                 'results/processed_balesdent_2018_depth.csv' if args.depth_resolved
-                                 else 'results/processed_balesdent_2018.csv')
+        suffix += '_soilgrids'
+    args.output = args.output or f'results/processed_balesdent_2018{suffix}.csv'
     return args
 
 
@@ -77,6 +80,12 @@ if __name__ == "__main__":
     if args.depth_resolved:
         layers = (balesdent_sampled_layers(raw_data, pd.read_excel(args.raw_file_path, sheet_name='Layers', header=9))
                   if args.sampled_layers else balesdent_layers(raw_data))
+        if args.backfill:
+            from soil_diskin.layered_data import file_digest
+            layers, metadata = backfill_layer_stocks(layers, args.soilgrids_cache)
+            metadata['workbook_sha256'] = file_digest(args.raw_file_path)
+            Path(args.output).with_suffix('.json').write_text(json.dumps({'stock_backfill': metadata}, indent=2)+'\n')
+            print(metadata)
         layers.to_csv(args.output, index=False)
         print(f'Saved depth-resolved observations to {args.output}')
         raise SystemExit

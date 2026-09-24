@@ -29,6 +29,25 @@ Pass the same `--input-table` to `notebooks.compare_jackson_inputs` to compare
 input allocations. See the [results versus the 10 cm analysis](layered_sampled_intervals.md).
 Existing 10 cm files and defaults remain available for reproducing the earlier analysis.
 
+To include the 11 profiles lacking stocks, add `--backfill` to preprocessing:
+
+```sh
+uv run python notebooks/01_preprocess_balesdent_data.py --sampled-layers --backfill
+uv run python notebooks/02_get_turnover_14C.py --depth-resolved \
+  --input results/processed_balesdent_2018_sampled_soilgrids.csv \
+  --output results/all_sites_14C_turnover_sampled_soilgrids.csv --input-depth 10
+uv run python -m soil_diskin.layered_workflow --allow-partial --max-nfev 1000 \
+  --input-table results/all_sites_14C_turnover_sampled_soilgrids.csv \
+  --output-dir results/my_sampled_soilgrids_fit
+```
+
+This fills 46 eligible missing layer stocks, restoring all 112 profiles and 74
+locations (661 fitted layers; 634 valid f_new observations). `stock_source` marks
+SoilGrids estimates, and `stock_kg_m2_reported` preserves the original values.
+WCS means are cached in `results/soilgrids_layer_cache.json` and reused on later
+runs. No measured stocks or f_new values are replaced. See the
+[SoilGrids comparison](layered_sampled_soilgrids.md) for results and assumptions.
+
 ## Previous 10 cm workflow
 
 The pipeline now has three separate steps:

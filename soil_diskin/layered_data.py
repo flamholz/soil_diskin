@@ -190,6 +190,9 @@ def save_depth_turnover(processed_path, shi_path, npp_path, output_path,
                 'fnew_observation': ('Layers sheet ratio_newCtoC; stocks from Cstock in kg C/m²'
                     if 'zmid_cm' in result else 'difference of cumulative Cnew divided by layer Ctotal')}
     output.parent.mkdir(parents=True, exist_ok=True)
+    preprocessing_metadata = Path(processed_path).with_suffix('.json')
+    if preprocessing_metadata.exists():
+        metadata['preprocessing'] = json.loads(preprocessing_metadata.read_text())
     result.to_csv(output, index=False)
     metadata['table_sha256'] = file_digest(output)
     output.with_suffix('.json').write_text(json.dumps(metadata, indent=2)+'\n')

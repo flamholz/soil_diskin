@@ -22,7 +22,7 @@ def source_hashes() -> dict[str, str]:
     """Fingerprint the shared scientific and reporting code used by all drivers."""
     names = ['layered_lognormal.py', 'layered_data.py', 'layered_workflow.py',
              'layered_evaluation.py', 'run_output.py', 'continuum_models.py',
-             'lognormal.py', 'data_wrangling.py', 'radiocarbon_utils.py', 'constants.py']
+             'lognormal.py', 'data_wrangling.py', 'radiocarbon_utils.py', 'constants.py', 'soilgrids_utils_w_unc.py']
     return {str(Path(__file__).with_name(name).resolve()): file_digest(Path(__file__).with_name(name))
             for name in names}
 

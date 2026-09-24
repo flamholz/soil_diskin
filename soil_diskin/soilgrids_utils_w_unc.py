@@ -8,6 +8,9 @@ WCS requests so we can retrieve means and quantiles for buffered point queries.
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import datetime, timezone
+import hashlib
+import json
 from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
@@ -17,6 +20,7 @@ import yaml
 # from pyproj import CRS, Transformer 
 import geopandas as gpd
 from rasterio.io import MemoryFile
+from rasterio.errors import RasterioError
 import rioxarray
 
 
@@ -379,3 +383,70 @@ def backfill_missing_soc(
 
     df = df[~df[soc_col].isna()]
     return df, stats
+
+
+def backfill_layer_stocks(layers: pd.DataFrame, cache_path: str | Path) -> Tuple[pd.DataFrame, dict]:
+    """Fill missing interval stocks with the bulk pipeline's SOC × density method.
+
+    Means are buffered WCS samples, cached by location and SoilGrids depth band.
+    Integrate kg C/m²/cm over the actual interval; never replace reported stocks,
+    redistribute column carbon, infer f_new, or borrow an unavailable depth band.
+    As in the bulk method, no coarse-fragment correction is applied.
+    """
+    cfg = _load_wcs_config()
+    path = Path(cache_path)
+    cache = json.loads(path.read_text()) if path.exists() else {'wcs_config': cfg, 'points': {}}
+    if cache['wcs_config'] != cfg:
+        raise ValueError('SoilGrids cache settings differ; use a new cache path')
+    result = layers.copy()
+    if 'stock_kg_m2_reported' not in result:
+        result['stock_kg_m2_reported'] = result.stock_kg_m2
+        reported_source = 'Balesdent Layers' if 'zmid_cm' in result else 'Balesdent Profiles (10-cm)'
+        result['stock_source'] = np.where(result.stock_kg_m2.notna(), reported_source, 'missing')
+    result['stock_fill_error'] = ''
+    missing = (result.stock_kg_m2.isna() & result.z_top_cm.ge(0) & result.z_bottom_cm.le(100)
+               & result.z_bottom_cm.gt(result.z_top_cm)
+               & result.latitude.between(-90, 90) & result.longitude.between(-180, 180))
+    if 'zmid_cm' in result:
+        missing &= result.zmid_cm.between(result.z_top_cm, result.z_bottom_cm) & result.zmid_cm.between(0, 99)
+    depths = cfg['stock_depths']
+    bounds = np.array([depth.removesuffix('cm').split('-') for depth in depths], dtype=float)
+    filled = 0
+    for (lat, lon), group in result.loc[missing].groupby(['latitude', 'longitude'], sort=False):
+        key = f'{lat:.10f},{lon:.10f}'
+        if key not in cache['points']:
+            print(f'SoilGrids: {lat:.6f}, {lon:.6f} ({len(group)} missing layers)', flush=True)
+            try:
+                point = {prop: get_stats_at_point(lat, lon, depths=depths, stats=['mean'], stat_type=prop)
+                         for prop in ['soc', 'bdod']}
+            except (requests.RequestException, RasterioError) as error:
+                result.loc[group.index, 'stock_fill_error'] = str(error)
+                continue
+            cache['points'][key] = {**point, 'latitude': lat, 'longitude': lon,
+                                    'retrieved_utc': datetime.now(timezone.utc).isoformat()}
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(cache, indent=2, allow_nan=False)+'\n')
+        point = cache['points'][key]
+        soc, bdod = [np.array([point[prop].get(depth, {}).get('mean') for depth in depths], dtype=float)
+                     for prop in ['soc', 'bdod']]
+        # WCS helper has converted SOC to g/kg and density to g/cm³.
+        density = 0.01*soc*bdod  # kg C/m² per cm of depth
+        for index, row in group.iterrows():
+            overlap = np.maximum(0, np.minimum(row.z_bottom_cm, bounds[:, 1])
+                                 - np.maximum(row.z_top_cm, bounds[:, 0]))
+            used = overlap > 0
+            valid = (np.isfinite(density[used]).all() and (soc[used] >= 0).all()
+                     and (bdod[used] > 0).all() and np.isclose(overlap.sum(), row.z_bottom_cm-row.z_top_cm))
+            stock = float(overlap[used] @ density[used]) if valid else np.nan
+            if np.isfinite(stock) and stock > 0:
+                result.loc[index, ['stock_kg_m2', 'stock_source']] = [stock, 'SoilGrids backfill']
+                filled += 1
+            else:
+                result.loc[index, 'stock_fill_error'] = 'Missing/nonpositive SoilGrids stock in a required depth band'
+    metadata = {'requested_layers': int(missing.sum()), 'filled_layers': filled,
+                'unfilled_layers': int(missing.sum())-filled,
+                'method': 'sum(overlap_cm * SOC_g_kg * bulk_density_g_cm3 * 0.01); no coarse-fragment correction',
+                'cache_path': str(path.resolve()),
+                'cache_sha256': hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None,
+                'uncertainty_propagated': False}
+    return result, metadata
