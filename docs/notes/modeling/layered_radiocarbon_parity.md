@@ -48,9 +48,10 @@ Every retained layer records `radiocarbon_spatially_filled`, indicating whether
 any constituent one-cm target came from spatial filling. Metadata separately
 counts filled layers in the raw workbook and among retained fitting layers.
 
-**This check updates the input adapter, not saved model fits.** Previously
-reported RMSE/KGE values describe the old targets and cohort; they have not been
-recomputed in this task. New runs automatically use the corrected targets.
+The original parity check updated the input adapter without refitting models.
+The [subsequent refit](layered_radiocarbon_refit.md) now reports all ten input
+alternatives on the corrected targets and the expanded 914-layer cohort.
+Older saved runs remain historical results for the original targets and cohort.
 
 ## Reproduce
 

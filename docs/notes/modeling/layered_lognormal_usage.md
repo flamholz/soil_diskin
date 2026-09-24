@@ -39,8 +39,9 @@ filled at each one-cm depth, matching the original analysis.
 
 The current inputs support **101 profiles at 65 locations and 914 layers** this way.
 See the [radiocarbon parity check](layered_radiocarbon_parity.md). Earlier saved
-comparisons used 87 profiles and 800 layers before spatial filling was aligned;
-their performance metrics have not been rerun as part of this data check.
+comparisons used 87 profiles and 800 layers before spatial filling was aligned.
+The [corrected-target refits](layered_radiocarbon_refit.md) report updated scores
+for all input alternatives on the expanded cohort.
 The [NPP recovery report](layered_npp_recovery.md) and
 [partial-profile report](layered_partial_profiles.md) document those earlier cohorts.
 
