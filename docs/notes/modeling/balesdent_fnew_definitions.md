@@ -198,3 +198,78 @@ uv run python results/layered_fnew_definition_audit/reproduce.py
 The script asserts the original-observation reconstruction, identical evaluation
 cohorts, saved/current fit agreement, and exact bulk preprocessing parity. It
 re-scores saved predictions and never calls the fitting optimizer.
+
+## Follow-up: the original bulk lognormal model
+
+The user requested a direct bulk observation `Cnew_0-100 / Ctotal_0-100`.
+This follow-up evaluates the **original bulk lognormal predictions**, not the
+layered model and not a stock-weighted aggregation of layer predictions.
+
+The literal `0-100` columns provide valid ratios for **70 raw profiles**, grouped
+into **62 coordinate/label-duration records** by the original arithmetic-mean
+rule. Compute the ratio for each raw profile before averaging these ratios;
+this preserves the original treatment of replicate profiles rather than replacing
+it with a ratio of pooled stocks. The alternative using the authors' separate
+`Cnew_0-100estim / Ctotal_0-100estim` columns covers **101 profiles / 88 records**.
+The 11 SoilGrids-backfilled records have no corresponding new-carbon stock in the
+workbook and cannot enter either stock-ratio comparison.
+
+For each cohort, the original endpoint method was recomputed on **exactly the same
+raw profiles**. All bulk predictions, carbon/radiocarbon calibration inputs,
+and parameters were held fixed:
+
+| Observation coverage | Bulk records | Original RMSE | Stock-ratio RMSE | Original KGE (2012) | Stock-ratio KGE (2012) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Literal `0-100` columns | 62 | 0.110783 | 0.114196 | 0.725378 | 0.716062 |
+| Including authors' `0-100estim` columns | 88 | 0.103716 | 0.103041 | 0.723732 | 0.712238 |
+
+The literal-stock definition makes agreement slightly worse: RMSE rises by
+**0.003414 (3.1%)**, while KGE falls by **0.009316**. Including the authors' 1 m
+stock estimates gives nearly unchanged RMSE (0.000676 lower) and KGE 0.011494
+lower. Mean absolute changes in the bulk observations are 0.007900 and 0.016506,
+respectively. The estimate-based ratio is not identical to the preceding audit's
+weighted ratio over available layers: it uses the authors' entire estimated 1 m
+stocks, including unobserved depth extensions.
+
+### Why the matched baseline matters
+
+The original saved 99-record bulk result is RMSE **0.106745**, KGE **0.827698**.
+It includes observations lacking a stock-ratio alternative. Comparing that KGE
+directly with the 62- or 88-record ratio scores would confound the observation
+formula with changes in the evaluated population.
+
+There is one further grouping detail. In two of the 62 literal-stock groups,
+only some constituent profiles have both 1 m stocks. The original saved
+observations still include their other profiles, whereas the new ratio cannot.
+Those mixed groups are `(10.1666666667, -83.5666666667, 25 years)` and
+`(26.7466666667, 115.0702777778, 19 years)`.
+
+- Using the **unmodified saved observations** for those same 62 bulk rows gives
+  RMSE **0.108943**, KGE **0.732583**; the ratio scores remain 0.114196 and 0.716062.
+- The primary table above removes this within-group composition change by
+  recomputing endpoint observations only for the 70 profiles contributing ratios.
+- Excluding the two mixed groups entirely leaves 60 records: RMSE changes from
+  **0.109885 to 0.113832**, and KGE from **0.735951 to 0.723615**. The direction of
+  the result is therefore unchanged.
+
+The original model fits turnover and radiocarbon, not `f_new`. Changing only the
+bulk evaluation observation does not require refitting. We independently
+reconstructed all 99 saved predictions from the stored lognormal C(t) curves,
+turnover, and labeling durations using the original interpolation: the maximum
+absolute discrepancy is **1.11e-16**. No production code, source data, calibration
+inputs, or existing model result was overwritten.
+
+Artifacts:
+
+- [Matched scatter plots](../../../results/bulk_lognormal_fnew_ratio/observed_vs_predicted.png)
+- [All metrics, including saved-baseline and unmixed-group checks](../../../results/bulk_lognormal_fnew_ratio/metrics.csv)
+- [Literal 0–100 comparison rows](../../../results/bulk_lognormal_fnew_ratio/direct_0_100_comparison.csv)
+- [Authors' 1 m estimate comparison rows](../../../results/bulk_lognormal_fnew_ratio/authors_0_100_estimates_comparison.csv)
+- [Raw-profile ratios](../../../results/bulk_lognormal_fnew_ratio/profile_observations.csv)
+- [Audit summary and source fingerprints](../../../results/bulk_lognormal_fnew_ratio/summary.json)
+
+Reproduce from the repository root:
+
+```sh
+uv run python results/bulk_lognormal_fnew_ratio/reproduce.py
+```
