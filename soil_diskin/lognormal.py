@@ -6,6 +6,8 @@ These are used by the calibration and recovery scripts.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 from math import sqrt, log, exp
 from scipy.integrate import quad
@@ -13,6 +15,8 @@ from scipy.integrate import quad
 from .radiocarbon_utils import AtmC14
 
 __all__ = [
+    "LognormalPrediction",
+    "lognormal_turnover",
     "inner_integral",
     "lognormal_radiocarbon",
     "scan_ages",
@@ -23,6 +27,19 @@ __all__ = [
 
 C14_MEAN_LIFE = 8267.0  # years
 _INV_SQRT_2PI = 1.0 / np.sqrt(2.0 * np.pi)
+
+
+@dataclass
+class LognormalPrediction:
+    stock: float
+    fm: float
+    times: np.ndarray
+    fnew: np.ndarray
+
+
+def lognormal_turnover(mu: float, sigma: float) -> float:
+    """Steady stock per unit input, shared by all lognormal implementations."""
+    return float(np.exp(-mu+sigma**2/2))
 
 
 def inner_integral(atm: AtmC14, alpha: float) -> float:

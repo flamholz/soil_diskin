@@ -35,6 +35,18 @@ def parse_he_data(model='CESM', file_names=None) -> xr.DataArray:
     return ds
 
 
+def balesdent_layer_stocks(raw: pd.DataFrame, *, new_carbon: bool = False) -> pd.DataFrame:
+    """Difference adjacent cumulative stocks without bridging missing depths.
+
+    Total-stock columns are required; missing optional new-carbon columns stay
+    NaN. This helper neither pools profiles nor imputes stocks or weights.
+    """
+    columns = (['Cnew_0_0'] + [f'Cnew_0-{z}' for z in range(10, 101, 10)] if new_carbon
+               else [f'Ctotal_0-{z}' for z in range(0, 101, 10)])
+    cumulative = raw.reindex(columns=columns) if new_carbon else raw[columns]
+    return cumulative.apply(pd.to_numeric, errors='coerce').diff(axis=1).iloc[:, 1:]
+
+
 def process_balesdent_data(raw_data: pd.DataFrame, keep_missing_soc: bool = False) -> pd.DataFrame:
     """
     Processes the raw Balesdent et al. 2018 data.
@@ -64,7 +76,7 @@ def process_balesdent_data(raw_data: pd.DataFrame, keep_missing_soc: bool = Fals
     # columns as an estimate of the density of C in each layer
     end_depths = list(range(0, 110, 10))
     cols_of_interest = [f'Ctotal_0-{d}' for d in end_depths]
-    C_dens = raw_data[cols_of_interest].diff(axis=1).iloc[:, 1:]
+    C_dens = balesdent_layer_stocks(raw_data)
 
     # Calculate the weighting for each layer as a fraction of the carbon
     # density in the layer out of the total carbon in the top 1 meter of

@@ -3,8 +3,10 @@ import numpy as np
 from scipy.integrate import quad
 from scipy.special import exp1, gamma, gammaincc, log_ndtr, gammainc
 from scipy.stats import lognorm
-from soil_diskin.constants import LAMBDA_14C, INTERP_R_14C, GAMMA
-from soil_diskin.lognormal import lognormal_radiocarbon, inner_integral, C14_MEAN_LIFE
+from soil_diskin import constants
+from soil_diskin.constants import LAMBDA_14C, GAMMA
+from soil_diskin.lognormal import (lognormal_radiocarbon, inner_integral, C14_MEAN_LIFE,
+                                  lognormal_turnover, diskin_C_of_t, LognormalPrediction)
 from soil_diskin.radiocarbon_utils import AtmC14
 from tqdm import tqdm
 
@@ -38,7 +40,7 @@ class AbstractDiskinModel:
         """Initialize the model."""
         self.interp_14c = interp_r_14c
         if interp_r_14c is None:
-            self.interp_14c = INTERP_R_14C
+            self.interp_14c = constants.INTERP_R_14C
     
         # These should be calculated by subclasses
         self.T = None  # mean transit time at steady-state
@@ -350,7 +352,7 @@ class PowerLawDisKin(AbstractDiskinModel):
 
         self.interp_14c = interp_r_14c
         if interp_r_14c is None:
-            self.interp_14c = INTERP_R_14C
+            self.interp_14c = constants.INTERP_R_14C
 
         # steady-state transit time
         tratio = t_min / t_max
@@ -570,7 +572,7 @@ class LognormalDisKin(AbstractDiskinModel):
         self.q_max = np.log(self.kappa_max)        
 
         # steady-state transit time and mean age
-        self.T = np.exp(-self.mu + ((self.sigma**2) / 2))
+        self.T = lognormal_turnover(self.mu, self.sigma)
         # mean age at steady-state
         self.A = self.T * np.exp(self.sigma**2)
         
@@ -701,15 +703,14 @@ class LognormalDisKinFast(AbstractDiskinModel):
         ppf_lim=1e-5,
         fast_rtol=1e-4,
     ):
-        # Initialize base class (interpolator path is intentionally ignored)
-        AbstractDiskinModel.__init__(self, interp_r_14c=interp_r_14c)
-        # Copy essential lognormal parameter setup from LognormalDisKin
+        # All base state (T, A, interp_14c) is set below. The fast model uses
+        # its supplied atmosphere and does not load the unused default interpolator.
         self.mu = mu
         self.k_star = np.exp(mu)
         self.sigma = sigma
     
         # steady-state transit time and mean age
-        self.T = np.exp(-self.mu + ((self.sigma ** 2) / 2))
+        self.T = lognormal_turnover(self.mu, self.sigma)
         self.A = self.T * np.exp(self.sigma ** 2)
 
         self.atm = atm
@@ -721,6 +722,82 @@ class LognormalDisKinFast(AbstractDiskinModel):
 
         # keep k bounds available; numeric routines may reference `k_min`/`k_max`
         # but we don't build discrete ks/I arrays in the fast implementation.
+
+    def set_parameters(self, mu, sigma):
+        """Update the existing model in place during calibration."""
+        self.mu, self.sigma = mu, sigma
+        self.k_star = np.exp(mu)
+        self.T = lognormal_turnover(mu, sigma)
+        self.A = self.T*np.exp(sigma**2)
+
+    def prepare_quadrature(self, *, log_rate_step=.05, mu_bounds=(-15., 10.), sigma_bounds=(.05, 5.)):
+        """Cache atmospheric responses on a fixed grid spanning all fitting bounds.
+
+        This integrates the resident density, unlike the input-density survival
+        discretization below. It avoids re-running adaptive integrals per fit.
+        """
+        atmosphere = self.atm
+        self.mu_bounds, self.sigma_bounds = mu_bounds, sigma_bounds
+        bounds = np.asarray([mu_bounds, sigma_bounds])
+        if (bounds.shape != (2, 2) or not np.isfinite(bounds).all()
+                or np.any(bounds[:, 0] >= bounds[:, 1]) or sigma_bounds[0] <= 0):
+            raise ValueError('ordered finite bounds and positive sigma required')
+        if not np.isfinite(log_rate_step) or not 0 < log_rate_step <= sigma_bounds[0]:
+            raise ValueError('log_rate_step must be positive and <= minimum sigma')
+        ages, fm = atmosphere.ages, atmosphere.fm
+        if (ages.ndim != 1 or not len(ages) or fm.shape != ages.shape
+                or not np.isfinite(ages).all() or not np.isfinite(fm).all()
+                or ages[0] != 0 or np.any(np.diff(ages) <= 0) or np.any(fm < 0)
+                or not np.isfinite(atmosphere.mean_R) or atmosphere.mean_R < 0):
+            raise ValueError('atmosphere needs increasing ages from zero and finite nonnegative fm')
+        lo = mu_bounds[0]-sigma_bounds[1]**2-12*sigma_bounds[1]
+        hi = mu_bounds[1]+12*sigma_bounds[1]
+        if lo < -600 or hi > 600 or (hi-lo)/log_rate_step > 100_000:
+            raise ValueError('quadrature range or size exceeds numerical limits')
+        self.log_rates = np.linspace(lo, hi, int(np.ceil((hi-lo)/log_rate_step))+1)
+        self.step = float(self.log_rates[1]-self.log_rates[0])
+        self.rates = np.exp(self.log_rates)
+        # A rate class's fraction modern: k ∫ F_atm(age) exp(-(k+lambda) age) d(age).
+        self.radio_response = np.array([k*inner_integral(atmosphere, k+1/C14_MEAN_LIFE)
+                                        for k in self.rates])
+
+    def _resident_weights(self):
+        z = (self.log_rates-(self.mu-self.sigma**2))/self.sigma
+        weights = np.exp(-.5*z*z)*self.step/(self.sigma*np.sqrt(2*np.pi))
+        weights[[0, -1]] *= .5
+        return weights
+
+    def new_carbon_fraction(self, times):
+        """Fixed-input carbon normalized by steady stock; optional cached quadrature."""
+        times = np.asarray(times, dtype=float)
+        if times.ndim != 1 or not np.isfinite(times).all() or np.any(times < 0):
+            raise ValueError('times must be a finite nonnegative one-dimensional array')
+        if not hasattr(self, 'radio_response'):
+            return diskin_C_of_t(times, self.mu, self.sigma)/self.T
+        with np.errstate(over='ignore'):
+            return np.sum(self._resident_weights()*(-np.expm1(-times[:, None]*self.rates)), axis=1)
+
+    def predict(self, mu: float, sigma: float, input_rate: float,
+                times: tuple[float, ...] | np.ndarray = ()) -> LognormalPrediction:
+        """Predict in fitting mode, after calling prepare_quadrature once."""
+        if not hasattr(self, 'radio_response'):
+            raise ValueError('call prepare_quadrature before predict')
+        times = np.asarray(times, dtype=float)
+        if (not np.isfinite([mu, sigma, input_rate]).all() or input_rate <= 0
+                or not self.mu_bounds[0] <= mu <= self.mu_bounds[1]
+                or not self.sigma_bounds[0] <= sigma <= self.sigma_bounds[1]):
+            raise ValueError('mu/sigma must be within bounds and input_rate positive')
+        if times.ndim != 1 or not np.isfinite(times).all() or np.any(times < 0):
+            raise ValueError('times must be a finite nonnegative one-dimensional array')
+        self.set_parameters(mu, sigma)
+        stock = input_rate*self.T
+        fm = self.calc_radiocarbon_ratio_ss_fast()[0]
+        fnew = self.new_carbon_fraction(times)
+        if (not np.isfinite(stock) or stock <= 0 or not np.isfinite(fm) or fm < 0
+                or not np.isfinite(fnew).all() or np.any(fnew < 0) or np.any(fnew > 1+1e-8)):
+            raise FloatingPointError('nonfinite or unphysical prediction')
+        return LognormalPrediction(float(stock), fm, times, fnew)
+
 
     def _survival_matrix_discretized(self, t, n_ks=200, q_low=1e-3, q_high=1 - 1e-3):
         """Return discretized survival contribution matrix M[k, t].
@@ -798,6 +875,8 @@ class LognormalDisKinFast(AbstractDiskinModel):
         limits in log-space (u = ln k). Otherwise the helper `lognormal_radiocarbon`
         is called which chooses default bounds.
         """
+        if hasattr(self, 'radio_response'):
+            return float(np.sum(self._resident_weights()*self.radio_response)), 0.0
         ratio = lognormal_radiocarbon(
             atm=self.atm,
             tau=float(self.T),

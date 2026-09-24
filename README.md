@@ -189,6 +189,17 @@ Add `--surface-fraction 0.5` with a new output directory to also compare
 50% direct top-layer input plus 50% Jackson input across the full column; see the
 [surface-input results](docs/notes/modeling/layered_jackson_surface50.md).
 
+To rerun with only half of site NPP entering soil, use `--soil-npp-fraction 0.5`.
+This scales total soil input while retaining each depth allocation, including
+the optional surface mixture:
+
+```sh
+uv run python -m notebooks.compare_jackson_inputs --soil-npp-fraction 0.5 \
+  --surface-fraction 0.5 --output-dir results/my_jackson_npp50
+```
+
+See the [half-NPP results](docs/notes/modeling/layered_jackson_npp50.md).
+
 ## Citation
 
 If you use this code in your research, please cite:
@@ -200,3 +211,7 @@ If you use this code in your research, please cite:
 ## License
 
 See `LICENSE` file for details.
+
+The [layered review fixes and regression checks](docs/notes/modeling/layered_review_fixes.md)
+document the shared-model refactor, explicit missing-evaluation outputs, and
+numerical agreement with the saved fits.

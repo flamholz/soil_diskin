@@ -47,6 +47,7 @@ def test_profiles_remain_distinct_and_missing_layer_values_are_excluded():
     shi = xr.Dataset({'temp': (('lon', 'level', 'lat'), np.arange(100.).reshape(1,100,1))},
                      coords={'lat': [1.], 'lon': [2.], 'level': np.arange(100)})
     prepared = prepare_profiles(raw, shi, npp)
+    pd.testing.assert_frame_equal(prepared.raw_profiles, raw)
     assert prepared.profiles.profile_id.unique().tolist() == ['pasture', 'forest']
     assert len(prepared.profiles) == 20
     pasture = prepared.profiles.query("profile_id == 'pasture'")

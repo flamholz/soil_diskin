@@ -49,14 +49,21 @@ The [NPP recovery report](layered_npp_recovery.md) and
 
 1. **Load data:** [`layered_data.py`](../../../soil_diskin/layered_data.py)
    reads Balesdent stocks, Shi radiocarbon, and cached NPP. It selects complete
-   profiles or usable individual layers, differences cumulative stocks, converts NPP units,
-   and records exclusions.
+   profiles or usable individual layers, reuses gap-preserving cumulative-stock
+   differencing from `data_wrangling.py`, converts NPP units, and records exclusions.
+   `PreparedProfiles.raw_profiles` retains the workbook metadata for Jackson assignments.
 2. **Fit and predict one layer:**
    [`layered_lognormal.py`](../../../soil_diskin/layered_lognormal.py)
-   contains `input_weights`, `LayerLognormal.predict`, and `fit_layer`.
+   contains `InputAllocation`, typed `FitResult` records, and `fit_layer`.
+   `LayerLognormal` configures the existing `LognormalDisKinFast` from
+   [`continuum_models.py`](../../../soil_diskin/continuum_models.py); numerical
+   predictions live there and parameters update in place.
 3. **Run everything:** [`layered_workflow.py`](../../../soil_diskin/layered_workflow.py)
    contains `run_profiles`, with five numbered steps. It allocates NPP, fits
    each layer, predicts new carbon, saves the tables, and draws the scatter plot.
+   [`layered_evaluation.py`](../../../soil_diskin/layered_evaluation.py) supplies
+   the common metrics/plots; `run_output.py` supplies output protection and status
+   handling shared by all three drivers.
 
 There are no transport matrices, matrix exponentials, coupled 20-parameter
 optimizers, or D/v sensitivity scans. The old transport implementation and API
@@ -67,23 +74,34 @@ are available in Git at commit `5ed9ae3`; earlier saved results are preserved.
 For layer top and bottom depths `z_top`, `z_bottom`, the annual carbon input is
 
 ```text
-input = NPP × [exp(-z_top/h) - exp(-z_bottom/h)] / [1 - exp(-100/h)]
+input = soil_npp_fraction × NPP × [exp(-z_top/h) - exp(-z_bottom/h)] / [1 - exp(-100/h)]
 ```
 
-All site NPP is allocated within 0–100 cm. With no exchange between layers,
+The fixed `--soil-npp-fraction` defaults to 1 (all NPP), and must lie in `(0,1]`.
+Setting it to 0.5 allocates half of site NPP within 0–100 cm; the remaining half
+is outside the model. Original site NPP stays unchanged in saved tables.
+With no exchange between layers,
 
 ```text
-turnover = observed_stock / input
-predicted_stock = input × exp(-mu + sigma²/2)
+implied_turnover_years = observed_stock / input
+model_turnover_years = exp(-mu + sigma²/2)
+predicted_stock = input × model_turnover_years
 ```
 
-An optional fixed `--surface-fraction s` puts that fraction of NPP directly into
+An optional fixed `--surface-fraction s` puts that fraction of **soil input** directly into
 0–10 cm and distributes the remainder with the same exponential over **all ten
 layers**, including the top layer. If `w` is the exponential allocation above,
 the mixed weights are `(1-s)*w`, with `s` added to the first weight. Thus `s=0.5`
-gives the top layer **more than 50%** of total NPP. The default is zero, preserving
+gives the top layer **more than 50%** of soil input. The default is zero, preserving
 the original model. The fraction must lie in `[0,1)` so deeper layers retain input.
 It is supplied, not fitted; `h` then describes the distributed component only.
+
+With both fractions set to 0.5, 25% of original NPP enters the top layer directly
+and 25% follows the depth profile, including its top layer. Full-column depth
+weights still sum to one; their products with `soil_npp_fraction` sum to 0.5.
+Missing observations never cause those allocations to be renormalized.
+Saved `run.json` files distinguish `layer_input_weights` (shares of soil input)
+from `layer_npp_fractions` (shares of original NPP).
 
 `mu` and `sigma` describe the normal distribution of **log decomposition rates
 in new inputs**, with rates in year⁻¹. Slow carbon accumulates at steady state:
@@ -103,9 +121,10 @@ Three fixed starting sigmas (2.5, 1, 4) make the procedure reproducible. Startin
 mu uses the turnover identity above. The lowest objective is the primary result.
 All starts are retained, including duplicates and unconverged results.
 
-Thus there are **20 local parameters per profile, plus one shared h**, replacing
-20 local parameters plus shared D, v, and h. Supplying h fixes it for that run;
-the pipeline does not estimate it from the new-carbon observations.
+A complete profile fits **20 local parameters**. The allocation supplies h,
+surface fraction, and soil NPP fraction; the original exponential-only case
+fixed the latter two to zero and one. None is estimated inside `run_profiles`.
+The separate tuning experiment below can select h on validation f_new.
 For a partial profile, only the two parameters of each retained layer are fitted;
 no parameters or predictions are inferred for its excluded layers.
 
@@ -114,7 +133,8 @@ no parameters or predictions are inferred for its excluded layers.
 One row per profile/layer, containing:
 
 - Identity, depth, labeling duration, and observed stock, radiocarbon, and `f_new`.
-- Allocated input, `observed_turnover_years`, fitted `mu` and `sigma`.
+- Allocated input, `implied_turnover_years`, `model_turnover_years`, fitted `mu` and `sigma`.
+  `observed_turnover_years` is a legacy alias of implied turnover, not an observation.
 - Predicted stock, radiocarbon, and `fnew_pred` at the labeling duration.
 - Residuals, optimizer `success`, bound flags, and `quadrature_ok`.
 
@@ -134,6 +154,14 @@ Other outputs:
 | `exclusions.csv` | Excluded profiles/layers and reasons; a blank `layer` means the whole profile |
 | `run.json` | Settings, source fingerprints, counts, and run status |
 
+`metrics.csv` includes `evaluation_status`. With no observed f_new at a valid
+labeling time, it records zero pairs, NaN scores, and
+`no_evaluable_observations`; the plot explains why no score exists. Nonfinite
+predictions invalidate scores instead of shrinking the cohort. Finite failed
+or unchecked predictions remain visible, with counts in the metrics and plot.
+The tuning/comparison `score` additionally marks any scenario with a failed or
+unchecked layer ineligible for selection.
+
 Candidate IDs now refer to starts **within a layer**, not coupled whole-profile
 solutions. Near-best means objective ≤ `best × 1.01 + 1e-6`. Prediction spreads
 are not confidence intervals. The Jacobian rank is a local diagnostic of the
@@ -146,16 +174,32 @@ leave only the settings and exclusions. A fresh run never overwrites old files.
 ## Use one layer in Python
 
 ```python
-from soil_diskin.layered_lognormal import LayerLognormal, fit_layer, input_weights
+from soil_diskin.layered_lognormal import InputAllocation, LayerLognormal, fit_layer
 from soil_diskin.radiocarbon_utils import load_atm14c
 
 model = LayerLognormal(load_atm14c())
-layer_input = 0.5 * input_weights(30)[0]  # Site NPP 0.5 kg C/m²/year; top layer.
+layer_input = InputAllocation(30).layer_inputs(0.5)[0]  # Site NPP 0.5 kg C/m²/year; top layer.
 fits = fit_layer(model, stock=2.0, fm=0.95, input_rate=layer_input)
 best = fits[0]
-prediction = model.predict(best['mu'], best['sigma'], layer_input, times=(20.,))
+prediction = model.predict(best.mu, best.sigma, layer_input, times=(20.,))
 print(prediction.fnew[0])
 ```
+
+For a multi-layer run, pass `allocation=InputAllocation(10, 0.5, 0.5)` to
+`run_profiles`. Existing `input_depth`, `surface_fraction`, and
+`soil_npp_fraction` keywords remain compatible, but cannot be mixed with an
+allocation object. Existing `fit['mu']` access also remains available.
+
+The vocabulary is consistent in meaning across historical file formats:
+
+| Concept | Current API | Existing output / CLI names |
+| --- | --- | --- |
+| Input e-folding depth h, cm | `input_depth_cm` | `input_depth_cm`, tuning `h_cm`, `--input-depth` |
+| Share of soil input in a layer, sums to 1 | `soil_input_fractions` | `layer_input_weights`, `soil_input_fraction` |
+| Share of original NPP in a layer, sums to q | `npp_fractions` | `layer_npp_fractions`, `npp_fraction` |
+| Layer input, kg C/m²/year | `layer_inputs(npp)` | `input_kg_m2_yr` |
+
+These historical output names remain readable without migrating saved analyses.
 
 Bounds remain mu in [-15,10] and sigma in [0.05,5], configurable when constructing
 `LayerLognormal`. `fit_layer` exposes the residual scales and evaluation budget.
@@ -268,3 +312,19 @@ One workflow status issue was fixed: completion is recorded only after evaluatio
 and plotting succeed. A regression test checks that plotting failure preserves
 fit tables while marking the run incomplete. Independent numerical probes found
 no additional issues. Review totals: Standards 0; Spec 1 resolved, 0 remaining.
+
+## Reproduce the regression comparison
+
+```sh
+uv run python notebooks/check_layered_regression.py \
+  --output-dir results/my_layered_regression \
+  --current-refits results/layered_radiocarbon_refit
+```
+
+This uses the existing local saved results: all 50 historical profiles are
+refitted from frozen inputs and compared with both original no-transport runs.
+The optional final argument checks predictions for all corrected-target
+scenarios. The saved historical inputs are required; the script deliberately
+does not regenerate them from today's corrected raw-data adapter. Outputs
+include the refit tables/plot and a fingerprinted `regression.json`. See the
+[review-fix record](layered_review_fixes.md).

@@ -484,3 +484,21 @@ class TestLognormalDisKinFast(unittest.TestCase):
         self.assertGreaterEqual(err, 0.0)
         self.assertGreaterEqual(ratio, 0.0)
         self.assertLessEqual(ratio, 1.5)
+
+    def test_fitting_mode_reuses_model_and_matches_adaptive_predictions(self):
+        from soil_diskin.lognormal import diskin_C_of_t
+
+        model = LognormalDisKinFast(mu=-1., sigma=.8, atm=self.atm)
+        with self.assertRaisesRegex(ValueError, 'prepare_quadrature'):
+            model.predict(-1., .8, .2)
+        model.prepare_quadrature()
+        cached_response = model.radio_response
+        for mu, sigma in [(-1., .8), (.1, 2.3)]:
+            reference = LognormalDisKinFast(mu=mu, sigma=sigma, atm=self.atm)
+            prediction = model.predict(mu, sigma, .2, (0., 20., 100.))
+            self.assertIs(model.radio_response, cached_response)
+            self.assertEqual((model.mu, model.sigma), (mu, sigma))
+            self.assertAlmostEqual(prediction.stock, .2*reference.T)
+            np.testing.assert_allclose(prediction.fm, reference.calc_radiocarbon_ratio_ss()[0], rtol=2e-5)
+            np.testing.assert_allclose(prediction.fnew,
+                diskin_C_of_t(np.array([0., 20., 100.]), mu, sigma)/reference.T, rtol=1e-5, atol=1e-8)

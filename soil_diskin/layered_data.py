@@ -10,6 +10,7 @@ import pandas as pd
 import rioxarray  # noqa: F401 -- registers the .rio accessor used by the original analysis
 import xarray as xr
 
+from .data_wrangling import balesdent_layer_stocks
 from .layered_lognormal import DZ, N_LAYERS
 
 # Published checksum distinguishes delta-14C from the similarly named age file;
@@ -24,6 +25,7 @@ class PreparedProfiles:
     profiles: pd.DataFrame
     excluded: pd.DataFrame
     metadata: dict = field(default_factory=dict)
+    raw_profiles: pd.DataFrame = field(default_factory=pd.DataFrame)
 
 
 def file_digest(path: str | Path, algorithm: str = 'sha256') -> str:
@@ -84,11 +86,8 @@ def prepare_profiles(raw: pd.DataFrame, shi: xr.Dataset,
         # Same arithmetic mean and float precision as original line 66; no depth interpolation.
         delta[valid_coords] = sampled.reshape(-1, 10, 10).mean(axis=2)
     fm = 1+delta/1000
-    stocks = raw[[f'Ctotal_0-{z}' for z in range(0, 101, 10)]].apply(
-        pd.to_numeric, errors='coerce').diff(axis=1).iloc[:, 1:].to_numpy(float)
-    new_columns = ['Cnew_0_0']+[f'Cnew_0-{z}' for z in range(10, 101, 10)]
-    new_stocks = raw.reindex(columns=new_columns).apply(
-        pd.to_numeric, errors='coerce').diff(axis=1).iloc[:, 1:].to_numpy(float)
+    stocks = balesdent_layer_stocks(raw).to_numpy(float)
+    new_stocks = balesdent_layer_stocks(raw, new_carbon=True).to_numpy(float)
     with np.errstate(invalid='ignore', divide='ignore'):
         new_fraction = new_stocks/stocks
     evaluation_valid = np.asarray(np.isfinite(new_fraction) & (new_fraction >= 0)
@@ -148,7 +147,7 @@ def prepare_profiles(raw: pd.DataFrame, shi: xr.Dataset,
                 'npp_imputed': False,
                 'fnew_observation': 'difference of cumulative Cnew divided by layer Ctotal'}
     return PreparedProfiles(pd.DataFrame(records, columns=columns),
-                            pd.DataFrame(exclusions, columns=['profile_id', 'layer', 'reason']), metadata)
+                            pd.DataFrame(exclusions, columns=['profile_id', 'layer', 'reason']), metadata, raw)
 
 
 def load_profiles(balesdent_path: str | Path = 'data/balesdent_2018/balesdent_2018_raw.xlsx',

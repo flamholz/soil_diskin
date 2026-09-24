@@ -44,3 +44,31 @@ def test_half_surface_input_conserves_npp_and_keeps_jackson_roots_in_top_layer()
     for invalid in [-.01, 1., np.nan, np.inf]:
         with pytest.raises(ValueError, match='surface_fraction'):
             input_weights(30., surface_fraction=invalid)
+
+
+def test_comparison_uses_retained_metadata_and_shared_allocation(tmp_path, monkeypatch):
+    import json
+    from notebooks import compare_jackson_inputs as experiment
+    from soil_diskin.layered_data import PreparedProfiles
+    from soil_diskin.radiocarbon_utils import AtmC14
+
+    profiles = pd.DataFrame({'profile_id': ['a', 'b'], 'layer': [0, 4],
+        'latitude': [0., 1.], 'longitude': [0., 1.], 'z_top_cm': [0., 40.], 'z_bottom_cm': [10., 50.],
+        'stock_kg_m2': [1., 1.], 'fm_obs': [.9, .8], 'npp_kg_m2_yr': [.5, .5],
+        'duration_years': [20., 20.], 'fnew_obs': [.2, .1]})
+    raw = pd.DataFrame({'Internal_profile_ID': ['a', 'b'], 'Land_Use': ['CROP', 'FOREST'],
+                        'Vegetation': ['maize', 'pine']})
+    # No workbook path is present: the driver must use the retained metadata.
+    prepared = PreparedProfiles(profiles, pd.DataFrame(), raw_profiles=raw)
+    monkeypatch.setattr(experiment, 'load_profiles', lambda **kwargs: prepared)
+    monkeypatch.setattr(experiment, 'load_atm14c', lambda: AtmC14(np.array([0.]), np.array([1.]), 1.))
+    experiment.run_comparison(tmp_path, surface_fraction=.5, soil_npp_fraction=.5)
+    summary = pd.read_csv(tmp_path/'metrics.csv')
+    assert len(summary) == 5 and summary.n_layer_pairs.eq(2).all()
+    assert summary.eligible.all()
+    assignments = pd.read_csv(tmp_path/'vegetation_assignments.csv')
+    assert assignments.jackson_group.tolist() == ['crop', 'tree']
+    assert json.loads((tmp_path/'protocol.json').read_text())['status'] == 'complete'
+    fitted = pd.read_csv(tmp_path/'jackson_vegetation_surface/layers.csv')
+    assert fitted.surface_fraction.eq(.5).all() and fitted.soil_npp_fraction.eq(.5).all()
+    assert (tmp_path/'comparison.png').is_file()

@@ -53,3 +53,22 @@ def test_invalid_inputs_fail_clearly():
         input_weights(0)
     with pytest.raises(ValueError):
         LayerLognormal(atm, log_rate_step=.5)
+
+
+def test_layer_api_works_outside_repository_with_supplied_atmosphere(tmp_path):
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[1]
+    program = f'''
+import sys
+sys.path.insert(0, {str(repo)!r})
+import numpy as np
+from soil_diskin.layered_lognormal import InputAllocation, LayerLognormal
+from soil_diskin.radiocarbon_utils import AtmC14
+model = LayerLognormal(AtmC14(np.array([0.]), np.array([1.]), 1.))
+assert model.predict(-1., 2., InputAllocation().layer_inputs(.5)[0], (20.,)).stock > 0
+'''
+    result = subprocess.run([sys.executable, '-c', program], cwd=tmp_path, text=True, capture_output=True)
+    assert result.returncode == 0, result.stderr

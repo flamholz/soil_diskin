@@ -12,10 +12,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from permetrics.regression import RegressionMetric
+from soil_diskin.layered_evaluation import score as score
 
+from soil_diskin.layered_lognormal import InputAllocation
 from soil_diskin.layered_data import PreparedProfiles, file_digest, load_profiles
-from soil_diskin.layered_workflow import plot_comparison, run_profiles
+from soil_diskin.run_output import require_empty_output, run_record
+from soil_diskin.layered_workflow import source_hashes, plot_comparison, run_profiles
 from soil_diskin.radiocarbon_utils import load_atm14c
 
 H_VALUES = [5., 10., 15., 20., 30., 40., 60., 80., 120., 200.]
@@ -37,28 +39,6 @@ def make_split(profiles: pd.DataFrame, seed: int = 42) -> pd.DataFrame:
     locations.loc[order[:n_train], 'split'] = 'train'
     locations.loc[order[n_train:n_train+n_val], 'split'] = 'validation'
     return identities.merge(locations, on=['latitude', 'longitude'], validate='many_to_one')
-
-
-def score(frame: pd.DataFrame) -> dict:
-    """Keep every expected layer: failed fits invalidate a candidate, never shrink its cohort."""
-    observed, predicted = frame.fnew_obs.to_numpy(), frame.fnew_pred.to_numpy()
-    finite = bool(len(frame) and np.isfinite(observed).all() and np.isfinite(predicted).all())
-    rmse = float(np.sqrt(np.mean((predicted-observed)**2))) if finite else np.nan
-    kge = np.nan
-    if finite and len(frame) > 1 and min(observed.std(), predicted.std(), observed.mean(), predicted.mean()) > 1e-14:
-        kge = float(RegressionMetric(y_true=observed, y_pred=predicted)
-                    .kling_gupta_efficiency(force_finite=False))
-    return {'n_profiles': int(frame.profile_id.nunique()), 'n_layer_pairs': len(frame),
-            'n_locations': len(frame[['latitude', 'longitude']].drop_duplicates()),
-            'rmse': rmse, 'kge_2012': kge,
-            'converged_layers': int(frame.success.fillna(False).sum()),
-            'quadrature_ok_layers': int(frame.quadrature_ok.fillna(False).sum()),
-            'eligible': bool(finite and frame.success.fillna(False).all()
-                             and frame.quadrature_ok.fillna(False).all()),
-            'bound_layers': int((frame.mu_at_bound | frame.sigma_at_bound).sum()),
-            'stock_relative_rmse_percent': float(100*np.sqrt(np.mean(
-                ((frame.stock_pred_kg_m2-frame.stock_kg_m2)/frame.stock_kg_m2)**2))),
-            'radiocarbon_rmse_permil': float(1000*np.sqrt(np.mean((frame.fm_pred-frame.fm_obs)**2)))}
 
 
 def choose_h(scores: pd.DataFrame, metric: str = 'rmse') -> float:
@@ -91,8 +71,7 @@ def plot_search(scores: pd.DataFrame, selected_h: float, output: Path) -> None:
 
 
 def run_experiment(output: Path, *, metric: str = 'rmse', seed: int = 42, max_nfev: int = 1000) -> None:
-    if output.exists() and any(output.iterdir()):
-        raise FileExistsError('use a new or empty output directory')
+    require_empty_output(output)
     prepared = load_profiles()
     atmosphere = load_atm14c()
     prepared.metadata['atmosphere'] = {'path': str(Path('data/14C_atm_annot.csv').resolve()),
@@ -105,7 +84,7 @@ def run_experiment(output: Path, *, metric: str = 'rmse', seed: int = 42, max_nf
     output.mkdir(parents=True, exist_ok=True)
     split.to_csv(output/'splits.csv', index=False)
     # 1. Freeze the split, grid, metric, solver settings, and test comparison before fitting.
-    protocol = {'status': 'running', 'started_utc': datetime.now(timezone.utc).isoformat(),
+    protocol = {
         'seed': seed, 'location_fractions': [.6, .2, .2], 'h_grid_cm': H_VALUES,
         'selection_metric': metric, 'tie_break': 'smaller h', 'baseline_h_cm': BASELINE_H,
         'max_nfev_per_start': max_nfev, 'failure_policy': 'any failed validation layer makes h ineligible',
@@ -115,20 +94,17 @@ def run_experiment(output: Path, *, metric: str = 'rmse', seed: int = 42, max_nf
         'calibration_inputs_at_every_site': 'local stock, radiocarbon, NPP; never local f_new',
         'training_role': 'local fits and diagnostic scores; no shared mu/sigma regression is learned',
         'data': prepared.metadata, 'split_sha256': file_digest(output/'splits.csv'),
-        'source_sha256': {str(p): file_digest(p) for p in [Path(__file__),
-            Path('soil_diskin/layered_lognormal.py'), Path('soil_diskin/layered_data.py'),
-            Path('soil_diskin/layered_workflow.py')]}}
+        'source_sha256': {**source_hashes(), str(Path(__file__)): file_digest(__file__)}}
     protocol_path = output/'protocol.json'
-    protocol_path.write_text(json.dumps(protocol, indent=2)+'\n')
     development = profiles[profiles.split != 'test'].copy()
     scores = []
-    try:
+    with run_record(protocol_path, protocol):
         # 2. Refit local parameters for each h using train/validation calibration inputs.
         for h in H_VALUES:
             print(f'Development h={h:g} cm', flush=True)
             destination = output/'development'/f'h_{h:g}'
             run_profiles(PreparedProfiles(development, prepared.excluded, prepared.metadata),
-                         atmosphere, destination, input_depth=h, max_nfev=max_nfev)
+                         atmosphere, destination, allocation=InputAllocation(h), max_nfev=max_nfev)
             layers = pd.read_csv(destination/'layers.csv')
             expected = development[['profile_id', 'layer', 'split']]
             layers = expected.merge(layers.drop(columns='split'), on=['profile_id', 'layer'],
@@ -154,7 +130,7 @@ def run_experiment(output: Path, *, metric: str = 'rmse', seed: int = 42, max_nf
             destination = output/'test'/f'h_{h:g}'
             print(f'Final test evaluation h={h:g} cm', flush=True)
             run_profiles(PreparedProfiles(test.assign(fnew_obs=np.nan), prepared.excluded, prepared.metadata),
-                         atmosphere, destination, input_depth=h, max_nfev=max_nfev)
+                         atmosphere, destination, allocation=InputAllocation(h), max_nfev=max_nfev)
             labels = test[['profile_id', 'layer', 'fnew_obs']]
             layers = pd.read_csv(destination/'layers.csv').drop(columns='fnew_obs').merge(
                 labels, on=['profile_id', 'layer'], validate='one_to_one')
@@ -168,11 +144,7 @@ def run_experiment(output: Path, *, metric: str = 'rmse', seed: int = 42, max_nf
                                 'split': 'test', **score(layers)})
             pd.DataFrame(test_scores).to_csv(output/'test_scores.csv', index=False)
         print(pd.DataFrame(test_scores).to_string(index=False), flush=True)
-        protocol.update(status='complete', selected_h_cm=selected_h)
-    finally:
-        if protocol['status'] != 'complete':
-            protocol['status'] = 'interrupted_or_failed'
-        protocol_path.write_text(json.dumps(protocol, indent=2)+'\n')
+        protocol.update(selected_h_cm=selected_h)
 
 
 if __name__ == '__main__':
