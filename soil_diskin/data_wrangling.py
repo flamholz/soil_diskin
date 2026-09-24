@@ -69,6 +69,37 @@ def balesdent_layers(raw: pd.DataFrame) -> pd.DataFrame:
     return layers
 
 
+def balesdent_sampled_layers(profiles: pd.DataFrame, sampled: pd.DataFrame) -> pd.DataFrame:
+    """Use the Layers sheet's summary observations and its supplied zmid depths.
+
+    Read Profiles with skiprows=7 and Layers with header=9. Only profile IDs are
+    forward-filled; blank stocks and observations never borrow adjacent values.
+    Invalid/out-of-domain rows remain available for the downstream exclusion log.
+    """
+    columns = {'z1': 'z_top_cm', 'z2': 'z_bottom_cm', 'zmid': 'zmid_cm',
+               'Cstock': 'stock_kg_m2', 'ratio_newCtoC': 'fnew_reported'}
+    layers = sampled[list(columns)].apply(pd.to_numeric, errors='coerce').rename(columns=columns)
+    layers['Identifier_1'] = sampled.Identifier_1.ffill()
+    layers['source_excel_row'] = np.arange(len(sampled)) + 11
+    layers = layers[layers.zmid_cm.notna()].copy()
+    metadata = {'Internal_profile_ID': 'profile_id', 'Latitude': 'latitude',
+                'Longitude': 'longitude', 'Duration_labeling': 'duration_years',
+                'Land_Use': 'land_use', 'Vegetation': 'vegetation'}
+    sites = profiles[['Identifier_1', *metadata]].rename(columns=metadata)
+    if sites.profile_id.isna().any() or sites.profile_id.duplicated().any():
+        raise ValueError('Internal_profile_ID must be nonmissing and unique')
+    layers = layers.merge(sites, on='Identifier_1', how='left', validate='many_to_one')
+    if layers.profile_id.isna().any():
+        raise ValueError('Layers sheet contains a profile absent from Profiles')
+    layers['profile_id'] = layers.profile_id.astype(str)
+    for name in ['latitude', 'longitude', 'duration_years']:
+        layers[name] = pd.to_numeric(layers[name], errors='coerce')
+    layers['layer'] = layers.groupby('profile_id', sort=False).cumcount()
+    layers['fnew_observation_valid'] = layers.fnew_reported.between(0, 1)
+    layers['fnew_obs'] = layers.fnew_reported.where(layers.fnew_observation_valid)
+    return layers
+
+
 def process_balesdent_data(raw_data: pd.DataFrame, keep_missing_soc: bool = False) -> pd.DataFrame:
     """
     Processes the raw Balesdent et al. 2018 data.

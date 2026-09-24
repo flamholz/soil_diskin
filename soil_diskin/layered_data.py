@@ -38,9 +38,14 @@ def allocate_inputs(layers: pd.DataFrame, distribution=InputAllocation()) -> pd.
                'land_use', 'vegetation', 'npp_kg_m2_yr']
     arguments = layers.reindex(columns=columns).copy()
     arguments['npp_kg_m2_yr'] = arguments.npp_kg_m2_yr.where(np.isfinite(arguments.npp_kg_m2_yr) & arguments.npp_kg_m2_yr.gt(0))
-    inputs = np.asarray(distribution(**arguments.to_dict('series')), dtype=float)
-    if inputs.shape != (len(layers),) or np.isinf(inputs).any() or (inputs < 0).any():
+    valid_depth = (layers.z_top_cm.ge(0) & layers.z_bottom_cm.le(100)
+                   & layers.z_bottom_cm.gt(layers.z_top_cm))
+    selected = arguments.loc[valid_depth]
+    values = np.asarray(distribution(**selected.to_dict('series')), dtype=float)
+    if values.shape != (len(selected),) or np.isinf(values).any() or (values < 0).any():
         raise ValueError('NPP distribution must return one nonnegative input per row; missing values may be NaN')
+    inputs = np.full(len(layers), np.nan)
+    inputs[valid_depth] = values
     settings = asdict(distribution) if isinstance(distribution, InputAllocation) else {
         'input_depth_cm': np.nan, 'surface_fraction': np.nan, 'soil_npp_fraction': np.nan}
     result = layers.assign(**settings, npp_distribution=getattr(distribution, '__name__', type(distribution).__name__),
@@ -76,8 +81,9 @@ def prepare_turnover(layers: pd.DataFrame, shi: xr.Dataset, npp: pd.DataFrame,
     inputs = pd.to_numeric(joined.NPP, errors='coerce').to_numpy(float)/1000
     lat, lon = sites[coords].to_numpy(float).T
     valid_coords = np.isfinite(lat) & np.isfinite(lon) & (np.abs(lat) <= 90) & (np.abs(lon) <= 180)
+    delta = np.full((len(sites), 100), np.nan)
     fm = np.full((len(sites), N_LAYERS), np.nan)
-    spatially_filled = np.zeros((len(sites), N_LAYERS), dtype=bool)
+    filled_depths = np.zeros((len(sites), 100), dtype=bool)
     if np.any(valid_coords):
         raster = shi['temp'].rename({'lat': 'y', 'lon': 'x'}).transpose('level', 'y', 'x')
         raster = raster.rio.write_crs('EPSG:4326').rio.write_nodata(np.nan)
@@ -86,25 +92,39 @@ def prepare_turnover(layers: pd.DataFrame, shi: xr.Dataset, npp: pd.DataFrame,
         native = raster.sel(sample_coords, method='nearest').transpose('profile', 'level').values
         filled = raster.rio.interpolate_na(method='nearest')
         sampled = filled.sel(sample_coords, method='nearest').transpose('profile', 'level').values
-        spatially_filled[valid_coords] = (np.isnan(native) & np.isfinite(sampled)).reshape(-1, 10, 10).any(axis=2)
-        # Same arithmetic mean and float precision as original line 66; no depth interpolation.
-        fm[valid_coords] = 1+sampled.reshape(-1, 10, 10).mean(axis=2)/1000
+        filled_depths[valid_coords] = np.isnan(native) & np.isfinite(sampled)
+        delta[valid_coords] = sampled
+        # Preserve the filled raster's arithmetic precision in the original path.
+        fm[valid_coords] = 1+sampled.reshape(-1, N_LAYERS, 10).mean(axis=2)/1000
     sites['site_index'] = np.arange(len(sites))
     result = layers.merge(sites, on=['latitude', 'longitude'], how='left', validate='many_to_one')
     row, layer = result.site_index.to_numpy(int), result.layer.to_numpy(int)
     result['npp_kg_m2_yr'] = inputs[row]
-    result['fm_obs'] = fm[row, layer]
-    result['radiocarbon_spatially_filled'] = spatially_filled[row, layer]
+    if 'zmid_cm' in result:
+        # Evaluate at the reported depth; fractional depths interpolate adjacent cm.
+        depths = result.zmid_cm.to_numpy(float)
+        result['fm_obs'] = [1+np.interp(z, shi.level, delta[i], left=np.nan, right=np.nan)/1000
+                            for i, z in zip(row, depths)]
+        result['radiocarbon_spatially_filled'] = [
+            bool(filled_depths[i, int(np.floor(z)):int(np.ceil(z))+1].any()) if 0 <= z <= 99 else False
+            for i, z in zip(row, depths)]
+    else:
+        # Same arithmetic mean and float precision as original line 66.
+        result['fm_obs'] = fm[row, layer]
+        result['radiocarbon_spatially_filled'] = filled_depths.reshape(-1, N_LAYERS, 10).any(axis=2)[row, layer]
     return allocate_inputs(result.drop(columns='site_index'), distribution)
 
 
 def prepare_profiles(layers: pd.DataFrame, *, allow_partial: bool = False) -> PreparedProfiles:
     """Select fit-ready rows; missing f_new never excludes calibration data."""
+    sampled = 'zmid_cm' in layers
     if (layers.profile_id.isna().any() or layers.duplicated(['profile_id', 'layer']).any()
-            or not layers.layer.isin(range(10)).all()
-            or not layers.z_top_cm.eq(layers.layer*10).all()
-            or not layers.z_bottom_cm.eq((layers.layer+1)*10).all()):
-        raise ValueError('expected unique profile/layer keys with original 10-cm depth bounds')
+            or not (layers.layer.ge(0) & layers.layer.mod(1).eq(0)).all()):
+        raise ValueError('expected unique profile/layer keys with nonnegative integer layer indices')
+    if not sampled and (not layers.layer.isin(range(10)).all()
+                         or not layers.z_top_cm.eq(layers.layer*10).all()
+                         or not layers.z_bottom_cm.eq((layers.layer+1)*10).all()):
+        raise ValueError('expected original 10-cm depth bounds unless zmid_cm is supplied')
     if layers.groupby('profile_id').npp_kg_m2_yr.nunique(dropna=False).ne(1).any():
         raise ValueError('inconsistent site NPP')
     good_npp = np.isfinite(layers.npp_kg_m2_yr) & layers.npp_kg_m2_yr.gt(0)
@@ -114,19 +134,26 @@ def prepare_profiles(layers: pd.DataFrame, *, allow_partial: bool = False) -> Pr
         'incomplete radiocarbon after spatial filling': np.isfinite(layers.fm_obs),
         'missing or nonpositive NPP': good_npp,
         'missing or nonpositive layer input': ~good_npp | (np.isfinite(layers.input_kg_m2_yr) & layers.input_kg_m2_yr.gt(0))})
+    if sampled:
+        valid['interval outside 0–100 cm or invalid thickness'] = (
+            layers.z_top_cm.ge(0) & layers.z_bottom_cm.le(100) & layers.z_bottom_cm.gt(layers.z_top_cm))
+        valid['zmid outside interval or Shi depth range (0–99 cm)'] = (
+            layers.zmid_cm.between(layers.z_top_cm, layers.z_bottom_cm) & layers.zmid_cm.between(0, 99))
     usable = valid.all(axis=1)
     grouped = valid.groupby(layers.profile_id, sort=False).all()
-    complete = grouped.all(axis=1) & layers.groupby('profile_id').size().eq(10)
+    coverage = layers.groupby('profile_id').size().ge(1) if sampled else layers.groupby('profile_id').size().eq(10)
+    complete = grouped.all(axis=1) & coverage
     eligible = usable.groupby(layers.profile_id, sort=False).any() if allow_partial else complete
     keep = layers.profile_id.map(eligible) & usable
     profiles = layers[keep].copy()
     excluded_profiles = grouped.loc[~eligible].copy()
-    excluded_profiles['incomplete layer coverage'] = layers.groupby('profile_id').size().reindex(excluded_profiles.index).eq(10)
+    excluded_profiles['incomplete layer coverage'] = coverage.reindex(excluded_profiles.index)
     excluded = _exclusions(excluded_profiles.index, np.nan, excluded_profiles)
     missing = layers.profile_id.map(eligible) & ~usable
     layer_checks = valid[missing].rename(columns={'incomplete or nonpositive layer stocks': 'missing or nonpositive layer stock'})
     excluded = pd.concat([excluded, _exclusions(layers.loc[missing, 'profile_id'], layers.loc[missing, 'layer'], layer_checks)], ignore_index=True)
-    metadata = {'input_profile_count': len(eligible), 'eligible_profile_count': int(eligible.sum()),
+    metadata = {'layer_source': 'Layers sheet' if sampled else 'Profiles sheet, 10-cm increments',
+                'input_profile_count': len(eligible), 'eligible_profile_count': int(eligible.sum()),
                 'allow_partial': allow_partial, 'eligible_layer_count': len(profiles),
                 'complete_profile_count': int(complete.sum()), 'partial_profile_count': int((eligible & ~complete).sum()),
                 'radiocarbon_spatially_filled_raw_layer_count': int(layers.radiocarbon_spatially_filled.sum()),
@@ -155,11 +182,13 @@ def save_depth_turnover(processed_path, shi_path, npp_path, output_path,
                            for name, path in [('processed_layers', processed_path), ('shi', shi_path), ('npp', npp_path)]},
                 'shi_published_md5_verified': checksum, 'shi_metadata_units_override': 'published delta-14C in per mil; file says year',
                 'radiocarbon_spatial_filling': 'rioxarray nearest at each one-cm depth before site selection; matches original 02_get_turnover_14C.py',
-                'radiocarbon_depth_aggregation': 'ordinary mean of ten one-cm values after spatial filling; no depth interpolation',
+                'radiocarbon_depth_aggregation': ('value at reported zmid; linear interpolation between adjacent one-cm levels'
+                    if 'zmid_cm' in result else 'ordinary mean of ten one-cm values after spatial filling; no depth interpolation'),
                 'radiocarbon_reference_year': 2000, 'reference_year_basis': 'inherited model convention; absent from NetCDF metadata',
                 'npp_conversion': 'cached g C/m²/yr divided by 1000 to kg C/m²/yr',
                 'npp_coordinate_matching_decimals': NPP_COORD_DECIMALS, 'npp_imputed': False,
-                'fnew_observation': 'difference of cumulative Cnew divided by layer Ctotal'}
+                'fnew_observation': ('Layers sheet ratio_newCtoC; stocks from Cstock in kg C/m²'
+                    if 'zmid_cm' in result else 'difference of cumulative Cnew divided by layer Ctotal')}
     output.parent.mkdir(parents=True, exist_ok=True)
     result.to_csv(output, index=False)
     metadata['table_sha256'] = file_digest(output)

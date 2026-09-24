@@ -1,5 +1,36 @@
 # Layered pipeline: where to start
 
+## Use the reported sampling intervals
+
+The new analysis uses the workbook's **Layers** sheet: `Cstock` in kg C/m²,
+`ratio_newCtoC` as observed `f_new`, and the supplied `zmid` for Shi radiocarbon.
+NPP is integrated over the reported `z1–z2` interval. Fractional `zmid` values
+linearly interpolate adjacent one-cm Shi depths after the existing spatial filling.
+
+```sh
+uv run python notebooks/01_preprocess_balesdent_data.py --sampled-layers
+uv run python notebooks/02_get_turnover_14C.py --depth-resolved \
+  --input results/processed_balesdent_2018_sampled.csv \
+  --output results/all_sites_14C_turnover_sampled.csv --input-depth 10
+uv run python -m soil_diskin.layered_workflow --allow-partial --max-nfev 1000 \
+  --input-table results/all_sites_14C_turnover_sampled.csv \
+  --output-dir results/my_sampled_fit
+```
+
+There are 615 usable reported intervals from 101 profiles, with 592 observed
+fractions in [0, 1]. Missing/negative fractions do not exclude calibration rows;
+the 23 negative observations are retained in `fnew_reported` for sensitivity checks.
+Intervals must lie wholly within 0–100 cm, and `zmid` must lie inside both the
+interval and Shi's 0–99 cm coordinates. Unsupported intervals are logged, never
+clipped or assigned extrapolated radiocarbon. Layers retain their sheet order and
+Excel row number. No stock values are backfilled.
+
+Pass the same `--input-table` to `notebooks.compare_jackson_inputs` to compare
+input allocations. See the [results versus the 10 cm analysis](layered_sampled_intervals.md).
+Existing 10 cm files and defaults remain available for reproducing the earlier analysis.
+
+## Previous 10 cm workflow
+
 The pipeline now has three separate steps:
 
 1. `01_preprocess_balesdent_data.py --depth-resolved` creates one row per original

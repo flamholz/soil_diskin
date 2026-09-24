@@ -6,7 +6,7 @@ if __name__ == '__main__' and '--depth-resolved' in sys.argv:
     from soil_diskin.layered_data import save_depth_turnover
     from soil_diskin.layered_lognormal import InputAllocation
 
-    parser = argparse.ArgumentParser(description='Prepare 10-cm radiocarbon, NPP inputs, and turnover.')
+    parser = argparse.ArgumentParser(description='Prepare layer radiocarbon, NPP inputs, and turnover; use zmid if supplied.')
     parser.add_argument('--depth-resolved', action='store_true')
     parser.add_argument('-i', '--input', default='results/processed_balesdent_2018_depth.csv')
     parser.add_argument('-o', '--output', default='results/all_sites_14C_turnover_depth.csv')

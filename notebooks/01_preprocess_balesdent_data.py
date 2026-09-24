@@ -1,6 +1,6 @@
 import argparse
 import pandas as pd
-from soil_diskin.data_wrangling import process_balesdent_data, balesdent_layers
+from soil_diskin.data_wrangling import process_balesdent_data, balesdent_layers, balesdent_sampled_layers
 from soil_diskin.soilgrids_utils_w_unc import backfill_missing_soc
 
 """
@@ -28,6 +28,8 @@ def parse_args():
     )
     parser.add_argument('--depth-resolved', action='store_true',
                         help='Keep original profiles and ten 10-cm layers; no stock backfilling')
+    parser.add_argument('--sampled-layers', action='store_true',
+                        help='Use reported intervals, stocks, f_new and zmid from the Layers sheet')
     
     parser.add_argument(
         '-i', '--raw-file-path',
@@ -58,9 +60,11 @@ def parse_args():
     )
     
     args = parser.parse_args()
+    args.depth_resolved = args.depth_resolved or args.sampled_layers
     if args.depth_resolved and args.backfill:
         parser.error('--backfill is only supported for bulk stocks')
-    args.output = args.output or ('results/processed_balesdent_2018_depth.csv' if args.depth_resolved
+    args.output = args.output or ('results/processed_balesdent_2018_sampled.csv' if args.sampled_layers else
+                                 'results/processed_balesdent_2018_depth.csv' if args.depth_resolved
                                  else 'results/processed_balesdent_2018.csv')
     return args
 
@@ -71,7 +75,9 @@ if __name__ == "__main__":
     print(f"Loading raw data from {args.raw_file_path}...")
     raw_data = pd.read_excel(args.raw_file_path, skiprows=7)
     if args.depth_resolved:
-        balesdent_layers(raw_data).to_csv(args.output, index=False)
+        layers = (balesdent_sampled_layers(raw_data, pd.read_excel(args.raw_file_path, sheet_name='Layers', header=9))
+                  if args.sampled_layers else balesdent_layers(raw_data))
+        layers.to_csv(args.output, index=False)
         print(f'Saved depth-resolved observations to {args.output}')
         raise SystemExit
 

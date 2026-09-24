@@ -165,3 +165,17 @@ def test_fit_interruption_preserves_completed_layers(tmp_path, monkeypatch):
         run_pipeline(PreparedProfiles(profiles, pd.DataFrame()), atmosphere, tmp_path)
     assert pd.read_csv(tmp_path/'layers.csv').layer.tolist() == [0]
     assert json.loads((tmp_path/'run.json').read_text())['status'] == 'interrupted_or_failed'
+
+
+def test_native_layer_index_above_nine_fits_without_rebinning(tmp_path):
+    atmosphere = AtmC14(np.array([0.]), np.array([1.]), 1.)
+    profiles = pd.DataFrame({'profile_id': ['native'], 'layer': [12],
+        'z_top_cm': [42.], 'z_bottom_cm': [47.], 'zmid_cm': [43.],
+        'stock_kg_m2': [1.], 'fm_obs': [.9], 'npp_kg_m2_yr': [.5],
+        'duration_years': [20.], 'fnew_obs': [.2]})
+    run_pipeline(PreparedProfiles(profiles, pd.DataFrame()), atmosphere, tmp_path)
+    fitted = pd.read_csv(tmp_path/'layers.csv')
+    assert fitted.layer.tolist() == [12] and fitted.zmid_cm.tolist() == [43.]
+    assert fitted.success.all() and fitted.quadrature_ok.all()
+    metadata = json.loads((tmp_path/'run.json').read_text())
+    assert 'reference_10cm_layer_input_weights' in metadata and 'layer_input_weights' not in metadata

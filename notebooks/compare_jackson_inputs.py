@@ -113,18 +113,17 @@ def plot_results(layers: dict[str, pd.DataFrame], metrics: pd.DataFrame, output:
 
 
 def run_comparison(output: Path, max_nfev: int = 1000, surface_fraction: float = 0.,
-                   soil_npp_fraction: float = 1.) -> None:
+                   soil_npp_fraction: float = 1.,
+                   input_table: str = 'results/all_sites_14C_turnover_depth.csv') -> None:
     InputAllocation(30., surface_fraction, soil_npp_fraction)  # Validate before loading data.
     require_empty_output(output)
     # 1. Use the same eligible layers for every allocation, including partial profiles.
-    prepared = load_profiles(allow_partial=True)
+    prepared = load_profiles(path=input_table, allow_partial=True)
     atmosphere = load_atm14c()
     prepared.metadata['atmosphere'] = {'path': str(Path('data/14C_atm_annot.csv').resolve()),
                                       'sha256': file_digest('data/14C_atm_annot.csv')}
     assignments = jackson_assignments(prepared.profiles)
     assignments = assignments[assignments.profile_id.isin(prepared.profiles.profile_id)].copy()
-    if not np.isfinite(prepared.profiles.fnew_obs).all() or not prepared.profiles.duration_years.gt(0).all():
-        raise ValueError('comparison requires observed f_new and positive labeling durations for every layer')
     output.mkdir(parents=True, exist_ok=True)
     assignments.to_csv(output/'vegetation_assignments.csv', index=False)
     # 2. Freeze the published coefficients and our mapping before fitting/evaluation.
@@ -176,8 +175,9 @@ def run_comparison(output: Path, max_nfev: int = 1000, surface_fraction: float =
             expected = prepared.profiles[['profile_id', 'layer']].sort_values(['profile_id', 'layer'])
             pd.testing.assert_frame_equal(fitted[['profile_id', 'layer']].reset_index(drop=True), expected.reset_index(drop=True))
             fitted.to_csv(output/name/'layers.csv', index=False)
-            summaries.append({'scheme': name, 'soil_npp_fraction': soil_npp_fraction, **score(fitted)})
-            all_layers[name] = fitted
+            pairs = fitted[np.isfinite(fitted.fnew_obs) & np.isfinite(fitted.duration_years) & fitted.duration_years.ge(0)]
+            summaries.append({'scheme': name, 'soil_npp_fraction': soil_npp_fraction, **score(pairs)})
+            all_layers[name] = pairs
             pd.DataFrame(summaries).to_csv(output/'metrics.csv', index=False)
         # 4. Report every scheme and calibration diagnostics; do not select on these outcomes.
         table = pd.DataFrame(summaries)
@@ -188,6 +188,7 @@ def run_comparison(output: Path, max_nfev: int = 1000, surface_fraction: float =
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path, default=Path('results/layered_jackson_1996'))
+    parser.add_argument('--input-table', default='results/all_sites_14C_turnover_depth.csv')
     parser.add_argument('--max-nfev', type=int, default=1000)
     parser.add_argument('--surface-fraction', type=float, default=0.,
                         help='also compare this direct top-layer share of soil input plus Jackson roots over 0–100 cm')
@@ -196,4 +197,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.max_nfev < 1:
         parser.error('--max-nfev must be positive')
-    run_comparison(args.output_dir, args.max_nfev, args.surface_fraction, args.soil_npp_fraction)
+    run_comparison(args.output_dir, args.max_nfev, args.surface_fraction, args.soil_npp_fraction, args.input_table)

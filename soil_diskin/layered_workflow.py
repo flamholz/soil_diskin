@@ -36,8 +36,8 @@ def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str
     if prepared.profiles.empty:
         raise ValueError('no usable layers to fit')
     profiles = prepared.profiles.sort_values(['profile_id', 'layer'])
-    if profiles.duplicated(['profile_id', 'layer']).any() or not profiles.layer.isin(range(10)).all():
-        raise ValueError('expected distinct layer indices in 0..9 for each profile')
+    if profiles.duplicated(['profile_id', 'layer']).any() or not (profiles.layer.ge(0) & profiles.layer.mod(1).eq(0)).all():
+        raise ValueError('expected distinct nonnegative integer layer indices for each profile')
     if profiles.groupby('profile_id').npp_kg_m2_yr.nunique(dropna=False).ne(1).any():
         raise ValueError('inconsistent site NPP')
     if not np.isfinite(times).all() or np.any(np.asarray(times) < 0):
@@ -48,6 +48,9 @@ def run_profiles(prepared: PreparedProfiles, atmosphere: AtmC14, output_dir: str
     refined = layer_model(atmosphere, log_rate_step=log_rate_step/2)
     settings = profiles[['input_depth_cm', 'surface_fraction', 'soil_npp_fraction']].drop_duplicates()
     allocation = InputAllocation(*settings.iloc[0]).metadata if len(settings) == 1 and np.isfinite(settings).all().all() else {}
+    if 'zmid_cm' in profiles and allocation:
+        for key in ['layer_input_weights', 'layer_npp_fractions']:
+            allocation['reference_10cm_'+key] = allocation.pop(key)
     metadata = {'model': 'independent lognormal layers; no transport', **allocation,
                 'max_nfev_per_start': max_nfev, 'starting_sigmas': [2.5, 1., 4.],
                 'mu_bounds': model.mu_bounds, 'sigma_bounds': model.sigma_bounds,

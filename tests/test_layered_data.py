@@ -189,3 +189,59 @@ def test_prepared_csv_roundtrip_and_custom_distribution(tmp_path, monkeypatch):
     np.testing.assert_array_equal(shallow.input_kg_m2_yr, InputAllocation(10, .5, .5).layer_inputs(.5)[[0, 3, 8]])
     with pytest.raises(ValueError, match='one nonnegative input per row'):
         allocate_inputs(restored, lambda **columns: np.ones(1))
+
+
+def test_sampled_intervals_use_reported_midpoints_stocks_and_fractions():
+    from soil_diskin.data_wrangling import balesdent_sampled_layers
+    from soil_diskin.layered_lognormal import InputAllocation
+
+    profiles = pd.DataFrame({'Identifier_1': ['N001'], 'Internal_profile_ID': ['native'],
+        'Latitude': [0.], 'Longitude': [0.], 'Duration_labeling': [20.],
+        'Land_Use': ['FOREST'], 'Vegetation': ['trees']})
+    sampled = pd.DataFrame({'Identifier_1': ['N001', None, None, None, None],
+        'z1': [0., 4., 13., 90., 95.], 'z2': [4., 13., 20., 100., 110.],
+        'zmid': [2.5, 6., 16.5, 95., 97.5], 'Cstock': [1., 2., np.nan, 3., 4.],
+        'ratio_newCtoC': [.4, -.1, .2, .1, .05], 'Cstock_cumul': [1., 30., 50., 100., 140.]})
+    layers = balesdent_sampled_layers(profiles, sampled)
+    np.testing.assert_allclose(layers.stock_kg_m2, [1., 2., np.nan, 3., 4.])
+    assert layers.profile_id.eq('native').all()
+    assert layers.source_excel_row.tolist() == [11, 12, 13, 14, 15]
+    assert layers.fnew_reported.iloc[1] == -.1 and np.isnan(layers.fnew_obs.iloc[1])
+    # Quadratic depths distinguish interpolation at the supplied zmid from both
+    # nearest-depth sampling and averaging/recomputing the interval midpoint.
+    values = np.tile(np.arange(100.)[:, None, None]**2, (1, 2, 1))
+    values[6, 0, 0] = np.nan
+    values[6, 1, 0] = 60.
+    shi = xr.Dataset({'temp': (('level', 'lat', 'lon'), values)},
+        coords={'level': np.arange(100), 'lat': [0., 1.], 'lon': [0.]})
+    npp = pd.DataFrame({'Latitude': [0.], 'Longitude': [0.], 'NPP': [500.]})
+    table = prepare_turnover(layers, shi, npp, InputAllocation(10., .5))
+    np.testing.assert_allclose(table.fm_obs.iloc[:2], [1.0065, 1.060])
+    assert table.radiocarbon_spatially_filled.tolist() == [False, True, False, False, False]
+    expected = InputAllocation(10., .5)._weights(np.array([0., 4., 90.]), np.array([4., 13., 100.]))*.5
+    selected = select_profiles(table, allow_partial=True)
+    assert selected.profiles.layer.tolist() == [0, 1, 3]
+    np.testing.assert_allclose(selected.profiles.input_kg_m2_yr, expected)
+    assert selected.profiles.input_kg_m2_yr.sum() < .5  # Never fill depth gaps with extra NPP.
+    assert np.isnan(table.input_kg_m2_yr.iloc[4])  # Never truncate a stock spanning 100 cm.
+    assert selected.excluded.layer.tolist() == [2, 4]
+    assert 'interval outside' in selected.excluded.reason.iloc[1]
+    assert len(selected.profiles) == 3  # Missing/out-of-range f_new does not gate fitting.
+    with pytest.raises(ValueError, match='absent from Profiles'):
+        balesdent_sampled_layers(profiles, sampled.assign(Identifier_1='unknown'))
+
+
+def test_sampled_layers_do_not_extrapolate_shi_beyond_its_depth_range():
+    from soil_diskin.data_wrangling import balesdent_sampled_layers
+
+    profiles = pd.DataFrame({'Identifier_1': ['N001'], 'Internal_profile_ID': ['deep'],
+        'Latitude': [0.], 'Longitude': [0.], 'Duration_labeling': [20.],
+        'Land_Use': ['FOREST'], 'Vegetation': ['trees']})
+    sampled = pd.DataFrame({'Identifier_1': ['N001'], 'z1': [98.], 'z2': [100.],
+                           'zmid': [99.5], 'Cstock': [1.], 'ratio_newCtoC': [.1]})
+    shi = xr.Dataset({'temp': (('level', 'lat', 'lon'), np.zeros((100, 1, 1)))},
+                     coords={'level': np.arange(100), 'lat': [0.], 'lon': [0.]})
+    npp = pd.DataFrame({'Latitude': [0.], 'Longitude': [0.], 'NPP': [500.]})
+    table = prepare_turnover(balesdent_sampled_layers(profiles, sampled), shi, npp)
+    assert table.fm_obs.isna().all()
+    assert select_profiles(table, allow_partial=True).profiles.empty
