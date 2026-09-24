@@ -273,3 +273,86 @@ Reproduce from the repository root:
 ```sh
 uv run python results/bulk_lognormal_fnew_ratio/reproduce.py
 ```
+
+## Figure 4: all eight original bulk models
+
+The full Figure 4 was regenerated with both stock-ratio definitions, preserving
+its eight panels, colors, model predictions, and prediction uncertainty bars.
+Only the observed x coordinates and the evaluated records change. The original
+`figures/fig4.png` is untouched. Each comparison below uses the original saved
+observations and the new ratios on **the same bulk records**.
+
+Using `Cnew_0-100estim / Ctotal_0-100estim` retains 88 of the original 99 records.
+The estimated and literal ratios are identical on all 70 raw profiles where
+both exist, so this also implements literal stocks with estimated-stock fallback
+before grouping profiles. These 88 records span 65 distinct coordinate pairs;
+the 62 literal-stock records span 48.
+
+| Model | Original RMSE | Ratio RMSE | Original KGE | Ratio KGE |
+| --- | ---: | ---: | ---: | ---: |
+| Lognormal | 0.103716 | 0.103041 | 0.723732 | 0.712238 |
+| Power law, alpha = 1 | 0.111389 | 0.118806 | 0.520893 | 0.466806 |
+| Power law, alpha = exp(-gamma) | 0.156045 | 0.146455 | 0.291186 | 0.349744 |
+| CLM4.5 | 0.227726 | 0.239571 | 0.137386 | 0.045769 |
+| JSBACH | 0.230798 | 0.245345 | 0.152376 | 0.048965 |
+| CESM1, radiocarbon corrected | 0.178585 | 0.168140 | 0.303538 | 0.336161 |
+| IPSL-CM5A-LR, radiocarbon corrected | 0.144468 | 0.136432 | 0.485507 | 0.494700 |
+| MRI-ESM1, radiocarbon corrected | 0.210034 | 0.198759 | 0.001937 | 0.055070 |
+
+The lognormal model remains best by both metrics. Its scores barely change;
+CLM4.5, JSBACH, and the alpha = 1 power law worsen on both metrics. The generalized
+power law and all three radiocarbon-corrected models improve on both metrics.
+IPSL-CM5A-LR overtakes the alpha = 1 power law for second place by KGE, while the
+alpha = 1 power law remains second by RMSE.
+
+Using the literal `Cnew_0-100 / Ctotal_0-100` columns retains 62 records:
+
+| Model | Original RMSE | Ratio RMSE | Original KGE | Ratio KGE |
+| --- | ---: | ---: | ---: | ---: |
+| Lognormal | 0.108943 | 0.114196 | 0.732583 | 0.716062 |
+| Power law, alpha = 1 | 0.116556 | 0.122813 | 0.532393 | 0.502746 |
+| Power law, alpha = exp(-gamma) | 0.156650 | 0.159385 | 0.204014 | 0.242557 |
+| CLM4.5 | 0.240791 | 0.245242 | 0.099198 | 0.072833 |
+| JSBACH | 0.233767 | 0.238239 | 0.146957 | 0.121174 |
+| CESM1, radiocarbon corrected | 0.173073 | 0.175814 | 0.352319 | 0.354585 |
+| IPSL-CM5A-LR, radiocarbon corrected | 0.143478 | 0.147071 | 0.528890 | 0.515884 |
+| MRI-ESM1, radiocarbon corrected | 0.203747 | 0.206483 | 0.077696 | 0.090986 |
+
+Lognormal remains best on this smaller cohort too. RMSE increases slightly for
+every model. The two mixed-profile groups described above still apply; the output
+metrics also include the stricter original baseline using exactly the same raw
+profiles (`direct_same_profiles`). The estimate-based comparison has no such
+within-group coverage mismatch.
+
+The 11 SoilGrids-backfilled observations cannot be assigned either ratio because
+the workbook lacks their Cnew stocks. Thus the original 99-record lognormal KGE
+of 0.828 first drops to 0.724 from restricting coverage to 88 records; changing
+the observation formula then lowers it to 0.712. Those effects are distinct.
+
+Reproduce from the repository root:
+
+```sh
+MPLBACKEND=Agg uv run python -m notebooks.experimental.fig4_stock_ratio
+```
+
+- [Figure 4 with estimated 1 m ratios](../../../results/fig4_stock_ratio/fig4_estimated_estimated.png)
+- [Original observations on those same 88 records](../../../results/fig4_stock_ratio/fig4_estimated_original.png)
+- [Figure 4 with literal 1 m ratios](../../../results/fig4_stock_ratio/fig4_direct_direct.png)
+- [Original observations on those same 62 records](../../../results/fig4_stock_ratio/fig4_direct_original.png)
+- [Original 99-record Figure 4 reproduction](../../../results/fig4_stock_ratio/fig4_all_original.png)
+- [Metric changes for every panel](../../../results/fig4_stock_ratio/metric_changes.csv)
+- [All metrics, including matched-profile controls](../../../results/fig4_stock_ratio/metrics.csv)
+- [Observations and matching keys](../../../results/fig4_stock_ratio/observations.csv)
+- [Input fingerprints and coverage](../../../results/fig4_stock_ratio/summary.json)
+
+All figures also have PDF versions. Continuum predictions were checked against
+the complete site table; the keyless ESM/RCM files preserve the row ordering used
+by the original Figure 4. Assertions check merge uniqueness and coverage, finite
+predictions, and parity between saved and recomputed original observations for
+the 88-record cohort.
+
+Validation: the script ran successfully, both new figures were visually checked,
+and independent review reproduced all 56 score pairs exactly. Ruff and compilation
+passed. The full suite had 126 passed, 5 skipped, and the existing Wolfram
+integration failure because the local Wolfram product is not activated. Standards
+and specification reviews found no actionable issues.
