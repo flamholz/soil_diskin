@@ -2,8 +2,8 @@ import argparse
 import json
 from pathlib import Path
 import pandas as pd
-from soil_diskin.data_wrangling import process_balesdent_data, balesdent_layers, balesdent_sampled_layers
-from soil_diskin.soilgrids_utils_w_unc import backfill_missing_soc, backfill_layer_stocks
+from soil_diskin.data_wrangling import process_balesdent_data, balesdent_sampled_layers
+from soil_diskin.soilgrids_utils_w_unc import backfill_missing_soc
 
 """
 All scripts to be run from project root directory.
@@ -28,12 +28,10 @@ def parse_args():
         description='Process Balesdent et al. 2018 soil carbon data.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('--depth-resolved', action='store_true',
-                        help='Keep original profiles and ten 10-cm layers')
-    parser.add_argument('--sampled-layers', action='store_true',
-                        help='Use reported intervals, stocks, f_new and zmid from the Layers sheet')
+    parser.add_argument('--depth-resolved', '--sampled-layers', action='store_true',
+                        help='Use reported depth intervals, stocks and f_new from the Layers sheet')
     parser.add_argument('--soilgrids-cache', default='results/soilgrids_layer_cache.json',
-                        help='Cache WCS SOC and bulk-density means for layer-stock backfilling')
+                        help='Cache SoilGrids means and quantiles by location and depth')
     
     parser.add_argument(
         '-i', '--raw-file-path',
@@ -64,8 +62,7 @@ def parse_args():
     )
     
     args = parser.parse_args()
-    args.depth_resolved = args.depth_resolved or args.sampled_layers
-    suffix = '_sampled' if args.sampled_layers else '_depth' if args.depth_resolved else ''
+    suffix = '_sampled' if args.depth_resolved else ''
     if args.depth_resolved and args.backfill:
         suffix += '_soilgrids'
     args.output = args.output or f'results/processed_balesdent_2018{suffix}.csv'
@@ -78,11 +75,10 @@ if __name__ == "__main__":
     print(f"Loading raw data from {args.raw_file_path}...")
     raw_data = pd.read_excel(args.raw_file_path, skiprows=7)
     if args.depth_resolved:
-        layers = (balesdent_sampled_layers(raw_data, pd.read_excel(args.raw_file_path, sheet_name='Layers', header=9))
-                  if args.sampled_layers else balesdent_layers(raw_data))
+        layers = balesdent_sampled_layers(raw_data, pd.read_excel(args.raw_file_path, sheet_name='Layers', header=9))
         if args.backfill:
-            from soil_diskin.layered_data import file_digest
-            layers, metadata = backfill_layer_stocks(layers, args.soilgrids_cache)
+            from soil_diskin.utils import file_digest
+            layers, metadata = backfill_missing_soc(layers, args.soilgrids_cache)
             metadata['workbook_sha256'] = file_digest(args.raw_file_path)
             Path(args.output).with_suffix('.json').write_text(json.dumps({'stock_backfill': metadata}, indent=2)+'\n')
             print(metadata)
@@ -115,15 +111,7 @@ if __name__ == "__main__":
     # Backfill missing SOC data from SoilGrids if requested
     if args.backfill:
         print("\nBackfilling missing SOC data from SoilGrids...")
-        final_data, backfill_stats = backfill_missing_soc(
-            final_data,
-            lat_col='Latitude',
-            lon_col='Longitude', 
-            soc_col='Ctotal_0-100estim',
-            source_col='C_data_source',
-            use_bulk_density=True,
-            calc_uncertainty=True
-        )
+        final_data, backfill_stats = backfill_missing_soc(final_data, args.soilgrids_cache)
     else:
         print("\nSkipping backfill (use --backfill to enable)")
     

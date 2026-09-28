@@ -1,150 +1,120 @@
-"""End-to-end lognormal-Diskin calibration in Python.
+"""Fit lognormal mu/sigma directly to turnover and radiocarbon, for bulk or layers.
 
-Merges a forward age scan and a LOWESS inversion, which were in separate scripts. 
+Fits from three starting points within this script, with 1e-13 optimizer
+stopping tolerances and the higher-sigma solution when several fits are exact.
+Stock uncertainty scenarios are fitted separately. Missing inputs retain their
+rows; converged compromises are flagged as approximate_fit.
 
-Pipeline:
-  1. Build the atmospheric ¹⁴C lookup from data/14C_atm_annot.csv.
-  2. For each (turnover, age) combination, predict the bulk-pool ¹⁴C ratio
-     using the analytical-inner / 1-D quadrature lognormal model. 
-     This produces three matrices: main, q05, q95.
-  3. Optionally write those matrices as age-scan CSVs (matches the mathematica
-     convention; useful for inspection and for cross-language tools).
-  4. For each site, take its row of the relevant age scan as a calibration
-     curve fm(age), smooth it with LOWESS (frac=0.2), invert to get age(fm),
-     and look up the site's measured `fm` to predict the mean age.
-  5. Save a single predictions CSV with columns pred / pred_05 / pred_95
-     alongside the original site columns.
-
-Runs the age scans in parallel via joblib. The `_python` suffix on outputs
-keeps the Julia-derived CSVs in place for side-by-side comparison; rename or
-symlink to drop the suffix if you want this script's outputs to feed
-downstream `04_*` scripts.
-
-TODO: The other calibration scripts use a class interface. To make this one 
-consistent, we need to provide the AtmC14 to the lognormal diskin class. 
+Exports mu/sigma and fitted mean ages (pred / pred_05 / pred_95). The existing
+output filename is retained so downstream scripts keep finding the table.
 """
 from __future__ import annotations
 
+import argparse
 import os
-import time
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
-from scipy.interpolate import interp1d
-from statsmodels.nonparametric.smoothers_lowess import lowess
-import argparse
+from scipy.optimize import least_squares
 
-# Allow running this file directly (`uv run .../03b_lognormal_age_scan.py`):
-# add the repo root to sys.path so the `notebooks` package is importable.
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# Allow running this file directly from the checkout.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from soil_diskin.radiocarbon_utils import AtmC14, load_atm14c
-from soil_diskin.lognormal import scan_ages
+from soil_diskin.continuum_models import LognormalDisKinFast
+from soil_diskin.lognormal import cached_radiocarbon
+from soil_diskin.radiocarbon_utils import load_atm14c
 
-SITES_PATH = Path("results/all_sites_14C_turnover.csv")
-ATM_PATH = Path("data/14C_atm_annot.csv")
-OUT_DIR = Path("results/03_calibrate_models")
-
-# Calibration grid: same as Wolfram script — 101 log-spaced ages from 10^3 to 10^5.5.
-# (np.arange in the original Python script gave only 100 points; we now match
-# Mathematica/Julia exactly with 101 points.)
-AGELIST = np.logspace(3.0, 5.5, 101)
+SITES_PATH = Path('results/all_sites_14C_turnover.csv')
+ATM_PATH = Path('data/14C_atm_annot.csv')
+OUT_DIR = Path('results/03_calibrate_models')
 
 
-def run_age_scan(atm: AtmC14, taus: np.ndarray, n_jobs: int) -> np.ndarray:
-    """Forward scan: rows = sites, cols = ages, values = predicted fm."""
-    rows = Parallel(n_jobs=n_jobs)(
-        delayed(scan_ages)(atm, float(t), AGELIST) for t in taus
-    )
-    return np.vstack(rows)
+def fit_observation(atm, fm_evaluator, turnover, fm):
+    """Minimize squared relative turnover/Fm errors; prefer higher-sigma exact fits."""
+    if not np.isfinite([turnover, fm]).all() or min(turnover, fm) <= 0:
+        raise ValueError('positive finite turnover and fm required')
+    lower, upper = [-15., .01], [10., 5.]  # Must match cached_radiocarbon's bounds.
+
+    def residual(parameters):
+        model = LognormalDisKinFast(*parameters, atm, fm_evaluator=fm_evaluator)
+        fm_pred, _ = model.calc_radiocarbon_ratio_ss_fast()
+        # Relative turnover error equals relative stock error at the observed input.
+        return (np.array([model.T, fm_pred])-[turnover, fm])/np.array([turnover, fm])
+
+    best = dict.fromkeys(['mu', 'sigma', 'pred', 'model_turnover_years', 'fm_pred',
+                         'turnover_relative_residual', 'fm_residual'], np.nan)
+    best.update(objective=np.inf, calibration_status='fit_failed')
+    best_key = (1, np.inf)
+    for sigma0 in [2.5, 1., 4.]:
+        sigma0 = np.clip(sigma0, lower[1], upper[1])
+        start = np.clip([sigma0**2/2-np.log(turnover), sigma0], lower, upper)
+        try:
+            fit = least_squares(residual, start, bounds=(lower, upper), x_scale='jac',
+                                max_nfev=2000, ftol=1e-13, xtol=1e-13, gtol=1e-13)
+            mu, sigma = fit.x
+            model = LognormalDisKinFast(mu, sigma, atm, fm_evaluator=fm_evaluator)
+            fm_pred, _ = model.calc_radiocarbon_ratio_ss_fast()
+        except (ValueError, FloatingPointError, np.linalg.LinAlgError):
+            continue
+        relative_error, fm_error = model.T/turnover-1, fm_pred-fm
+        exact = fit.success and abs(relative_error) < 1e-10 and abs(fm_error) < 1e-10
+        objective = float(fit.fun@fit.fun)
+        key = (0, -sigma) if exact else (1, objective)
+        if key >= best_key:
+            continue
+        best_key = key
+        best = {'mu': mu if fit.success else np.nan,
+                'sigma': sigma if fit.success else np.nan,
+                'pred': model.A if fit.success else np.nan,
+                'model_turnover_years': model.T, 'fm_pred': fm_pred,
+                'turnover_relative_residual': relative_error, 'fm_residual': fm_error,
+                'objective': objective,
+                'calibration_status': ('calibrated' if exact else 'approximate_fit') if fit.success else 'fit_failed'}
+    return best
 
 
-def predict_ages_from_curve(scan: np.ndarray, fms: np.ndarray) -> np.ndarray:
-    """Per-site LOWESS smoothing + inversion. `scan[i]` is site i's curve.
-
-    Mirrors `get_prediction` in `03b_calibrate_lognormal_model.py`.
-    """
-    preds = np.empty(scan.shape[0], dtype=np.float64)
-    for i in range(scan.shape[0]):
-        smoothed = lowess(scan[i], AGELIST, frac=0.2)
-        # smoothed columns: [0] = AGELIST (x), [1] = smoothed fm (y).
-        # Calibration curve maps fm -> age, so invert: x_new = fm, y_new = age.
-        calcurve = interp1d(smoothed[:, 1], smoothed[:, 0], fill_value="extrapolate")
-        preds[i] = float(calcurve(fms[i]))
-    return preds
-
-
-def main(n_jobs: int = -1, write_age_scans: bool = True) -> None:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-
+def main(n_jobs: int = -1, sites_path: Path = SITES_PATH, out_dir: Path | None = None) -> None:
+    """Calibrate each usable observation and stock scenario, preserving input rows."""
+    sites = pd.read_csv(sites_path, dtype={'profile_id': str})
+    sites = sites.rename(columns={'fm_obs': 'fm', 'implied_turnover_years': 'turnover'})
+    numeric = sites.columns.intersection(['turnover', 'fm', 'turnover_q05', 'turnover_q95'])
+    sites[numeric] = sites[numeric].apply(pd.to_numeric, errors='coerce').astype(float)
+    out_dir = Path(out_dir) if out_dir is not None else OUT_DIR/('depth_resolved' if 'z_top_cm' in sites else '')
+    out_dir.mkdir(parents=True, exist_ok=True)
+    print(f'Preparing atmospheric quadrature; {len(sites)} observations', flush=True)
     atm = load_atm14c(str(ATM_PATH))
-    print(f"atm14C: {len(atm.ages)} non-negative-age knots, mean_R = {atm.mean_R:.6f}")
-
-    sites = pd.read_csv(SITES_PATH)
-    backfilled_mask = sites["turnover_q05"].notna() & sites["turnover_q95"].notna()
-    backfilled = sites[backfilled_mask].reset_index(drop=True)
-    print(f"Sites: {len(sites)} total, {len(backfilled)} with q05/q95 backfill")
-    print(f"Joblib n_jobs={n_jobs}\n")
-
-    # --- Forward age scans ---
-    print("Scanning turnover (all sites)…")
-    t0 = time.perf_counter()
-    scan_main = run_age_scan(atm, sites["turnover"].to_numpy(float), n_jobs)
-    print(f"  {time.perf_counter() - t0:.2f} s, shape {scan_main.shape}")
-
-    print("Scanning turnover_q05 (backfilled)…")
-    t0 = time.perf_counter()
-    scan_05 = run_age_scan(atm, backfilled["turnover_q05"].to_numpy(float), n_jobs)
-    print(f"  {time.perf_counter() - t0:.2f} s, shape {scan_05.shape}")
-
-    print("Scanning turnover_q95 (backfilled)…")
-    t0 = time.perf_counter()
-    scan_95 = run_age_scan(atm, backfilled["turnover_q95"].to_numpy(float), n_jobs)
-    print(f"  {time.perf_counter() - t0:.2f} s, shape {scan_95.shape}")
-
-    if write_age_scans:
-        # Write CSVs with a leading `site_index` column and header row of ages
-        # to match the Mathematica/Julia exports (first cell = 'site_index').
-        df_main = pd.DataFrame(scan_main, columns=AGELIST)
-        df_main.insert(0, "site_index", sites.index + 1)
-        df_main.to_csv(OUT_DIR / "03b_lognormal_model_age_scan_python.csv", index=False)
-
-        df_05 = pd.DataFrame(scan_05, columns=AGELIST)
-        df_05.insert(0, "site_index", backfilled.index + 1)
-        df_05.to_csv(OUT_DIR / "03b_lognormal_model_age_scan_05_python.csv", index=False)
-
-        df_95 = pd.DataFrame(scan_95, columns=AGELIST)
-        df_95.insert(0, "site_index", backfilled.index + 1)
-        df_95.to_csv(OUT_DIR / "03b_lognormal_model_age_scan_95_python.csv", index=False)
-
-    # --- LOWESS calibration / inversion ---
-    print("\nInverting calibration curves (LOWESS frac=0.2)…")
-    t0 = time.perf_counter()
-    pred = predict_ages_from_curve(scan_main, sites["fm"].to_numpy(float))
-    pred_05 = predict_ages_from_curve(scan_05, backfilled["fm"].to_numpy(float))
-    pred_95 = predict_ages_from_curve(scan_95, backfilled["fm"].to_numpy(float))
-    print(f"  {time.perf_counter() - t0:.2f} s")
-
-    # --- Assemble output frame ---
+    fm_evaluator = cached_radiocarbon(atm)
     out = sites.copy()
-    out["pred"] = pred
-    backfilled_preds = pd.DataFrame({"pred_05": pred_05, "pred_95": pred_95},
-                                    index=sites.index[backfilled_mask])
-    out = out.join(backfilled_preds)
-
-    out_path = OUT_DIR / "03b_lognormal_predictions_calcurve_python.csv"
+    for column, suffix in [('turnover', ''), ('turnover_q05', '_05'), ('turnover_q95', '_95')]:
+        for name in ['mu', 'sigma', 'pred', 'model_turnover_years', 'fm_pred',
+                     'turnover_relative_residual', 'fm_residual', 'objective']:
+            out[name+suffix] = np.nan
+        out['calibration_status'+suffix] = 'invalid_input'
+        if column not in sites:
+            continue
+        valid = np.isfinite(sites[[column, 'fm']]).all(axis=1) & sites[column].gt(0) & sites.fm.gt(0)
+        observations = sites.loc[valid, [column, 'fm']]
+        print(f'Fitting {column}: {len(observations)} rows', flush=True)
+        if observations.empty:
+            continue
+        fits = Parallel(n_jobs=n_jobs)(delayed(fit_observation)(atm, fm_evaluator, tau, fm)
+                                      for tau, fm in observations.itertuples(index=False, name=None))
+        fitted = pd.DataFrame(fits, index=observations.index).add_suffix(suffix)
+        out.loc[valid, fitted.columns] = fitted
+        print(fitted['calibration_status'+suffix].value_counts().to_dict(), flush=True)
+    out_path = out_dir/'03b_lognormal_predictions_calcurve_python.csv'
     out.to_csv(out_path, index=False)
-    print(f"\nWrote {out_path}  ({len(out)} rows, columns: pred, pred_05, pred_95 added)")
+    print(f'Wrote {out_path} ({len(out)} rows)')
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run lognormal Diskin calibration pipeline")
-    parser.add_argument("--n-jobs", type=int, default=int(os.environ.get("N_JOBS", -1)),
-                        help="Number of parallel jobs for joblib (-1 uses all cores).")
-    parser.add_argument("--no-write-age-scans", action="store_true",
-                        help="Do not write the intermediate age-scan CSV files.")
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-i', '--input', type=Path, default=SITES_PATH, help='Bulk or depth-resolved turnover CSV from script 02.')
+    parser.add_argument('--output-dir', type=Path, help='Defaults to results/03_calibrate_models (depth_resolved subfolder for layers).')
+    parser.add_argument('--n-jobs', type=int, default=int(os.environ.get('N_JOBS', -1)),
+                        help='Number of parallel jobs for joblib (-1 uses all cores).')
     args = parser.parse_args()
-    main(n_jobs=args.n_jobs, write_age_scans=not args.no_write_age_scans)
+    main(n_jobs=args.n_jobs, sites_path=args.input, out_dir=args.output_dir)

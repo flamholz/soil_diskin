@@ -6,8 +6,6 @@ These are used by the calibration and recovery scripts.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import numpy as np
 from math import sqrt, log, exp
 from scipy.integrate import quad
@@ -15,10 +13,9 @@ from scipy.integrate import quad
 from .radiocarbon_utils import AtmC14
 
 __all__ = [
-    "LognormalPrediction",
-    "lognormal_turnover",
     "inner_integral",
     "lognormal_radiocarbon",
+    "cached_radiocarbon",
     "scan_ages",
     "diskin_C_of_t",
     "run_diskin_fast",
@@ -27,19 +24,6 @@ __all__ = [
 
 C14_MEAN_LIFE = 8267.0  # years
 _INV_SQRT_2PI = 1.0 / np.sqrt(2.0 * np.pi)
-
-
-@dataclass
-class LognormalPrediction:
-    stock: float
-    fm: float
-    times: np.ndarray
-    fnew: np.ndarray
-
-
-def lognormal_turnover(mu: float, sigma: float) -> float:
-    """Steady stock per unit input, shared by all lognormal implementations."""
-    return float(np.exp(-mu+sigma**2/2))
 
 
 def inner_integral(atm: AtmC14, alpha: float) -> float:
@@ -52,6 +36,29 @@ def inner_integral(atm: AtmC14, alpha: float) -> float:
     e = np.exp(-alpha * ages)
     body = fm[:-1] * (e[:-1] - e[1:])
     return (body.sum() + atm.mean_R * e[-1]) / alpha
+
+
+def cached_radiocarbon(atm: AtmC14):
+    """Build an Fm(mu, sigma) evaluator once per atmosphere for 03b's bounds."""
+    ages, fm = atm.ages, atm.fm
+    if (ages.ndim != 1 or not len(ages) or fm.shape != ages.shape
+            or not np.isfinite(ages).all() or not np.isfinite(fm).all()
+            or ages[0] != 0 or np.any(np.diff(ages) <= 0) or np.any(fm < 0)
+            or not np.isfinite(atm.mean_R) or atm.mean_R < 0):
+        raise ValueError('atmosphere needs increasing ages from zero and finite nonnegative fm')
+    # Step 0.005; covers mu [-15, 10], sigma [0.01, 5], plus 12-sigma tails.
+    u = np.linspace(-100., 70., 34001)
+    response = np.array([k*inner_integral(atm, k+1/C14_MEAN_LIFE) for k in np.exp(u)])
+
+    def predict_fm(mu, sigma):
+        if not (-15 <= mu <= 10 and .01 <= sigma <= 5):
+            raise ValueError('parameters outside the cached fitting bounds')
+        z = (u-(mu-sigma**2))/sigma
+        weights = np.exp(-.5*z*z)*(u[1]-u[0])/(sigma*np.sqrt(2*np.pi))
+        weights[[0, -1]] *= .5
+        return float(np.sum(weights*response))
+
+    return predict_fm
 
 
 def lognormal_radiocarbon(

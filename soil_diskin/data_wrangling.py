@@ -35,42 +35,8 @@ def parse_he_data(model='CESM', file_names=None) -> xr.DataArray:
     return ds
 
 
-def balesdent_layer_stocks(raw: pd.DataFrame, *, new_carbon: bool = False) -> pd.DataFrame:
-    """Difference adjacent cumulative stocks without bridging missing depths.
-
-    Total-stock columns are required; missing optional new-carbon columns stay
-    NaN. This helper neither pools profiles nor imputes stocks or weights.
-    """
-    columns = (['Cnew_0_0'] + [f'Cnew_0-{z}' for z in range(10, 101, 10)] if new_carbon
-               else [f'Ctotal_0-{z}' for z in range(0, 101, 10)])
-    cumulative = raw.reindex(columns=columns) if new_carbon else raw[columns]
-    return cumulative.apply(pd.to_numeric, errors='coerce').diff(axis=1).iloc[:, 1:]
-
-
-def balesdent_layers(raw: pd.DataFrame) -> pd.DataFrame:
-    """One row per original profile and 10-cm layer, including missing observations."""
-    if raw.Internal_profile_ID.isna().any() or raw.Internal_profile_ID.duplicated().any():
-        raise ValueError('Internal_profile_ID must be nonmissing and unique')
-    columns = {'Internal_profile_ID': 'profile_id', 'Latitude': 'latitude',
-               'Longitude': 'longitude', 'Duration_labeling': 'duration_years',
-               'Land_Use': 'land_use', 'Vegetation': 'vegetation'}
-    sites = raw.reindex(columns=columns).rename(columns=columns).reset_index(drop=True)
-    sites['profile_id'] = sites.profile_id.astype(str)
-    for name in ['latitude', 'longitude', 'duration_years']:
-        sites[name] = pd.to_numeric(sites[name], errors='coerce')
-    layers = sites.loc[sites.index.repeat(10)].reset_index(drop=True)
-    layers['layer'] = np.tile(np.arange(10), len(raw))
-    layers['z_top_cm'], layers['z_bottom_cm'] = layers.layer*10., (layers.layer+1)*10.
-    layers['stock_kg_m2'] = balesdent_layer_stocks(raw).to_numpy(float).ravel()
-    with np.errstate(invalid='ignore', divide='ignore'):
-        fraction = balesdent_layer_stocks(raw, new_carbon=True).to_numpy(float).ravel()/layers.stock_kg_m2
-    layers['fnew_observation_valid'] = fraction.between(0, 1)
-    layers['fnew_obs'] = fraction.where(layers.fnew_observation_valid)
-    return layers
-
-
 def balesdent_sampled_layers(profiles: pd.DataFrame, sampled: pd.DataFrame) -> pd.DataFrame:
-    """Use the Layers sheet's summary observations and its supplied zmid depths.
+    """Use the Layers sheet's summary observations and reported depth intervals.
 
     Read Profiles with skiprows=7 and Layers with header=9. Only profile IDs are
     forward-filled; blank stocks and observations never borrow adjacent values.
@@ -81,18 +47,18 @@ def balesdent_sampled_layers(profiles: pd.DataFrame, sampled: pd.DataFrame) -> p
     layers = sampled[list(columns)].apply(pd.to_numeric, errors='coerce').rename(columns=columns)
     layers['Identifier_1'] = sampled.Identifier_1.ffill()
     layers['source_excel_row'] = np.arange(len(sampled)) + 11
-    layers = layers[layers.zmid_cm.notna()].copy()
+    layers = layers[layers[['z_top_cm', 'z_bottom_cm']].notna().any(axis=1)].copy()
     metadata = {'Internal_profile_ID': 'profile_id', 'Latitude': 'latitude',
-                'Longitude': 'longitude', 'Duration_labeling': 'duration_years',
+                'Longitude': 'longitude',
                 'Land_Use': 'land_use', 'Vegetation': 'vegetation'}
-    sites = profiles[['Identifier_1', *metadata]].rename(columns=metadata)
+    sites = profiles[['Identifier_1', 'Duration_labeling', *metadata]].rename(columns=metadata)
     if sites.profile_id.isna().any() or sites.profile_id.duplicated().any():
         raise ValueError('Internal_profile_ID must be nonmissing and unique')
     layers = layers.merge(sites, on='Identifier_1', how='left', validate='many_to_one')
     if layers.profile_id.isna().any():
         raise ValueError('Layers sheet contains a profile absent from Profiles')
     layers['profile_id'] = layers.profile_id.astype(str)
-    for name in ['latitude', 'longitude', 'duration_years']:
+    for name in ['latitude', 'longitude', 'Duration_labeling']:
         layers[name] = pd.to_numeric(layers[name], errors='coerce')
     layers['layer'] = layers.groupby('profile_id', sort=False).cumcount()
     layers['fnew_observation_valid'] = layers.fnew_reported.between(0, 1)
@@ -129,7 +95,7 @@ def process_balesdent_data(raw_data: pd.DataFrame, keep_missing_soc: bool = Fals
     # columns as an estimate of the density of C in each layer
     end_depths = list(range(0, 110, 10))
     cols_of_interest = [f'Ctotal_0-{d}' for d in end_depths]
-    C_dens = balesdent_layer_stocks(raw_data)
+    C_dens = raw_data[cols_of_interest].apply(pd.to_numeric, errors='coerce').diff(axis=1).iloc[:, 1:]
 
     # Calculate the weighting for each layer as a fraction of the carbon
     # density in the layer out of the total carbon in the top 1 meter of
