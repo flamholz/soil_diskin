@@ -49,10 +49,13 @@ site_data['biome'] = site_data.apply(assign_biome_numpy, axis=1, biome_data=biom
 fig, axs = plt.subplots(1,3, figsize=(7.24, 1.75), dpi=300, constrained_layout=True)
 
 # Left panel: histogram of labeling durations
+duration_log_max = np.ceil(np.log10(site_data['Duration_labeling'].max()))
 site_data['Duration_labeling'].plot.hist(
-    ax=axs[0], bins=np.logspace(0,3,int(np.sqrt(site_data.shape[0]))), edgecolor='black', facecolor='lightgrey')
+    ax=axs[0], bins=np.logspace(0, duration_log_max, int(np.sqrt(site_data.shape[0]))),
+    edgecolor='black', facecolor='lightgrey')
 axs[0].set_xscale('log')
-axs[0].set(xlabel='time since transition [years]', xticks=[1,10,100,1000],  xticklabels=[1,10,100,1000],
+xticks = [10 ** p for p in range(int(duration_log_max) + 1)]
+axs[0].set(xlabel='time since transition [years]', xticks=xticks, xticklabels=xticks,
            ylabel='number of sites')
 
 # Middle panel: histogram of sampling dates

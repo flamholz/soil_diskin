@@ -51,7 +51,7 @@ def plot_inputs(ax, J_t, title='inputs over time'):
     ax.set_yticks(np.arange(0, 17, 5))
     ax.text(5.5, 5, '...', fontsize=12, fontweight='bold',
              ha='center', va='center')
-    ax.set_ylabel(r'carbon inputs $J(t)$')
+    ax.set_ylabel(r'carbon inputs, $J(t)$')
     if title:
         ax.set_title(title)
 
@@ -67,11 +67,12 @@ def plot_survival_fn(ax, ages2plot, title='decay with age'):
     ax.set_xlabel(r'age $\tau$')
     ax.set_xlim(-3, 50)
     ax.set_ylim(0, 1.1)
-    ax.set_ylabel(r'remaining carbon $s(\tau)$')
+    ax.set_ylabel(r'fraction remaining, $s(\tau)$')
     if title:
         ax.set_title(title)
 
-def plot_independent_decays(ax, J_t, ages2plot, my_sim, title='inputs decay independently'):
+def plot_independent_decays(ax, J_t, ages2plot, my_sim,
+                            title='inputs decay independently'):
     """Plot the independent decays of inputs over time."""
     # Only have 10 colors -- plot the first 10
     for i, (J, color) in enumerate(zip(J_t[:10], color_order[:10])):
@@ -86,7 +87,7 @@ def plot_independent_decays(ax, J_t, ages2plot, my_sim, title='inputs decay inde
                 zorder=-1)
 
     ax.set_xlabel('time $t$')
-    ax.set_ylabel(r'$J(t-\tau)\cdot s(\tau)$')
+    ax.set_ylabel(r'residual input, $J(t-\tau)s(\tau)$')
     ax.text(15.5, 5, '...', fontsize=12, fontweight='bold',
              ha='center', va='center')
     ax.set_xlim(-1, 20)
@@ -130,10 +131,10 @@ def plot_total_stocks(ax, my_t, g_ts,
                     bbox=dict(boxstyle='square,pad=0.0', edgecolor='none', facecolor='None'))
         ax.plot([my_t, my_t], [0, ymax], color='k', linestyle='--', lw=1)
 
-    ax.set_xlabel('time')
+    ax.set_xlabel('time $t$')
     ax.set_xlim(0, 50)
     ax.set_ylim(0, 60)
-    ax.set_ylabel(r'total carbon stocks $G(t)$')
+    ax.set_ylabel(r'total carbon stocks, $G(t)$')
     if title:
         ax.set_title(title)
 
@@ -205,11 +206,13 @@ if __name__ == "__main__":
     mosaic = 'ABC\nDEF'
     fig, axs = plt.subplot_mosaic(mosaic, layout='constrained',
                                   figsize=(4.76, 3), dpi=300)
+    fig.get_layout_engine().set(hspace=0.1, wspace=0.1)
 
     # Panel A -- schematic of three-pool model loaded from a png
-    ax = axs['A'] 
+    ax = axs['A']
+    ax.set_title('conventional model structure')
     # Clear the axes and turn off ticks/spines to reserve space for the diagram
-    # we will paste the diagram in later. 
+    # we will paste the diagram in later.
     ax.set_xticks([])
     ax.set_yticks([])
     for spine in ax.spines.values():
@@ -278,17 +281,18 @@ if __name__ == "__main__":
 
     # Now paste the diagram into the exact panel A location
     base_fig = Image.open('figures/fig1_tmp.png')
-    panel_a_img = Image.open('graphics/century_model_diagram.png')
+    panel_a_img = Image.open('graphics/century_model_diagram_wparams.png')
 
-    # Resize to fit the panel A bounding box exactly
+    # Scale the image so its width matches the panel, preserving aspect ratio
+    img_w, img_h = panel_a_img.size
     my_width = int(panel_a_width * 1.3)
-    my_height = int(panel_a_height * 1.3)
+    my_height = int(my_width * img_h / img_w)
     panel_a_resized = panel_a_img.resize(
-        (my_width, my_height),Image.Resampling.LANCZOS)
+        (my_width, my_height), Image.Resampling.LANCZOS)
 
     # Paste at the calculated coordinates
     my_x_min = int(x_min - 0.2*panel_a_width)
-    my_y_min = int(y_min - 0.15*panel_a_height)
+    my_y_min = int(y_min + 0.05*panel_a_height)
     base_fig.paste(panel_a_resized, (my_x_min, my_y_min))
 
     # Save final figure
