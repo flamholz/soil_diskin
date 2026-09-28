@@ -24,6 +24,7 @@ rule all:
         "figures/figS5.png",
         "figures/figS6.png",
         "figures/figS7.png",
+        "figures/figS8.png",
 
 # Step 00: Download necessary data files using curl.
 # NOTE: wget was hard to install with UV for some reason. Using curl instead.
@@ -44,7 +45,7 @@ rule download_he_2016:
     shell: # do the above in shell
         """
         curl -L -o he_2016.zip {HE_2016_URL}
-        unzip he_2016.zip -d data/he_2016
+        unzip -o he_2016.zip -d data/he_2016
         rm he_2016.zip
         rm -rf data/he_2016/Persistence-master/CodeData/WorldGrids/
         """
@@ -172,20 +173,34 @@ rule calibrate_generalized_powerlaw:
         "notebooks/03c_calibrate_generalized_powerlaw_model.py"
 
 
-# Run the end-to-end Python lognormal calibration (experimental port)
+# Fit lognormal mu/sigma directly to turnover and radiocarbon.
 rule run_lognormal_calibration_python:
     input:
         sites="results/all_sites_14C_turnover.csv",
         atm="data/14C_atm_annot.csv",
+        code=["notebooks/03b_lognormal_calibration.py", "soil_diskin/continuum_models.py",
+              "soil_diskin/lognormal.py", "soil_diskin/radiocarbon_utils.py"],
     output:
-        "results/03_calibrate_models/03b_lognormal_model_age_scan_python.csv",
-        "results/03_calibrate_models/03b_lognormal_model_age_scan_05_python.csv",
-        "results/03_calibrate_models/03b_lognormal_model_age_scan_95_python.csv",
         "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+    threads: 4
     shell:
         """
-        mkdir -p results/03_calibrate_models
-        python notebooks/03b_lognormal_calibration.py
+        python notebooks/03b_lognormal_calibration.py --input {input.sites:q} --n-jobs {threads}
+        """
+
+rule run_layered_lognormal_calibration_python:
+    input:
+        sites="results/layered_jackson_global_surface50/all_sites_14C_turnover.csv",
+        atm="data/14C_atm_annot.csv",
+        code=["notebooks/03b_lognormal_calibration.py", "soil_diskin/continuum_models.py",
+              "soil_diskin/lognormal.py", "soil_diskin/radiocarbon_utils.py"],
+    output:
+        "results/03_calibrate_models/depth_resolved/03b_lognormal_predictions_calcurve_python.csv",
+    threads: 4
+    shell:
+        """
+        python notebooks/03b_lognormal_calibration.py --input {input.sites:q} \
+            --output-dir results/03_calibrate_models/depth_resolved --n-jobs {threads}
         """
 
 # Step 03d: Calibrate weibull model
@@ -250,7 +265,8 @@ rule continuum_model_predictions:
         "results/processed_balesdent_2018.csv",
         "results/all_sites_14C_turnover.csv",
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
-        "results/04_model_predictions/04b_lognormal_cdfs_python.csv",
+        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+        "results/03_calibrate_models/depth_resolved/03b_lognormal_predictions_calcurve_python.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
         "results/03_calibrate_models/weibull_model_optimization_results.csv"
@@ -258,6 +274,7 @@ rule continuum_model_predictions:
         "results/04_model_predictions/weibull_model_predictions.csv",
         "results/04_model_predictions/power_law_model_predictions.csv",
         "results/04_model_predictions/lognormal_model_predictions.csv",
+        "results/04_model_predictions/depth_resolved/lognormal_model_predictions.csv",
         "results/04_model_predictions/general_power_law_model_predictions.csv",
         "results/04_model_predictions/general_power_law_model_predictions_beta_half.csv",
     script:
@@ -373,6 +390,7 @@ rule plot_fig1:
 
 rule fig2_calcs:
     input:
+        "data/14C_atm_annot.csv"
     output:
         "results/fig2_calcs.npz",
     script:
@@ -403,7 +421,7 @@ rule fig4_calcs:
         "notebooks/fig4_calcs.py"
 
 
-rule plot_fig4:
+rule plot_figS3:
     input:
         "results/04_model_predictions/weibull_model_predictions.csv",
         "results/04_model_predictions/power_law_model_predictions.csv",
@@ -416,10 +434,25 @@ rule plot_fig4:
         'results/processed_balesdent_2018.csv',
         'results/fig4_calcs.csv',
     output:
-        "figures/fig4.png",
-        "figures/figS3.png" # also make figS3 here
+        "figures/figS3.png"
     script:
-        "notebooks/fig4.py"
+        "notebooks/figS3.py"
+
+rule plot_fig4:
+    input:
+        "results/04_model_predictions/lognormal_model_predictions.csv",
+        "results/04_model_predictions/depth_resolved/lognormal_model_predictions.csv",
+        "notebooks/fig4.py",
+        "notebooks/style.mpl",
+        "notebooks/viz.py",
+        "soil_diskin/utils.py",
+    output:
+        "figures/fig4.png",
+        "figures/fig4.pdf",
+        "figures/fig4.svg",
+        "figures/fig4.csv",
+    shell:
+        "python -m notebooks.fig4"
 
 rule figS2_calcs:
     input:
@@ -500,12 +533,33 @@ rule plot_figS6:
 
 rule plot_figS7:
     input:
+        "results/04_model_predictions/depth_resolved/lognormal_model_predictions.csv",
+        "data/14C_atm_annot.csv",
+        "notebooks/figS7.py",
+        "notebooks/fig4.py",
+        "notebooks/02_get_turnover_14C.py",
+        "notebooks/03b_lognormal_calibration.py",
+        "notebooks/04_collect_continuum_model_predictions.py",
+        "notebooks/style.mpl",
+        "notebooks/viz.py",
+        "soil_diskin/continuum_models.py",
+        "soil_diskin/lognormal.py",
+        "soil_diskin/radiocarbon_utils.py",
+        "soil_diskin/utils.py",
+    output:
+        "figures/figS7.png"
+    threads: 4
+    shell:
+        "python -m notebooks.figS7 --n-jobs {threads}"
+
+rule plot_figS8:
+    input:
         'results/processed_balesdent_2018.csv',
         'results/04_model_predictions/loguniform_model_predictions.csv',
     output:
-        "figures/figS7.png"
+        "figures/figS8.png"
     script:
-        "notebooks/figS7.py"
+        "notebooks/figS8.py"
 
 
 
