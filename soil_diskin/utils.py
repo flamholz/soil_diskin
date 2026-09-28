@@ -1,9 +1,16 @@
+import hashlib
+from pathlib import Path
 import requests
 import os
 import numpy as np
 import xarray as xr
 import rioxarray as rio
 from typing import Union
+
+
+def file_digest(path: str | Path, algorithm: str = 'sha256') -> str:
+    with Path(path).open('rb') as stream:
+        return hashlib.file_digest(stream, algorithm).hexdigest()
 
 
 def download_file(url, folder, filename):

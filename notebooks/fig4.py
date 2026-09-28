@@ -1,376 +1,87 @@
-#%% 
+"""Two-panel Figure 4: python -m notebooks.fig4 (after scripts 03b/04)."""
+import argparse
+from pathlib import Path
+import sys
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import viz
-
 from permetrics.regression import RegressionMetric
-from sklearn.metrics import root_mean_squared_error
-from matplotlib.colors import LogNorm
 
-import os 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # Support direct execution.
 
-if os.getcwd().endswith('notebooks'):
-    os.chdir('..')
+from notebooks.viz import color_palette
+from soil_diskin.utils import file_digest
 
-#%% Load the site data
-all_sites = pd.read_csv('results/processed_balesdent_2018.csv')
-
-# use the style file
-plt.style.use('notebooks/style.mpl')
-pal = viz.color_palette()
-
-#%% Load the predictions
-powerlaw_predictions = pd.read_csv('results/04_model_predictions/power_law_model_predictions.csv')
-gen_powerlaw_preds_beta = pd.read_csv('results/04_model_predictions/general_power_law_model_predictions.csv')
-gen_powerlaw_preds_beta_half = pd.read_csv('results/04_model_predictions/general_power_law_model_predictions_beta_half.csv')
-lognormal_predictions = pd.read_csv('results/04_model_predictions/lognormal_model_predictions.csv')
-weibull_predictions = pd.read_csv('results/04_model_predictions/weibull_model_predictions.csv')
-CLM45_predictions = pd.read_csv('results/04_model_predictions/CLM45_fnew.csv', header=None, names=['prediction'])
-JSBACH_predictions = pd.read_csv('results/04_model_predictions/JSBACH_fnew.csv', header=None, names=['prediction'])
-RCM_predictions = pd.read_csv('results/04_model_predictions/RCM.csv')
-
-# Model groupings reused across figures
-continuum_model_colors = [pal['dark_blue'], pal['blue'], pal['light_blue']]
-continuum_models = [lognormal_predictions, powerlaw_predictions, gen_powerlaw_preds_beta]
-continuum_model_titles = ['lognormal model', 'power law model ($\\alpha = 1$)', 'power law model ($\\alpha = e^{-\\gamma}$)']
-
-ESM_model_colors = [pal['dark_purple'], pal['purple']]
-ESM_models = [CLM45_predictions, JSBACH_predictions]
-ESM_model_titles = ['CLM4.5', 'JSBACH']
-
-RCM_colors = [pal['dark_green'], pal['green'], pal['light_green']]
+ROOT = Path(__file__).resolve().parents[1]
 
 
-# %% Define function to plot model predictions
-def plot_model_predictions(ax, predictions, model_name, color, pred_err=None):
-    ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
-            label='y=x', zorder=-10, lw=1)
-    if pred_err is not None:
-        ax.errorbar(all_sites['total_fnew'],
-                    predictions,
-                    yerr=pred_err,
-                    fmt='o', label=model_name, color=color,
-                    ecolor='k', elinewidth=0.5, capsize=2,
-                    mec='k', mew=0.5,
-                    markersize=5, alpha=0.9)
-    else:
-        ax.scatter(all_sites['total_fnew'],
-               predictions, label=model_name, color=color,
-               edgecolor='k', lw=0.5, s=20, alpha=0.9)
-
-    # calculate metrics
-    true_vals = all_sites['total_fnew'].values
-    predictions = predictions.values
-    mask = ~pd.isna(true_vals) & ~pd.isna(predictions)
-    evaluator = RegressionMetric(y_true=true_vals[mask],
-                                 y_pred=predictions[mask])
-    rmse = root_mean_squared_error(true_vals[mask], predictions[mask])
-    kge = evaluator.kling_gupta_efficiency()
-
-    # Make a single box reporting KGE and RMSE. Black border and grey background
-    props = dict(boxstyle='round', facecolor=pal['light_yellow'],
-                 edgecolor=pal['dark_grey'], alpha=0.8)
-    box_text = f'KGE = {kge:.2f}\nRMSE = {rmse:.2f}'
-    ax.text(0.05, 0.95, box_text,
-            transform=ax.transAxes, fontsize=6,
-            verticalalignment='top', bbox=props)
-    ax.set_title(model_name)
-    ax.set_xticks(np.arange(0, 1.1, 0.5))
-    ax.set_yticks(np.arange(0, 1.1, 0.5))
-    ax.legend().remove()
+def plot_panel(ax, data, observed_column, source_column, title, color):
+    """Score finite observation/prediction pairs; propagate stock scenarios vertically."""
+    pairs = data[np.isfinite(data[[observed_column, 'predicted_fnew']]).all(axis=1)]
+    observed, predicted = pairs[[observed_column, 'predicted_fnew']].to_numpy().T
+    filled = pairs[source_column].eq('SoilGrids backfill')
+    scenarios = pairs[['predicted_fnew_05', 'predicted_fnew_95']]
+    available = np.isfinite(scenarios).sum(axis=1)
+    bars = filled & available.gt(0)
+    # Stock quantiles need not map to ordered f_new quantiles. Enclose the central
+    # prediction and every available scenario, without reflecting either endpoint.
+    envelope = pd.concat([pairs.predicted_fnew, scenarios.where(np.isfinite(scenarios))], axis=1)
+    lower, upper = envelope.min(axis=1), envelope.max(axis=1)
+    ax.errorbar(pairs.loc[bars, observed_column], pairs.loc[bars, 'predicted_fnew'],
+                yerr=np.vstack([(pairs.predicted_fnew-lower)[bars], (upper-pairs.predicted_fnew)[bars]]),
+                fmt='none', ecolor='black', elinewidth=.6, capsize=2, zorder=1)
+    ax.scatter(observed, predicted, color=color, edgecolor='black', linewidth=.4,
+               s=18, alpha=.8, zorder=2)
+    ax.plot([0, 1], [0, 1], '--', color='grey', linewidth=1, zorder=0)
+    metrics = {'N': len(pairs), 'RMSE': float(np.sqrt(np.mean((predicted-observed)**2))),
+               'KGE': float(RegressionMetric(observed, predicted).kling_gupta_efficiency(force_finite=False)),
+               'soilgrids_N': int(filled.sum()), 'soilgrids_errorbars_N': int(bars.sum()),
+               'soilgrids_both_scenarios_N': int((filled & available.eq(2)).sum())}
+    palette = color_palette()
+    ax.text(.05, .95, f'N = {metrics["N"]}\nRMSE = {metrics["RMSE"]:.2g}\nKGE = {metrics["KGE"]:.2g}',
+            transform=ax.transAxes, va='top', fontsize=8,
+            bbox={'boxstyle': 'round', 'facecolor': palette['light_yellow'],
+                  'edgecolor': palette['dark_grey'], 'alpha': .9})
+    ax.set(title=title, xlabel=r'observed F$_{new}$ ($\delta^{13}$C based)',
+           xlim=(-.03, 1.03), ylim=(-.03, 1.03), aspect='equal',
+           xticks=[0, .5, 1], yticks=[0, .5, 1])
+    return metrics
 
 
-# Alternate version with colormap and color normalization
-def plot_model_predictions_cmap(ax, predictions, model_name, clabel, cmap, norm):
-    ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
-            label='y=x', zorder=-10, lw=1)
-    
-    # Plot with different markers for different data sources
-    balesdent_mask = all_sites['C_data_source'] == 'Balesdent et al. 2018'
-    soilgrids_mask = all_sites['C_data_source'] == 'SoilGrids backfill'
-    
-    # Plot Balesdent points with circles
-    sc = ax.scatter(all_sites.loc[balesdent_mask, 'total_fnew'],
-                    predictions[balesdent_mask], label=model_name,
-                    c=all_sites.loc[balesdent_mask, clabel], cmap=cmap, norm=norm,
-                    edgecolor='k', lw=0.5, s=20, alpha=0.9, marker='o')
-    
-    # Plot SoilGrids points with diamonds
-    ax.scatter(all_sites.loc[soilgrids_mask, 'total_fnew'],
-               predictions[soilgrids_mask],
-               c=all_sites.loc[soilgrids_mask, clabel], cmap=cmap, norm=norm,
-               edgecolor='k', lw=0.5, s=20, alpha=0.9, marker='D')
-    # calculate metrics
-    true_vals = all_sites['total_fnew'].values
-    predictions = predictions.values
-    mask = ~pd.isna(true_vals) & ~pd.isna(predictions)
-    evaluator = RegressionMetric(y_true=true_vals[mask],
-                                 y_pred=predictions[mask])
-    rmse = root_mean_squared_error(true_vals[mask], predictions[mask])
-    kge = evaluator.kling_gupta_efficiency()
-
-    # Make a single box reporting KGE and RMSE. Black border and grey background
-    props = dict(boxstyle='round', facecolor=pal['light_yellow'],
-                 edgecolor=pal['dark_grey'], alpha=0.8)
-    box_text = f'KGE = {kge:.2f}\nRMSE = {rmse:.2f}'
-    ax.text(0.05, 0.95, box_text,
-            transform=ax.transAxes, fontsize=6,
-            verticalalignment='top', bbox=props)
-    ax.set_title(model_name)
-    return sc
-
-#%% 
-# Plot the generalized power law model predictions to check
-# TODO: can we delete this code? 
-fig, axs = plt.subplots(1, 3, figsize=(7.24, 2), dpi=300, constrained_layout=True)
-
-powerlaw_err = powerlaw_predictions[['predicted_fnew_05','predicted_fnew_95']].sub(powerlaw_predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T
-plot_model_predictions(axs[0], powerlaw_predictions['predicted_fnew'], 'power law model', pal['dark_blue'], powerlaw_err)
-
-gen_powerlaw_err = gen_powerlaw_preds_beta[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_beta['predicted_fnew'], axis=0).abs().fillna(0).values.T
-plot_model_predictions(axs[1], gen_powerlaw_preds_beta['predicted_fnew'], 'generalized power law model', pal['blue'], gen_powerlaw_err)
-
-gen_powerlaw_err_half = gen_powerlaw_preds_beta_half[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_beta_half['predicted_fnew'], axis=0).abs().fillna(0).values.T
-plot_model_predictions(axs[2], gen_powerlaw_preds_beta_half['predicted_fnew'], 'generalized power law model (beta/2)', pal['light_blue'], gen_powerlaw_err_half)
-
-plt.savefig('figures/gen_powerlaw.png', dpi=300, bbox_inches='tight')
-
-# %% Plot the predictions predictions
-fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(7.24, 3.5),
-                        dpi=300, constrained_layout=True,
-                        sharex=True, sharey=True)
-axs = axs.flatten()
-
-for ax, predictions, title, color in zip(axs[:3], continuum_models,
-                                         continuum_model_titles, continuum_model_colors):
-    err = predictions[['predicted_fnew_05','predicted_fnew_95']].sub(predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T
-    plot_model_predictions(ax, predictions['predicted_fnew'], title, color, err)
-
-for ax, predictions, title, color in zip(axs[3:5], ESM_models,
-                                         ESM_model_titles, ESM_model_colors):
-    plot_model_predictions(ax, predictions['prediction'], title, color)
-
-# Reduced complexity model predictions
-for i, col in enumerate(RCM_predictions.columns):
-    title = col +  ' ($^{14} C$ corrected)'
-    plot_model_predictions(
-        axs[5 + i], RCM_predictions[col], title, RCM_colors[i])
-    
-# Set axes labels on the outer plots
-for ax in axs[4:8]:
-    ax.set_xlabel('observed F$_{new}$ ($\delta^{13}C$ based)')
-for ax in axs[[0, 4]]:
-    ax.set_ylabel('predicted F$_{new}$')
-
-# add labels to each subplot
-for ax, label in zip(axs, "ABCDEFGH"):
-    if label == 'A' or label == 'E':
-        ax.text(
-            -0.25, 1.1, label, transform=ax.transAxes,
-            fontsize=7, va='top', ha='left')
-    else:
-        ax.text(
-            -0.15, 1.1, label, transform=ax.transAxes,
-            fontsize=7, va='top', ha='left')
-# %% Save the figure
-plt.savefig('figures/fig4_old.png', dpi=300, bbox_inches='tight')
-#plt.savefig('figures/fig4.svg', dpi=300, bbox_inches='tight')
-
-# %% make a supplementary version of the above plot where the points are colored by the
-# timing of the land use change event. Using a log color scale. Also, we now include the 
-# plots for the generalized power law model.
-mosaic = """ABCDE\nFGHIJ\nKKKKK"""
-fig, axs = plt.subplot_mosaic(mosaic, figsize=(7.24, 4),
-                              dpi=300, constrained_layout=True,
-                              sharex=False, sharey=False)
-
-# make a log-scaled color map for the duration of labeling
-cmap = 'viridis'
-norm = LogNorm(vmin=all_sites['Duration_labeling'].min(), vmax=all_sites['Duration_labeling'].max())
-cnames = 'dark_blue,blue,light_blue,dark_grey'.split(',')
-continuum_model_colors = [pal[c] for c in cnames] + ['grey']
-continuum_models = [lognormal_predictions, weibull_predictions, powerlaw_predictions,
-                    gen_powerlaw_preds_beta, gen_powerlaw_preds_beta_half]
-continuum_model_titles = ['lognormal model', 'hockey-stick model', 'power law model ($\\alpha = 1$)',
-                          'power law ($\\alpha = e^{-\\gamma}$)',
-                          'power law ($\\alpha = e^{-\\gamma}/2$)']
-my_axs = [axs[c] for c in 'ABCDE']
-for ax, predictions, title in zip(my_axs, continuum_models, continuum_model_titles):
-    sc = plot_model_predictions_cmap(ax, predictions['predicted_fnew'], title,
-                                     clabel='Duration_labeling', cmap=cmap, norm=norm)
-
-my_axs = [axs[c] for c in 'FG']
-for ax, predictions, title in zip(my_axs, ESM_models, ESM_model_titles):
-    sc = plot_model_predictions_cmap(ax, predictions['prediction'], title,
-                                     clabel='Duration_labeling', cmap=cmap, norm=norm)
-    
-# Reduced complexity model predictions
-my_axs = [axs[c] for c in 'HIJ']
-for i, col in enumerate(RCM_predictions.columns):
-    title = col + ' (RC)'
-    sc = plot_model_predictions_cmap(my_axs[i], RCM_predictions[col], title,
-                                     clabel='Duration_labeling', cmap=cmap, norm=norm)
-
-colorbar_label = 'time since transition (yrs)'
-my_axs = [axs[c] for c in 'ABCDEFGHIJ']
-cbar = plt.colorbar(sc, ax=my_axs, orientation='vertical',
-                    label=colorbar_label, pad=0.01)
-
-# Set axes labels on the outer plots
-for c in 'FGHIJ':
-    axs[c].set_xlabel('observed F$_{new}$')
-for c in 'AF':
-    axs[c].set_ylabel('predicted F$_{new}$')
-
-# Load the bootstrapping calculation to plot KGE distribution in panel K as a boxplot
-metric_dists = pd.read_csv('results/fig4_calcs.csv')
-kge_data = metric_dists[metric_dists['metric'] == 'KGE']
-# Order -- continuum, then ESM, then reduced complexity
-order = ['Lognormal', 'Hockey-stick', 'Power-law',
-         'Gen. Power-law (a=exp(-gamma))',
-         'Gen. Power-law (a=exp(-gamma)/2)',
-         'CLM4.5', 'JSBACH', 'CESM1', 'IPSL-CM5A-LR', 'MRI-ESM1']
-xlabels = ['lognormal', 'hockey-stick', 'power law\n($\\alpha = 1$)',
-           'power law\n($\\alpha = e^{-\\gamma}$)',
-           'power law\n($\\alpha = e^{-\\gamma}/2$)',
-           'CLM4.5',  'JSBACH', 'CESM1 (RC)', 'IPSL-CM5A-LR (RC)', 'MRI-ESM1 (RC)']
-axs['K'].set_xticklabels(xlabels, rotation=45, ha='right', fontsize=6)
-sns.violinplot(
-    data=kge_data, x='model', y='value',
-    ax=axs['K'], order=order)
-
-# add mean and standard deviation to each boxplot
-means = kge_data.groupby('model')['value'].mean()
-stds = kge_data.groupby('model')['value'].std()
-axs['K'].set_ylim(-1.55, 1.3)
-for i, model in enumerate(order):
-    mean = means[model]
-    std = stds[model]
-    axs['K'].text(i, 0.95, f'{mean:.2f}±{std:.2f}',
-                  ha='center', va='bottom', fontsize=5)
-# set y label
-axs['K'].set_ylabel('KGE value')
-axs['K'].set_xlabel('')
-
-# add labels to each subplot
-for i, c in enumerate("ABCDEFGHIJ"):
-    axs[c].text(
-        -0.25, 1.2, c, transform=axs[c].transAxes,
-        fontsize=7, va='top', ha='left')
-
-# make the tick labels smaller
-for c in 'ABCDEFGHIJ':
-    axs[c].tick_params(axis='both', which='major', labelsize=5)
-    axs[c].set_xticks(np.arange(0, 1.1, 0.5))
-    axs[c].set_yticks(np.arange(0, 1.1, 0.5))
-# add subpanel label
-axs['K'].text(-0.04, 1.1, 'K', transform=axs['K'].transAxes,
-             fontsize=7, va='top', ha='left')
-
-axs['K'].tick_params(axis='y', which='major', labelsize=5)
-axs['K'].set_yticks(np.arange(-1, 1.1, 1.0))
-
-plt.savefig('figures/figS3.png', dpi=300, bbox_inches='tight')
-
-# %% make a presentation version with no subpanel labels
-# show only the continuum models and ESMs
-fig, axs = plt.subplots(nrows=1, ncols=5, figsize=(7.24, 1.75),
-                        dpi=300, constrained_layout=True,
-                        sharex=False, sharey=True)
-
-# for presentation, want lognormal, weibull, powerlaw, in that order
-continuum_model_colors = [pal['dark_blue'], pal['blue'], pal['light_blue']]
-continuum_models = [lognormal_predictions, weibull_predictions, powerlaw_predictions]
-continuum_model_titles = ['lognormal model', 'hockey-stick model', 'power law model']
-for ax, predictions, title, color in zip(axs[:3], continuum_models,
-                                         continuum_model_titles, continuum_model_colors):
-    err = predictions[['predicted_fnew_05','predicted_fnew_95']].sub(predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T
-    plot_model_predictions(ax, predictions['predicted_fnew'], title, color, err) 
-
-for ax, predictions, title, color in zip(axs[3:5], ESM_models,
-                                         ESM_model_titles, ESM_model_colors):
-    plot_model_predictions(ax, predictions['prediction'], title, color)
-
-# Set axes labels on the outer plots
-for ax in axs:
-    ax.set_xlabel('observed F$_{new}$')
-axs[0].set_ylabel('predicted F$_{new}$')
-
-# %% Save the presentation figure
-plt.savefig('figures/fig4_presentation.png', dpi=300, bbox_inches='tight')
-
-# Make a version of the presentation figure where the points are colored by the
-# timing of the land use change event.
-fig, axs = plt.subplots(nrows=1, ncols=5, figsize=(7.24, 1.75),
-                        dpi=300, constrained_layout=True,
-                        sharex=False, sharey=True)
-
-for ax, predictions, title, color in zip(axs[:3], continuum_models,
-                                         continuum_model_titles, continuum_model_colors):
-    sc = plot_model_predictions_cmap(ax, predictions['predicted_fnew'], title,
-                                     clabel='Duration_labeling', cmap=cmap, norm=norm)
-
-for ax, predictions, title, color in zip(axs[3:5], ESM_models,
-                                         ESM_model_titles, ESM_model_colors):
-    sc = plot_model_predictions_cmap(ax, predictions['prediction'], title,
-                                     clabel='Duration_labeling', cmap=cmap, norm=norm)
-colorbar_label = 'time since transition (yrs)'
-cbar = plt.colorbar(sc, ax=axs, orientation='vertical', label=colorbar_label, pad=0.01)
-
-plt.savefig('figures/fig4_presentation_colored_by_labeling_duration.png', dpi=300, bbox_inches='tight')
-
-# %% fig4_alt -- lognormal and CLM scatter panels + KGE boxplot
-fig, axs = plt.subplot_mosaic('ABC', figsize=(7.24, 2.5),
-                              dpi=300, constrained_layout=True,
-                              width_ratios=[1, 1, 1.3])
-
-# Panel A -- lognormal predicted vs. actual
-lognormal_err = lognormal_predictions[['predicted_fnew_05', 'predicted_fnew_95']].sub(
-    lognormal_predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T
-plot_model_predictions(axs['A'], lognormal_predictions['predicted_fnew'],
-                       'lognormal continuum model', pal['dark_blue'], lognormal_err)
-axs['A'].set_xlabel('observed F$_{new}$')
-axs['A'].set_ylabel('predicted F$_{new}$')
-
-# Panel B -- CLM4.5 predicted vs. actual
-plot_model_predictions(axs['B'], CLM45_predictions['prediction'],
-                       'CLM4.5 compartmental model', pal['dark_purple'])
-axs['B'].set_xlabel('observed F$_{new}$')
-axs['B'].set_ylabel('predicted F$_{new}$')
-
-# Panel C -- KGE boxplot for selected models
-alt_order = ['Lognormal', 'Power-law', 'Gen. Power-law (a=exp(-gamma))',
-             'CLM4.5', 'JSBACH',
-             'CESM1', 'IPSL-CM5A-LR', 'MRI-ESM1']
-alt_xlabels = ['lognormal', 'power law ($\\alpha=1$)', 'power law ($\\alpha=e^{-\\gamma}$)',
-               'CLM4.5', 'JSBACH',
-               'CESM1 (RC)', 'IPSL-CM5A-LR (RC)', 'MRI-ESM1 (RC)']
-alt_kge = kge_data[kge_data['model'].isin(alt_order)]
-alt_colors = [pal['dark_blue'], pal['blue'], pal['light_blue'],
-              pal['dark_purple'], pal['purple'],
-              pal['dark_green'], pal['green'], pal['light_green']]
-sns.boxplot(data=alt_kge, x='model', y='value', hue='model', ax=axs['C'],
-            order=alt_order, palette=dict(zip(alt_order, alt_colors)),
-            showfliers=False, legend=False)
-axs['C'].set_xticklabels(alt_xlabels, rotation=45, ha='right', fontsize=6)
-axs['C'].set_ylabel('Kling–Gupta efficiency (KGE)')
-axs['C'].set_xlabel('')
-for x in [2.5, 4.5]:
-    axs['C'].axvline(x, color=pal['dark_grey'], linestyle='--', linewidth=0.75, zorder=0)
-
-axs['C'].set_ylim(top=0.99)
-group_labels = ['continuum', 'compartmental', '$^{14}$C constrained']
-group_centers = [1.0, 3.5, 6.0]
-for label, xc in zip(group_labels, group_centers):
-    axs['C'].text(xc, 1.02, label, ha='center', va='bottom',
-                  fontsize=6, transform=axs['C'].get_xaxis_transform(), clip_on=False)
+def main(exclude_layered_soilgrids=False, output_stem='fig4'):
+    sources = [ROOT/'results/04_model_predictions/lognormal_model_predictions.csv',
+               ROOT/'results/04_model_predictions/depth_resolved/lognormal_model_predictions.csv']
+    tables = [pd.read_csv(source) for source in sources]
+    if exclude_layered_soilgrids:
+        tables[1] = tables[1].loc[tables[1].stock_source.ne('SoilGrids backfill')]
+    plt.style.use(ROOT/'notebooks/style.mpl')
+    plt.rcParams.update({'axes.titlesize': 10, 'axes.labelsize': 9,
+                         'xtick.labelsize': 8, 'ytick.labelsize': 8})
+    fig, axes = plt.subplots(1, 2, figsize=(7.24, 3.7), sharex=True, sharey=True)
+    palette = color_palette()
+    layer_title = 'Layered model: Balesdent stocks' if exclude_layered_soilgrids else 'depth-resolved lognormal model'
+    settings = [('total_fnew', 'C_data_source', 'bulk soil lognormal model', palette['dark_blue']),
+                ('fnew_obs', 'stock_source', layer_title, palette['blue'])]
+    metrics = []
+    for label, ax, table, setting, source in zip('AB', axes, tables, settings, sources):
+        metrics.append({'panel': setting[2], 'source': str(source.relative_to(ROOT)),
+                        'source_sha256': file_digest(source), **plot_panel(ax, table, *setting)})
+        ax.text(-.14, 1.04, label, transform=ax.transAxes, fontsize=11, fontweight='bold')
+    axes[0].set_ylabel(r'predicted F$_{new}$')
+    fig.subplots_adjust(left=.09, right=.985, bottom=.21, top=.88, wspace=.12)
+    suffix = '_no_layered_soilgrids' if exclude_layered_soilgrids else ''
+    output = ROOT/f'figures/{output_stem}{suffix}'
+    output.parent.mkdir(parents=True, exist_ok=True)
+    for extension in ['png', 'pdf', 'svg']:
+        fig.savefig(output.with_suffix('.'+extension), dpi=300, bbox_inches='tight')
+    plt.close(fig)
+    pd.DataFrame(metrics).to_csv(output.with_suffix('.csv'), index=False)
+    print(pd.DataFrame(metrics).drop(columns=['source', 'source_sha256']).to_string(index=False))
 
 
-
-# subplot labels
-for label, ax in zip('ABC', [axs['A'], axs['B'], axs['C']]):
-    ax.text(-0.2, 1.1, label, transform=ax.transAxes, fontsize=7, va='top', ha='left')
-
-plt.savefig('figures/fig4.png', dpi=300, bbox_inches='tight')
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--exclude-layered-soilgrids', action='store_true',
+                        help='Exclude SoilGrids-filled layers and save a separate figure; keep bulk unchanged.')
+    main(**vars(parser.parse_args()))

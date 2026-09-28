@@ -133,6 +133,78 @@ Make sure you have an internet connection when you run the pipeline, as it will:
 
 Note: running the whole pipeline on a M2 MacBook Air takes about 2 days. 
 
+## Layered log-normal model
+
+Fit ten independent 10 cm soil layers with **no transport**, sharing only the
+NPP input e-folding depth. Each layer fits mu and sigma from its stock and
+radiocarbon, then predicts its new-carbon fraction. The
+[pipeline guide](docs/notes/modeling/layered_lognormal_usage.md) walks through the
+three source files and the equations.
+
+```sh
+uv run python notebooks/01_preprocess_balesdent_data.py --depth-resolved
+uv run python notebooks/02_get_turnover_14C.py --depth-resolved
+uv run python -m soil_diskin.layered_workflow \
+  --output-dir results/layered_no_transport
+```
+
+This runs all complete profiles and writes `layers.csv`, the f_new scatter plot,
+and RMSE/KGE values. Add `--limit 2` for a small run. The supplied 30 cm input
+depth is not a fitted estimate; observed new-carbon fractions do not enter
+local mu/sigma fitting. They informed the choice to remove transport.
+
+To tune h with separate train/validation/test locations:
+
+```sh
+uv run python notebooks/tune_layered_input_depth.py --output-dir results/my_h_search
+```
+
+This selects h by validation RMSE and then evaluates it against the fixed 30 cm
+baseline on the test split. See the [experiment report](docs/notes/modeling/layered_h_tuning.md)
+for the protocol, results, and calibration trade-off.
+
+To include usable layers from profiles with missing depth observations at h = 10 cm:
+
+```sh
+uv run python notebooks/02_get_turnover_14C.py --depth-resolved --input-depth 10 \
+  --output results/all_sites_14C_turnover_depth_h10.csv
+uv run python -m soil_diskin.layered_workflow \
+  --input-table results/all_sites_14C_turnover_depth_h10.csv --allow-partial \
+  --max-nfev 1000 --output-dir results/my_partial_profiles
+```
+
+Each retained layer still needs stock, radiocarbon, and site NPP. Missing stocks
+and NPP are not filled, and the allocation of NPP to depth stays unchanged.
+Shi radiocarbon now uses the original analysis's nearest-neighbor spatial filling,
+supporting 101 profiles and 914 layers. See the
+[radiocarbon parity check](docs/notes/modeling/layered_radiocarbon_parity.md),
+[NPP recovery results](docs/notes/modeling/layered_npp_recovery.md), and earlier
+[partial-profile results](docs/notes/modeling/layered_partial_profiles.md).
+
+To compare h = 10 cm with published Jackson et al. (1996) global and
+vegetation-dependent root-depth allocations on the same available layers:
+
+```sh
+uv run python -m notebooks.compare_jackson_inputs --output-dir results/my_jackson_comparison
+```
+
+The [comparison report](docs/notes/modeling/layered_jackson_inputs.md) includes
+the input assumptions, observed-versus-predicted scores, and calibration diagnostics.
+Add `--surface-fraction 0.5` with a new output directory to also compare
+50% direct top-layer input plus 50% Jackson input across the full column; see the
+[surface-input results](docs/notes/modeling/layered_jackson_surface50.md).
+
+To rerun with only half of site NPP entering soil, use `--soil-npp-fraction 0.5`.
+This scales total soil input while retaining each depth allocation, including
+the optional surface mixture:
+
+```sh
+uv run python -m notebooks.compare_jackson_inputs --soil-npp-fraction 0.5 \
+  --surface-fraction 0.5 --output-dir results/my_jackson_npp50
+```
+
+See the [half-NPP results](docs/notes/modeling/layered_jackson_npp50.md).
+
 ## Citation
 
 If you use this code in your research, please cite:
@@ -145,3 +217,6 @@ If you use this code in your research, please cite:
 
 See `LICENSE` file for details.
 
+The [layered review fixes and regression checks](docs/notes/modeling/layered_review_fixes.md)
+document the shared-model refactor, explicit missing-evaluation outputs, and
+numerical agreement with the saved fits.

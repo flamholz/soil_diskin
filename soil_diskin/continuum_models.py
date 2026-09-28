@@ -3,8 +3,9 @@ import numpy as np
 from scipy.integrate import quad
 from scipy.special import exp1, gamma, gammaincc, log_ndtr, gammainc
 from scipy.stats import lognorm
-from soil_diskin.constants import LAMBDA_14C, INTERP_R_14C, GAMMA
-from soil_diskin.lognormal import lognormal_radiocarbon, inner_integral, C14_MEAN_LIFE
+from soil_diskin import constants
+from soil_diskin.constants import LAMBDA_14C, GAMMA
+from soil_diskin.lognormal import lognormal_radiocarbon, inner_integral, C14_MEAN_LIFE, diskin_C_of_t
 from soil_diskin.radiocarbon_utils import AtmC14
 from tqdm import tqdm
 
@@ -38,7 +39,7 @@ class AbstractDiskinModel:
         """Initialize the model."""
         self.interp_14c = interp_r_14c
         if interp_r_14c is None:
-            self.interp_14c = INTERP_R_14C
+            self.interp_14c = constants.INTERP_R_14C
     
         # These should be calculated by subclasses
         self.T = None  # mean transit time at steady-state
@@ -350,7 +351,7 @@ class PowerLawDisKin(AbstractDiskinModel):
 
         self.interp_14c = interp_r_14c
         if interp_r_14c is None:
-            self.interp_14c = INTERP_R_14C
+            self.interp_14c = constants.INTERP_R_14C
 
         # steady-state transit time
         tratio = t_min / t_max
@@ -650,11 +651,8 @@ class LognormalDisKin(AbstractDiskinModel):
     
     def cdfA(self, t):
         """Calculate the cumulative distribution function of the age distribution."""
-        # The CDF is the integral of the PDF from 0 to a
-        result, _ = quad(
-            self.pA, 0, t,
-            limit=500, epsabs=1e-5)
-        return result
+        # Use the same stable log-rate quadrature as the 04b prediction script.
+        return diskin_C_of_t([t], self.mu, self.sigma)[0] / self.T
         
     def _dX(self, t, X):
         """Calculate the change in state of the system at time t.
@@ -682,6 +680,7 @@ class LognormalDisKinFast(AbstractDiskinModel):
     This class requires an ``AtmC14`` object on construction and uses it
     directly for steady-state radiocarbon calculations. The interpolator path
     from ``AbstractDiskinModel`` is intentionally ignored.
+    Optional ``fm_evaluator(mu, sigma)`` supplies a cache built for that atmosphere.
 
     NOTE: this class violates the contract of the base class, e.g., by not using the
     interpolator for radiocarbon calculations and by not implementing the CDF via
@@ -700,20 +699,21 @@ class LognormalDisKinFast(AbstractDiskinModel):
         interp_r_14c=None,
         ppf_lim=1e-5,
         fast_rtol=1e-4,
+        fm_evaluator=None,
     ):
-        # Initialize base class (interpolator path is intentionally ignored)
-        AbstractDiskinModel.__init__(self, interp_r_14c=interp_r_14c)
+        # This class uses the supplied atmosphere; skip loading the unused interpolator.
         # Copy essential lognormal parameter setup from LognormalDisKin
         self.mu = mu
         self.k_star = np.exp(mu)
         self.sigma = sigma
-    
+
         # steady-state transit time and mean age
         self.T = np.exp(-self.mu + ((self.sigma ** 2) / 2))
         self.A = self.T * np.exp(self.sigma ** 2)
 
         self.atm = atm
         self.fast_rtol = fast_rtol
+        self.fm_evaluator = fm_evaluator
 
         # We intentionally do not use interpolator-based radiocarbon
         # calculations in this class.
@@ -794,10 +794,11 @@ class LognormalDisKinFast(AbstractDiskinModel):
     ):
         """Calculate steady-state radiocarbon ratio using fast helper functions.
 
-        If `u_lo`/`u_hi` are provided they are used as the outer integration
-        limits in log-space (u = ln k). Otherwise the helper `lognormal_radiocarbon`
-        is called which chooses default bounds.
+        Use the supplied cached evaluator, or the original adaptive integral
+        with ``fast_rtol`` when no evaluator is supplied.
         """
+        if self.fm_evaluator is not None:
+            return float(self.fm_evaluator(self.mu, self.sigma)), 0.0
         ratio = lognormal_radiocarbon(
             atm=self.atm,
             tau=float(self.T),
