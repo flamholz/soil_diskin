@@ -2,11 +2,12 @@ import numpy as np
 
 from scipy.integrate import quad
 from scipy.special import exp1, gamma, gammaincc, log_ndtr, gammainc
-from scipy.stats import lognorm
+from scipy.stats import lognorm, norm
 from soil_diskin import constants
 from soil_diskin.constants import LAMBDA_14C, GAMMA
 from soil_diskin.lognormal import lognormal_radiocarbon, inner_integral, C14_MEAN_LIFE, diskin_C_of_t
 from soil_diskin.radiocarbon_utils import AtmC14
+from functools import lru_cache
 from tqdm import tqdm
 
 
@@ -17,6 +18,12 @@ def expint(n, x):
     incomplete gamma function is computed as gammaincc(1-n, x) * gamma(1-n).
     """
     return x ** (n - 1) * gammaincc(1 - n, x) * gamma(1 - n)
+
+
+@lru_cache(maxsize=8)
+def _leggauss(n_nodes):
+    """Cached Gauss-Legendre nodes and weights on [-1, 1]."""
+    return np.polynomial.legendre.leggauss(n_nodes)
 
 
 # TODO: PowerLawDisKin is poorly named, the variant with t^{-alpha} is also power laws.
@@ -648,7 +655,43 @@ class LognormalDisKin(AbstractDiskinModel):
             self._s_integrand, k_min, k_max, args=(t,),
             limit=500, epsabs=1e-5)
         return result
-    
+
+    def s_vec(self, t, n_nodes=2000):
+        """Vectorized survival function using fixed quadrature in log k.
+
+        Substituting u = ln k turns the integral into
+
+            𝑠(𝑡) = ∫_{ln k_min}^{ln k_max} φ(u; μ, σ) exp(-e^u t) du
+
+        where φ is the normal density of ln k. The integrand is smooth
+        in u, so a fixed Gauss-Legendre rule on [ln k_min, ln k_max]
+        is accurate and evaluates all t at once by broadcasting.
+
+        Args:
+            t: float or np.ndarray
+                The age(s) at which to evaluate the survival function.
+            n_nodes: int
+                The number of Gauss-Legendre nodes.
+
+        Returns:
+            float or np.ndarray
+                The fraction of input remaining at each age t.
+        """
+        t_arr = np.asarray(t, dtype=float)
+        x, w = _leggauss(n_nodes)
+
+        # map nodes from [-1, 1] to [ln k_min, ln k_max]
+        u_lo, u_hi = np.log(self.k_min), np.log(self.k_max)
+        half_width = 0.5 * (u_hi - u_lo)
+        u = u_lo + half_width * (x + 1)
+        weights = half_width * w * norm.pdf(u, loc=self.mu, scale=self.sigma)
+
+        # rows index t, columns index u. Sum explicitly rather than use
+        # matmul, which raises spurious FP warnings with macOS Accelerate.
+        decay = np.exp(-np.exp(u) * t_arr.reshape(-1, 1))
+        result = (decay * weights).sum(axis=1).reshape(t_arr.shape)
+        return float(result) if t_arr.ndim == 0 else result
+
     def cdfA(self, t):
         """Calculate the cumulative distribution function of the age distribution."""
         # Use the same stable log-rate quadrature as the 04b prediction script.
