@@ -64,7 +64,6 @@ site_data['Sampling date'].plot.hist(ax=axs[1], bins=20, edgecolor='black', face
 
 # Whittaker diagram
 ax = axs[2]
-ax.set(xlim=(-16, 30), ylim=(0, 500))
 for biome, group in biome_data.groupby('biome'):
     ax.add_patch(
         patches.Polygon(
@@ -74,9 +73,14 @@ for biome, group in biome_data.groupby('biome'):
 
 MAP_cm = site_data['PANN_mm']/10 # MAP converted to cm
 MAT_C = site_data['MAT_C']
+
+# ylim capped at 450 cm/yr (matches the Whittaker polygons' range); this
+# deliberately clips 2 La Reunion sugarcane sites at 600 cm/yr MAP, which are
+# real (orographic rainfall) but off the classified biome space.
+ax.set(xlim=(-16, 30), ylim=(0, 450))
 ax.scatter(MAT_C, MAP_cm, lw=0.5, color=colors['grey'],
            edgecolor='black', alpha=0.8, s=10,
-           label='Balesdent 2018 sites')  
+           label='Balesdent 2018 sites')
 ax.set_xlabel("mean annual temperature (°C)")
 ax.set_ylabel("mean annual precipitation (cm)")
 ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')

@@ -82,7 +82,12 @@ def find_param_change(model, param_name, target_change, base_params, param_range
 
     base_model = model(**base_params)
     result = minimize_scalar(objective, bounds=param_range, method='bounded', options={'xatol': tol})
-    return result.x if result.success else None
+    if not result.success:
+        raise RuntimeError(
+            f"find_param_change failed to converge for {param_name} "
+            f"(target_change={target_change}, param_range={param_range}): {result.message}"
+        )
+    return result.x
 # %%
 # Run sensitivity analysis for power law and lognormal models
 powerlaw_params = pd.read_csv('results/03_calibrate_models/powerlaw_model_optimization_results.csv')
