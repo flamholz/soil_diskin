@@ -55,14 +55,20 @@ if __name__ == "__main__":
     print("Plotting figure 1...")
     mosaic = 'ABCD'
     fig, axs = plt.subplot_mosaic(mosaic, layout='constrained',
-                                  figsize=(6.3, 1.5), dpi=300,
-                                  width_ratios=[0.8, 1, 1, 1])
+                                  figsize=(6.3, 1.5), dpi=300)
     fig.get_layout_engine().set(hspace=0.1, wspace=0.1)
 
     # typical values based on fig. S2
     mu = 1
     sigma = 2.5
-    model = LognormalDisKin(mu=mu, sigma=sigma, ppf_lim=1e-8)
+    ppf_lim = 1e-9
+    focal_model = LognormalDisKin(mu=mu, sigma=sigma, ppf_lim=ppf_lim)
+    models = [
+        LognormalDisKin(mu=0, sigma=2.5, ppf_lim=ppf_lim),
+        LognormalDisKin(mu=1, sigma=2, ppf_lim=ppf_lim),
+        focal_model, # mu=1, sigma=2.5
+    ]
+    model_color_order = [colors[x] for x in ['purple', 'dark_brown', 'dark_grey']]
 
     # Panel A -- schematic of the parallel continuum model structure
     ax = axs['A']
@@ -75,46 +81,32 @@ if __name__ == "__main__":
     diagram_ax.imshow(diagram, interpolation='antialiased')
     diagram_ax.set_axis_off()
 
-    # Panel B -- lognormal continuum over time
+    # Panel B -- lognormal continuum of inputs
     ax = axs['B']
     # Each input pulse is associated with a lognormal distribution of decay rates such
     # that the amount of material with rate constant k = lognormal(k; mu, sigma) dk.
     # Since we plot against ln k, we plot the density of ln k, which is the
     # underlying normal(ln k; mu, sigma) and integrates to 1 over ln k.
     # Each k bin decays exponentially with time t as exp(-k*t).
-    ln_k_bins = np.linspace(np.log(model.k_min), np.log(model.k_max), 1000)
+    ln_k_bins = np.linspace(np.log(focal_model.k_min), np.log(focal_model.k_max), 10000)
     k_bins = np.exp(ln_k_bins)
-    initial_distribution = norm.pdf(ln_k_bins, loc=model.mu, scale=model.sigma)
-    initial_amount = 500 # g C, a typical input to 1 m2 in 1 yr
-    ts = [0, 1, 10] # years
-    distribution_over_time = np.array([initial_amount * initial_distribution * np.exp(-k_bins * t) for t in ts])
+    initial_distributions = [norm.pdf(ln_k_bins, loc=my_model.mu, scale=my_model.sigma) for my_model in models]
+    
+    for i, my_model in enumerate(models):
+        ax.semilogx(k_bins, initial_distributions[i], color=model_color_order[i],
+                    lw=1, label=f'$\\mu={my_model.mu}$, $\\sigma={my_model.sigma}$')
 
-    color_order = [colors[x] for x in ['dark_grey', 'dark_blue', 'blue']]
-    labels = r'input,$\tau=1$ yr,$\tau=10$ yr'.split(',')
-    for i, t in enumerate(ts):
-        print(f"i={i}: Plotting residual a distribution at t={t} yr...")
-        ax.plot(ln_k_bins, distribution_over_time[i],
-                label=labels[i], lw=1, color=color_order[i])
-
-    ax.set_xlabel(r'$\ln ( k \cdot 1 \text{ yr})$')
-    ax.set_ylabel(r'carbon density (g C)')
-    ax.set_title(r'an aging continuum')
-    ax.legend(loc='upper right', fontsize=5, frameon=False, handlelength=0.8, handletextpad=0.3)
-    # write mu and sigma on the plot
-    ax.text(0.85, 0.07, f'$\mu={mu}$,\n$\sigma={sigma}$', transform=ax.transAxes,
-            fontsize=5, va='bottom', ha='center')
+    ax.set_xlabel(r'$k$ (yr$^{-1}$)')
+    ax.set_ylabel(r'density')
+    ax.set_title(r'a continuum of inputs')
+    #ax.legend(loc='upper right', fontsize=5, frameon=False, handlelength=0.8, handletextpad=0.3)
 
     # Panel C -- survival function for different mu / sigma
     ax = axs['C']
     ages2plot = np.arange(0, 100, 0.1) # finer age steps
-    models = [
-        LognormalDisKin(mu=0, sigma=2.5, ppf_lim=1e-8),
-        LognormalDisKin(mu=1, sigma=2, ppf_lim=1e-8),
-        model, # mu=1, sigma=2.5
-    ]
-    model_color_order = [colors[x] for x in ['purple', 'dark_brown', 'dark_grey']]
+
     for i, my_model in enumerate(models):
-        color = color_order[i]
+        color = model_color_order[i]
         plot_survival_fn(ax, my_model, ages2plot, color=model_color_order[i])
     ax.set_xlim(-1, 20)
     ax.set_ylim(0, 1.1)

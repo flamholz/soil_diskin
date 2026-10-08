@@ -16,7 +16,7 @@ Intended to be run from the project root directory.
 # use the style file
 plt.style.use('notebooks/style.mpl')
 
-np.random.seed(1234)
+np.random.seed(12345)
 colors = viz.color_palette()
 color_name_order = np.array([k for k, _ in colors.items()])
 np.random.shuffle(color_name_order)
@@ -210,7 +210,7 @@ if __name__ == "__main__":
 
     # Panel A -- schematic of three-pool model loaded from a png
     ax = axs['A']
-    ax.set_title('conventional model structure')
+    ax.set_title('continuum model structure')
     # Clear the axes and turn off ticks/spines to reserve space for the diagram
     # we will paste the diagram in later.
     ax.set_xticks([])
@@ -281,7 +281,7 @@ if __name__ == "__main__":
 
     # Now paste the diagram into the exact panel A location
     base_fig = Image.open('figures/fig1_tmp.png')
-    panel_a_img = Image.open('graphics/century_model_diagram_wparams.png')
+    panel_a_img = Image.open('graphics/parallel_continuum_model.png')
 
     # Scale the image so its width matches the panel, preserving aspect ratio
     img_w, img_h = panel_a_img.size
