@@ -53,18 +53,30 @@ def plot_ss_age_distribution(ax, my_model, max_t, color):
 # Plot figure 1
 if __name__ == "__main__":
     print("Plotting figure 1...")
-    mosaic = 'ABC'
+    mosaic = 'ABCD'
     fig, axs = plt.subplot_mosaic(mosaic, layout='constrained',
-                                  figsize=(4.76, 1.5), dpi=300)
+                                  figsize=(6.3, 1.5), dpi=300,
+                                  width_ratios=[0.8, 1, 1, 1])
     fig.get_layout_engine().set(hspace=0.1, wspace=0.1)
 
     # typical values based on fig. S2
     mu = 1
     sigma = 2.5
-    model = LognormalDisKin(mu=mu, sigma=sigma, ppf_lim=1e-7)
+    model = LognormalDisKin(mu=mu, sigma=sigma, ppf_lim=1e-8)
 
-    # Panel A -- lognormal continuum over time
+    # Panel A -- schematic of the parallel continuum model structure
     ax = axs['A']
+    ax.set_axis_off()
+    ax.set_title(r'parallel continuum model')
+    # draw the diagram in an inset that extends past the axes so it can
+    # use the space below the title and next to the panel label
+    diagram_ax = ax.inset_axes([-0.25, -0.15, 1.25, 1.3])
+    diagram = plt.imread('graphics/parallel_continuum_model.png')
+    diagram_ax.imshow(diagram, interpolation='antialiased')
+    diagram_ax.set_axis_off()
+
+    # Panel B -- lognormal continuum over time
+    ax = axs['B']
     # Each input pulse is associated with a lognormal distribution of decay rates such
     # that the amount of material with rate constant k = lognormal(k; mu, sigma) dk.
     # Since we plot against ln k, we plot the density of ln k, which is the
@@ -73,30 +85,31 @@ if __name__ == "__main__":
     ln_k_bins = np.linspace(np.log(model.k_min), np.log(model.k_max), 1000)
     k_bins = np.exp(ln_k_bins)
     initial_distribution = norm.pdf(ln_k_bins, loc=model.mu, scale=model.sigma)
+    initial_amount = 500 # g C, a typical input to 1 m2 in 1 yr
     ts = [0, 1, 10] # years
-    distribution_over_time = np.array([initial_distribution * np.exp(-k_bins * t) for t in ts])
-
-    # check that initial distribution integrates equals distribution_over_time[0]
-    assert np.isclose(np.sum(initial_distribution - distribution_over_time[0]), 0.0, atol=1e-6)
+    distribution_over_time = np.array([initial_amount * initial_distribution * np.exp(-k_bins * t) for t in ts])
 
     color_order = [colors[x] for x in ['dark_grey', 'dark_blue', 'blue']]
-    labels = r'input,$\tau=1$ y,$\tau=10$ y'.split(',')
+    labels = r'input,$\tau=1$ yr,$\tau=10$ yr'.split(',')
     for i, t in enumerate(ts):
         print(f"i={i}: Plotting residual a distribution at t={t} yr...")
         ax.plot(ln_k_bins, distribution_over_time[i],
                 label=labels[i], lw=1, color=color_order[i])
 
-    ax.set_xlabel(r'$\ln k$')
-    ax.set_ylabel(r'density, $p(\ln k)$')
+    ax.set_xlabel(r'$\ln ( k \cdot 1 \text{ yr})$')
+    ax.set_ylabel(r'carbon density (g C)')
     ax.set_title(r'an aging continuum')
     ax.legend(loc='upper right', fontsize=5, frameon=False, handlelength=0.8, handletextpad=0.3)
+    # write mu and sigma on the plot
+    ax.text(0.85, 0.07, f'$\mu={mu}$,\n$\sigma={sigma}$', transform=ax.transAxes,
+            fontsize=5, va='bottom', ha='center')
 
-    # Survival function for different mu / sigma
-    ax = axs['B']
+    # Panel C -- survival function for different mu / sigma
+    ax = axs['C']
     ages2plot = np.arange(0, 100, 0.1) # finer age steps
     models = [
-        LognormalDisKin(mu=0, sigma=2.5, ppf_lim=1e-7),
-        LognormalDisKin(mu=1, sigma=2, ppf_lim=1e-7),
+        LognormalDisKin(mu=0, sigma=2.5, ppf_lim=1e-8),
+        LognormalDisKin(mu=1, sigma=2, ppf_lim=1e-8),
         model, # mu=1, sigma=2.5
     ]
     model_color_order = [colors[x] for x in ['purple', 'dark_brown', 'dark_grey']]
@@ -106,20 +119,22 @@ if __name__ == "__main__":
     ax.set_xlim(-1, 20)
     ax.set_ylim(0, 1.1)
     ax.set_ylabel(r'fraction remaining, $s(\tau)$')
+    ax.set_yticks([0, 0.5, 1.0], ['0', '0.5', '1.0'])
     ax.set_xlabel(r'age $\tau$ (yr)')
     ax.set_title(r'survival function, s($\tau$)')
     ax.legend(loc='upper right', fontsize=5, frameon=False, handlelength=0.8, handletextpad=0.3)
 
-    # Panel C -- CDF of age distribution at steady state for the models above
-    ax = axs['C']
+    # Panel D -- CDF of age distribution at steady state for the models above
+    ax = axs['D']
     for i, my_model in enumerate(models):
         plot_ss_age_distribution(ax, my_model, max_t=1e5, color=model_color_order[i])
     ax.set_title(r'steady-state SOC age dist.')
     ax.set_ylabel('cumulative fraction')
+    ax.set_yticks([0, 0.5, 1.0], ['0', '0.5', '1.0'])
     ax.set_xlabel(r'age $\tau$ (yr)')
 
-    # Label the subplots A,B,C
-    for i, label in enumerate('ABC'):
+    # Label the subplots A-D
+    for label in 'ABCD':
         axs[label].text(
             -0.3, 1.1, label, transform=axs[label].transAxes,
             fontsize=7, va='top', ha='left')
