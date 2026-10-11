@@ -9,6 +9,9 @@
    id="svg1"
    inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
    sodipodi:docname="figS1.svg"
+   inkscape:export-filename="figS1.png"
+   inkscape:export-xdpi="300"
+   inkscape:export-ydpi="300"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
@@ -25,13 +28,14 @@
      inkscape:document-units="mm"
      inkscape:zoom="1.0998546"
      inkscape:cx="296.40282"
-     inkscape:cy="-15.001983"
+     inkscape:cy="-173.20471"
      inkscape:window-width="1920"
      inkscape:window-height="1022"
      inkscape:window-x="0"
      inkscape:window-y="30"
      inkscape:window-maximized="0"
-     inkscape:current-layer="layer1" />
+     inkscape:current-layer="layer1"
+     inkscape:export-bgcolor="#ffffffff" />
   <defs
      id="defs1">
     <clipPath
