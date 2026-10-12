@@ -1,11 +1,9 @@
-import itertools as it
 import numpy as np
 import matplotlib.pyplot as plt
 
-from soil_diskin.continuum_models import LognormalDisKin, PowerLawDisKin
+from soil_diskin.continuum_models import LognormalDisKin
 from soil_diskin.lognormal import run_diskin_fast
-from tqdm import tqdm
-from scipy.stats import lognorm, norm
+from scipy.stats import norm
 
 import viz
 
@@ -17,10 +15,6 @@ Intended to be run from the project root directory.
 
 # use the style file
 plt.style.use('notebooks/style.mpl')
-
-
-np.random.seed(1234)
-colors = viz.color_palette()
 
 
 def plot_ss_age_distribution(ax, my_model, max_t, color):
@@ -36,12 +30,13 @@ def plot_ss_age_distribution(ax, my_model, max_t, color):
     # steady-state carbon younger than t, so C(t) / C_ss is the age CDF.
     # C_ss = input * T for unit input.
     ages, C = run_diskin_fast(my_model.T, my_model.A, tmax=max_t)
-    ax.semilogx(ages, C / my_model.T, color=color, lw=1.5, label='analytic')
+    ax.semilogx(ages, C / my_model.T, color=color, lw=1.5)
 
 # %%
 # Plot figure 1
 if __name__ == "__main__":
     print("Plotting figure 1...")
+    colors = viz.color_palette()
     mosaic = 'ABCD'
     fig, axs = plt.subplot_mosaic(mosaic, layout='constrained',
                                   figsize=(7.24, 1.7), dpi=300)
