@@ -151,6 +151,27 @@ rule turnover_14C:
     script:
         "notebooks/02_get_turnover_14C.py"
 
+# Step 01c: Reported Balesdent layers; missing stocks backfilled from SoilGrids
+rule preprocess_balesdent_layers:
+    input:
+        "data/balesdent_2018/balesdent_2018_raw.xlsx"
+    output:
+        csv="results/processed_balesdent_2018_sampled_soilgrids.csv",
+        meta="results/processed_balesdent_2018_sampled_soilgrids.json",
+    shell:
+        "python notebooks/01_preprocess_balesdent_data.py -i {input} -o {output.csv} --depth-resolved --backfill"
+
+# Step 02b: Layer radiocarbon and turnover; NPP inputs 50% to 0-10 cm, 50% Jackson global
+rule turnover_14C_layered:
+    input:
+        layers="results/processed_balesdent_2018_sampled_soilgrids.csv",
+        shi="data/shi_2020/global_delta_14C.nc",
+    output:
+        csv="results/all_sites_14C_turnover_depth_resolved.csv",
+        meta="results/all_sites_14C_turnover_depth_resolved.json",
+    shell:
+        "python notebooks/02_get_turnover_14C.py --depth-resolved -i {input.layers} -o {output.csv} --shi {input.shi}"
+
 # Step 03a: Calibrate power law models
 rule calibrate_powerlaw:
     input:
@@ -190,7 +211,7 @@ rule run_lognormal_calibration_python:
 
 rule run_layered_lognormal_calibration_python:
     input:
-        sites="results/layered_jackson_global_surface50/all_sites_14C_turnover.csv",
+        sites="results/all_sites_14C_turnover_depth_resolved.csv",
         atm="data/14C_atm_annot.csv",
         code=["notebooks/03b_lognormal_calibration.py", "soil_diskin/continuum_models.py",
               "soil_diskin/lognormal.py", "soil_diskin/radiocarbon_utils.py"],
@@ -591,7 +612,7 @@ rule clean_results:
 rule clean_light:
     shell:
         """
-        find results -type f -name '*.csv' ! -name 'CLM45*.csv' ! -name 'JSBACH*.csv' ! -name 'processed_balesdent_2018.csv' ! -name 'all_sites_14C_turnover.csv' -delete || true
+        find results -type f -name '*.csv' ! -name 'CLM45*.csv' ! -name 'JSBACH*.csv' ! -name 'processed_balesdent_2018.csv' ! -name 'all_sites_14C_turnover.csv' ! -name 'processed_balesdent_2018_sampled_soilgrids.csv' ! -name 'all_sites_14C_turnover_depth_resolved.csv' -delete || true
         find results -type f -name '*.npz' ! -name 'CLM45*.npz' ! -name 'JSBACH*.npz' -delete || true
         rm -rf figures/*
         """
