@@ -469,8 +469,6 @@ rule plot_fig4:
         "soil_diskin/utils.py",
     output:
         "figures/fig4.png",
-        "figures/fig4.pdf",
-        "figures/fig4.svg",
         "figures/fig4.csv",
     shell:
         "python -m notebooks.fig4"
