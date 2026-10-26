@@ -39,7 +39,7 @@ def fit_site(site):
         'k_min': k_min,
         'log_width': log_width,
         'log_k_max': model.log_k_max,
-        'modeled_tau': model.T,
+        'modeled_turnover': model.T,
         'modeled_age': model.A,
         'modeled_14C': model.calc_radiocarbon_ratio_ss()[0],
         'params_valid': model.params_valid(),

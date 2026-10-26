@@ -44,8 +44,9 @@ def fit_observation(atm, fm_evaluator, turnover, fm):
         # Relative turnover error equals relative stock error at the observed input.
         return (np.array([model.T, fm_pred])-[turnover, fm])/np.array([turnover, fm])
 
-    best = dict.fromkeys(['mu', 'sigma', 'pred', 'model_turnover_years', 'fm_pred',
-                         'turnover_relative_residual', 'fm_residual'], np.nan)
+    best = dict.fromkeys(
+        ['mu', 'sigma', 'pred', 'model_turnover_years', 'fm_pred',
+         'turnover_relative_residual', 'fm_residual'], np.nan)
     best.update(objective=np.inf, calibration_status='fit_failed')
     best_key = (1, np.inf)
     for sigma0 in [2.5, 1., 4.]:

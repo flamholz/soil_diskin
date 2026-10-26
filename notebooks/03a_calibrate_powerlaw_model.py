@@ -58,8 +58,11 @@ def parse_results(result,index):
     df.drop(columns ='params',inplace=True)
 
     model_x = lambda x: PowerLawDisKin(x['t_min'], x['t_max'])
-    df['modeled_tau'] = df.apply(lambda x: model_x(x).T, axis=1)
-    df['modeled_14C'] = df.apply(lambda x: quad(model_x(x).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
+    model_14C = lambda x: quad(model_x(x).radiocarbon_age_integrand,
+                               0, np.inf, limit=1500, epsabs=1e-3)[0]
+    df['modeled_turnover'] = df.apply(lambda x: model_x(x).T, axis=1)
+    df['modeled_14C'] = df.apply(lambda x: model_14C(x), axis=1)
+    df['modeled_A'] = df.apply(lambda x: model_x(x).A, axis=1)
     df['params_valid'] = df.apply(lambda x: model_x(x).params_valid(), axis=1)
 
     return df

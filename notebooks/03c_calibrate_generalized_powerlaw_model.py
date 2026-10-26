@@ -198,6 +198,7 @@ def fit_single_site(site_data, alpha, warm_start=None):
         'alpha': alpha,
         'modeled_T': model.T,
         'modeled_14C': predicted_14c_ratio,
+        'modeled_A': model.A,
         'params_valid': model.params_valid(),
     }
 

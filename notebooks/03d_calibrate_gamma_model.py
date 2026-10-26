@@ -61,7 +61,7 @@ def parse_results(result,index):
     # Unpack the parameters into separate columns
     df[['a','b']] = df['params'].apply(lambda x: pd.Series(x,index = ['a','b']))
     df.drop(columns ='params',inplace=True)
-    df['modeled_tau'] = df.apply(lambda x: GammaDisKin(x['a'], x['b']).T, axis=1)
+    df['modeled_turnover'] = df.apply(lambda x: GammaDisKin(x['a'], x['b']).T, axis=1)
     df['modeled_14C'] = df.apply(lambda x: quad(GammaDisKin(x['a'], x['b']).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
     df['params_valid'] = df.apply(lambda x: GammaDisKin(x['a'], x['b']).params_valid(), axis=1)
     return df
