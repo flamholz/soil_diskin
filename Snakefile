@@ -575,8 +575,10 @@ rule plot_figS8:
     input:
         'results/processed_balesdent_2018.csv',
         'results/04_model_predictions/loguniform_model_predictions.csv',
+        'results/03_calibrate_models/loguniform_model_optimization_results.csv',
     output:
-        "figures/figS8.png"
+        "figures/figS8.png",
+        "figures/figS8_parameters.png",
     script:
         "notebooks/figS8.py"
 
