@@ -189,7 +189,7 @@ rule calibrate_generalized_powerlaw:
         "results/all_sites_14C_turnover.csv",
     output:
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
-        "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv"
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv"
     script:
         "notebooks/03c_calibrate_generalized_powerlaw_model.py"
 
@@ -289,7 +289,7 @@ rule continuum_model_predictions:
         "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
         "results/03_calibrate_models/depth_resolved/03b_lognormal_predictions_calcurve_python.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
-        "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv",
         "results/03_calibrate_models/weibull_model_optimization_results.csv"
     output:
         "results/04_model_predictions/weibull_model_predictions.csv",
@@ -297,7 +297,7 @@ rule continuum_model_predictions:
         "results/04_model_predictions/lognormal_model_predictions.csv",
         "results/04_model_predictions/depth_resolved/lognormal_model_predictions.csv",
         "results/04_model_predictions/general_power_law_model_predictions.csv",
-        "results/04_model_predictions/general_power_law_model_predictions_beta_half.csv",
+        "results/04_model_predictions/general_power_law_model_predictions_alpha_half.csv",
     script:
         "notebooks/04_collect_continuum_model_predictions.py"
 
@@ -431,7 +431,7 @@ rule fig4_calcs:
         "results/04_model_predictions/power_law_model_predictions.csv",
         "results/04_model_predictions/lognormal_model_predictions.csv",
         "results/04_model_predictions/general_power_law_model_predictions.csv",
-        "results/04_model_predictions/general_power_law_model_predictions_beta_half.csv",
+        "results/04_model_predictions/general_power_law_model_predictions_alpha_half.csv",
         'results/04_model_predictions/CLM45_fnew.csv',
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
@@ -448,7 +448,7 @@ rule plot_figS3:
         "results/04_model_predictions/power_law_model_predictions.csv",
         "results/04_model_predictions/lognormal_model_predictions.csv",
         "results/04_model_predictions/general_power_law_model_predictions.csv",
-        "results/04_model_predictions/general_power_law_model_predictions_beta_half.csv",
+        "results/04_model_predictions/general_power_law_model_predictions_alpha_half.csv",
         'results/04_model_predictions/CLM45_fnew.csv',
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
@@ -480,7 +480,7 @@ rule figS2_calcs:
         "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
-        "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv",
     output:
         "results/figS2_calcs.csv",
         "results/figS2_calcs_lognormal_correlations.csv",
@@ -494,7 +494,7 @@ rule plot_figS2:
     input:
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
-        "results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv",
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv",
         "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
         "results/figS2_calcs.csv",
         "results/figS2_calcs_lognormal_correlations.csv",

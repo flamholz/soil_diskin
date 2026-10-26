@@ -27,8 +27,8 @@ pal = viz.color_palette()
 
 #%% Load the predictions
 powerlaw_predictions = pd.read_csv(f'results/04_model_predictions/power_law_model_predictions.csv')
-gen_powerlaw_preds_beta = pd.read_csv(f'results/04_model_predictions/general_power_law_model_predictions.csv')
-gen_powerlaw_preds_beta_half = pd.read_csv(f'results/04_model_predictions/general_power_law_model_predictions_beta_half.csv')
+gen_powerlaw_preds_alpha = pd.read_csv(f'results/04_model_predictions/general_power_law_model_predictions.csv')
+gen_powerlaw_preds_alpha_half = pd.read_csv(f'results/04_model_predictions/general_power_law_model_predictions_alpha_half.csv')
 lognormal_predictions = pd.read_csv(f'results/04_model_predictions/lognormal_model_predictions_julia.csv')
 gamma_predictions = pd.read_csv(f'results/04_model_predictions/gamma_model_predictions.csv')    
 CLM45_predictions = pd.read_csv(f'results/04_model_predictions/CLM45_fnew.csv', header=None, names=['prediction'])
@@ -124,12 +124,12 @@ powerlaw_err = powerlaw_predictions[['predicted_fnew_05','predicted_fnew_95']].s
 plot_model_predictions(axs[0], powerlaw_predictions['predicted_fnew'], 'power law model', pal['dark_blue'],powerlaw_err)
 
 plt.sca(axs[1])
-gen_powerlaw_err = gen_powerlaw_preds_beta[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_beta['predicted_fnew'], axis=0).abs().fillna(0).values.T
-plot_model_predictions(axs[1], gen_powerlaw_preds_beta['predicted_fnew'], 'generalized power law model', pal['blue'], gen_powerlaw_err)
+gen_powerlaw_err = gen_powerlaw_preds_alpha[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_alpha['predicted_fnew'], axis=0).abs().fillna(0).values.T
+plot_model_predictions(axs[1], gen_powerlaw_preds_alpha['predicted_fnew'], 'generalized power law model', pal['blue'], gen_powerlaw_err)
 
 plt.sca(axs[2])
-gen_powerlaw_err_half = gen_powerlaw_preds_beta_half[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_beta_half['predicted_fnew'], axis=0).abs().fillna(0).values.T
-plot_model_predictions(axs[2], gen_powerlaw_preds_beta_half['predicted_fnew'], 'generalized power law model (beta/2)', pal['light_blue'], gen_powerlaw_err_half)
+gen_powerlaw_err_half = gen_powerlaw_preds_alpha_half[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_alpha_half['predicted_fnew'], axis=0).abs().fillna(0).values.T
+plot_model_predictions(axs[2], gen_powerlaw_preds_alpha_half['predicted_fnew'], 'generalized power law model (alpha/2)', pal['light_blue'], gen_powerlaw_err_half)
 
 plt.savefig('figures/gen_powerlaw.png', dpi=300, bbox_inches='tight')
 
@@ -197,10 +197,10 @@ norm = LogNorm(vmin=all_sites['Duration_labeling'].min(), vmax=all_sites['Durati
 cnames = 'dark_blue,blue,light_blue,dark_grey'.split(',')
 continuum_model_colors = [pal[c] for c in cnames] + ['grey']
 continuum_models = [lognormal_predictions, gamma_predictions, powerlaw_predictions,
-                    gen_powerlaw_preds_beta, gen_powerlaw_preds_beta_half]
+                    gen_powerlaw_preds_alpha, gen_powerlaw_preds_alpha_half]
 continuum_model_titles = ['lognormal model', 'gamma model', 'power law model',
-                          'gen. power law ($\\beta = e^{-\\gamma}$)',
-                          'gen. power law ($\\beta = e^{-\\gamma}/2$)']
+                          'gen. power law ($\\alpha = e^{-\\gamma}$)',
+                          'gen. power law ($\\alpha = e^{-\\gamma}/2$)']
 my_axs = [axs[c] for c in 'ABCDE']
 for ax, predictions, title, color in zip(my_axs, continuum_models,
                                          continuum_model_titles, continuum_model_colors):
@@ -240,8 +240,8 @@ order = ['Lognormal', 'Gamma', 'Power-law',
          'Gen. Power-law (b=exp(-gamma)/2)',
          'CLM4.5', 'JSBACH', 'CESM1', 'IPSL-CM5A-LR', 'MRI-ESM1']
 xlabels = ['lognormal', 'gamma', 'power law',
-           'gen. power law\n($\\beta = e^{-\\gamma}$)',
-           'gen. power law\n($\\beta = e^{-\\gamma}/2$)',
+           'gen. power law\n($\\alpha = e^{-\\gamma}$)',
+           'gen. power law\n($\\alpha = e^{-\\gamma}/2$)',
            'CLM4.5',  'JSBACH', 'CESM1 (RC)', 'IPSL-CM5A-LR (RC)', 'MRI-ESM1 (RC)']
 axs['K'].set_xticklabels(xlabels, rotation=45, ha='right', fontsize=6)
 sns.violinplot(

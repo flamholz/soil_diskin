@@ -58,7 +58,7 @@ MODELS = [
      'results/03_calibrate_models/general_powerlaw_model_optimization_results.csv',
      ['t_min', 't_max']),
     ('powerlaw_alpha_exp_gamma_half',
-     'results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv',
+     'results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv',
      ['t_min', 't_max']),
 ]
 

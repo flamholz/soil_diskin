@@ -24,8 +24,8 @@ pal = viz.color_palette()
 
 #%% Load the predictions
 powerlaw_predictions = pd.read_csv('results/04_model_predictions/power_law_model_predictions.csv')
-gen_powerlaw_preds_beta = pd.read_csv('results/04_model_predictions/general_power_law_model_predictions.csv')
-gen_powerlaw_preds_beta_half = pd.read_csv('results/04_model_predictions/general_power_law_model_predictions_beta_half.csv')
+gen_powerlaw_preds_alpha = pd.read_csv('results/04_model_predictions/general_power_law_model_predictions.csv')
+gen_powerlaw_preds_alpha_half = pd.read_csv('results/04_model_predictions/general_power_law_model_predictions_alpha_half.csv')
 lognormal_predictions = pd.read_csv('results/04_model_predictions/lognormal_model_predictions.csv')
 weibull_predictions = pd.read_csv('results/04_model_predictions/weibull_model_predictions.csv')
 CLM45_predictions = pd.read_csv('results/04_model_predictions/CLM45_fnew.csv', header=None, names=['prediction'])
@@ -34,7 +34,7 @@ RCM_predictions = pd.read_csv('results/04_model_predictions/RCM.csv')
 
 # Model groupings reused across figures
 continuum_model_colors = [pal['dark_blue'], pal['blue'], pal['light_blue']]
-continuum_models = [lognormal_predictions, powerlaw_predictions, gen_powerlaw_preds_beta]
+continuum_models = [lognormal_predictions, powerlaw_predictions, gen_powerlaw_preds_alpha]
 continuum_model_titles = ['lognormal model', 'power law model ($\\alpha = 1$)', 'power law model ($\\alpha = e^{-\\gamma}$)']
 
 ESM_model_colors = [pal['dark_purple'], pal['purple']]
@@ -130,11 +130,11 @@ fig, axs = plt.subplots(1, 3, figsize=(7.24, 2), dpi=300, constrained_layout=Tru
 powerlaw_err = powerlaw_predictions[['predicted_fnew_05','predicted_fnew_95']].sub(powerlaw_predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T
 plot_model_predictions(axs[0], powerlaw_predictions['predicted_fnew'], 'power law model', pal['dark_blue'], powerlaw_err)
 
-gen_powerlaw_err = gen_powerlaw_preds_beta[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_beta['predicted_fnew'], axis=0).abs().fillna(0).values.T
-plot_model_predictions(axs[1], gen_powerlaw_preds_beta['predicted_fnew'], 'generalized power law model', pal['blue'], gen_powerlaw_err)
+gen_powerlaw_err = gen_powerlaw_preds_alpha[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_alpha['predicted_fnew'], axis=0).abs().fillna(0).values.T
+plot_model_predictions(axs[1], gen_powerlaw_preds_alpha['predicted_fnew'], 'generalized power law model', pal['blue'], gen_powerlaw_err)
 
-gen_powerlaw_err_half = gen_powerlaw_preds_beta_half[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_beta_half['predicted_fnew'], axis=0).abs().fillna(0).values.T
-plot_model_predictions(axs[2], gen_powerlaw_preds_beta_half['predicted_fnew'], 'generalized power law model (beta/2)', pal['light_blue'], gen_powerlaw_err_half)
+gen_powerlaw_err_half = gen_powerlaw_preds_alpha_half[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_alpha_half['predicted_fnew'], axis=0).abs().fillna(0).values.T
+plot_model_predictions(axs[2], gen_powerlaw_preds_alpha_half['predicted_fnew'], 'generalized power law model ($\\alpha/2$)', pal['light_blue'], gen_powerlaw_err_half)
 
 plt.savefig('figures/gen_powerlaw.png', dpi=300, bbox_inches='tight')
 
@@ -152,7 +152,7 @@ norm = LogNorm(vmin=all_sites['Duration_labeling'].min(), vmax=all_sites['Durati
 cnames = 'dark_blue,blue,light_blue,dark_grey'.split(',')
 continuum_model_colors = [pal[c] for c in cnames] + ['grey']
 continuum_models = [lognormal_predictions, weibull_predictions, powerlaw_predictions,
-                    gen_powerlaw_preds_beta, gen_powerlaw_preds_beta_half]
+                    gen_powerlaw_preds_alpha, gen_powerlaw_preds_alpha_half]
 continuum_model_titles = ['lognormal model', 'hockey-stick model', 'power law model ($\\alpha = 1$)',
                           'power law ($\\alpha = e^{-\\gamma}$)',
                           'power law ($\\alpha = e^{-\\gamma}/2$)']

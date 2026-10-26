@@ -13,15 +13,15 @@ from tqdm import tqdm
 Script should be run from the project root directory.
 
 Calibrates the generalized power law model while holding t_min fixed.
-For each fixed t_min, the script fits sitewise t_max and beta values.
+For each fixed t_min, the script fits sitewise t_max and alpha values.
 """
 
 DATA_PATH = 'results/all_sites_14C_turnover.csv'
 OUTPUT_DIR = 'results/03_calibrate_models/'
 T_MIN_VALUES = np.logspace(-1, 1, 10)
 DEFAULT_INITIAL_GUESS = np.array([4.0, 0.8], dtype=float)
-MIN_BETA = 1e-8
-MAX_BETA = np.inf
+MIN_ALPHA = 1e-8
+MAX_ALPHA = np.inf
 MAX_LOG10_T_MAX = 8.0
 QUAD_LIMIT = 2000
 QUAD_EPSABS = 1e-6
@@ -49,10 +49,10 @@ def approximate_radiocarbon_ratio(model):
     return float(np.trapezoid(integrand_values, FAST_INTEGRATION_AGES))
 
 
-def get_model_predictions(t_min, t_max, beta, use_fast_14c=False):
+def get_model_predictions(t_min, t_max, alpha, use_fast_14c=False):
     """Return the model predictions for turnover and steady-state radiocarbon."""
     with np.errstate(over='ignore', invalid='ignore', divide='ignore', under='ignore'):
-        model = GeneralPowerLawDisKin(t_min=t_min, t_max=t_max, beta=beta)
+        model = GeneralPowerLawDisKin(t_min=t_min, t_max=t_max, alpha=alpha)
         if use_fast_14c:
             predicted_14c_ratio = approximate_radiocarbon_ratio(model)
         else:
@@ -67,13 +67,13 @@ def get_model_predictions(t_min, t_max, beta, use_fast_14c=False):
 
 def residuals_function(params, t_min, site_data):
     """Return normalized residuals for turnover and radiocarbon at one site."""
-    log10_t_max, beta = params
+    log10_t_max, alpha = params
     t_max = 10 ** log10_t_max
     try:
         model, predicted_14c_ratio = get_model_predictions(
             t_min=t_min,
             t_max=t_max,
-            beta=beta,
+            alpha=alpha,
             use_fast_14c=True,
         )
     except (ArithmeticError, OverflowError, ValueError, ZeroDivisionError):
@@ -105,8 +105,8 @@ def build_initial_guess(t_min, previous_result_df, site_index):
 
     previous_row = previous_result_df.loc[site_index]
     t_max = max(float(previous_row['t_max']), t_min + 1e-8)
-    beta = float(np.clip(previous_row['beta'], MIN_BETA, MAX_BETA))
-    return np.array([np.log10(t_max), beta], dtype=float)
+    alpha = float(np.clip(previous_row['alpha'], MIN_ALPHA, MAX_ALPHA))
+    return np.array([np.log10(t_max), alpha], dtype=float)
 
 
 def results_to_dataframe(results, t_min, merged_site_data):
@@ -127,10 +127,10 @@ def results_to_dataframe(results, t_min, merged_site_data):
 
 
 def fit_single_t_min(merged_site_data, t_min, previous_result_df=None):
-    """Fit t_max and beta for every site at one fixed t_min."""
+    """Fit t_max and alpha for every site at one fixed t_min."""
     results = []
-    lower_bounds = np.array([np.log10(t_min + 1e-8), MIN_BETA], dtype=float)
-    upper_bounds = np.array([MAX_LOG10_T_MAX, MAX_BETA], dtype=float)
+    lower_bounds = np.array([np.log10(t_min + 1e-8), MIN_ALPHA], dtype=float)
+    upper_bounds = np.array([MAX_LOG10_T_MAX, MAX_ALPHA], dtype=float)
 
     print(f'Running optimization for generalized power law with fixed t_min={t_min:.2f}...')
     for site_index, row in tqdm(
@@ -149,7 +149,7 @@ def fit_single_t_min(merged_site_data, t_min, previous_result_df=None):
         )
 
         t_max = 10 ** res.x[0]
-        beta = float(res.x[1])
+        alpha = float(res.x[1])
         objective_value = float(np.sum(res.fun ** 2))
         evaluation_mode = 'exact'
 
@@ -157,14 +157,14 @@ def fit_single_t_min(merged_site_data, t_min, previous_result_df=None):
             model, predicted_14c_ratio = get_model_predictions(
                 t_min=t_min,
                 t_max=t_max,
-                beta=beta,
+                alpha=alpha,
                 use_fast_14c=False,
             )
         except (ArithmeticError, OverflowError, ValueError, ZeroDivisionError):
             model, predicted_14c_ratio = get_model_predictions(
                 t_min=t_min,
                 t_max=t_max,
-                beta=beta,
+                alpha=alpha,
                 use_fast_14c=True,
             )
             evaluation_mode = 'fast_approximation'
@@ -188,7 +188,7 @@ def fit_single_t_min(merged_site_data, t_min, previous_result_df=None):
         results.append(
             {
                 't_max': t_max,
-                'beta': beta,
+                'alpha': alpha,
                 'objective_value': objective_value,
                 'fit_success': res.success,
                 'fit_status': res.status,

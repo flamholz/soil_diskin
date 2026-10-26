@@ -1,3 +1,6 @@
+# DEPRECATED: this script is currently unused (no Snakemake rule runs it) and is
+# slated for deletion along with GammaDisKin in soil_diskin/continuum_models.py.
+
 import pandas as pd
 import numpy as np
 from os import path

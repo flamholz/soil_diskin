@@ -197,7 +197,11 @@ class AbstractDiskinModel:
 
 
 class GammaDisKin(AbstractDiskinModel):
-    """A model where the rate distribution is gamma."""
+    """A model where the rate distribution is gamma.
+
+    DEPRECATED: not used by the Snakemake pipeline; slated for deletion along
+    with notebooks/03d_calibrate_gamma_model.py.
+    """
     def __init__(self, a, b, interp_r_14c=None, I=None):
         """
         Args:
@@ -237,20 +241,20 @@ class GammaDisKin(AbstractDiskinModel):
         return cdf
 
 class GeneralPowerLawDisKin(AbstractDiskinModel):
-    """A model where rates of decay are proportional to 1/t between two bounding timescales.
+    """A model where rates of decay are proportional to alpha/t between two bounding timescales.
 
-    We call these bounding timescales tau_0 and tau_inf as in the notes. 
+    The decay rate at age t is alpha/(t_min + t) + 1/t_max, i.e. ~alpha/t for t_min << t << t_max.
     """
-    def __init__(self, t_min, t_max, beta = np.exp(-GAMMA), interp_r_14c=None, I=None):
+    def __init__(self, t_min, t_max, alpha = np.exp(-GAMMA), interp_r_14c=None, I=None):
         """
         Args:
         t_min: float
             The short time scale
         t_max: float
             The long time scale
-        beta: float
+        alpha: float
             The exponent of the power law decay with age. Must be positive.
-            TODO: beta is called alpha in the paper. rename for consistency.
+            Unrelated to the Weibull shape parameter of WeibullDisKin.alpha.
         interp_r_14c: callable
             An interpolator for the estimated historical radiocarbon concentration.
             Takes a single argument, the number of years before a reference time (e.g. 2000).
@@ -260,22 +264,22 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         """
         super().__init__(interp_r_14c=interp_r_14c)
 
-        if beta <= 0:
-            raise ValueError("Beta parameter must be positive.")
+        if alpha <= 0:
+            raise ValueError("Alpha parameter must be positive.")
 
         self.t_min = t_min  # short time scale
         self.t_max = t_max  # long time scale
         self.I = I
-        self.beta = beta
+        self.alpha = alpha
 
         tratio = t_min / t_max
         self.tratio = tratio
 
         # steady-state transit time
-        self.T = t_min * np.exp(tratio) * expint(self.beta, tratio)
+        self.T = t_min * np.exp(tratio) * expint(self.alpha, tratio)
 
         # mean age at steady-state
-        self.A = t_min * (expint(self.beta - 1, tratio) / expint(self.beta, tratio) - 1)
+        self.A = t_min * (expint(self.alpha - 1, tratio) / expint(self.alpha, tratio) - 1)
 
     def params_valid(self):
         """Returns True if the parameters are valid, False otherwise.
@@ -285,8 +289,8 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         t_min_valid = self.t_min > 0
         t_max_valid = self.t_max > 0
         t_hierarchy_valid = self.t_max > self.t_min
-        beta_valid = self.beta > 0
-        return t_min_valid and t_max_valid and t_hierarchy_valid and beta_valid
+        alpha_valid = self.alpha > 0
+        return t_min_valid and t_max_valid and t_hierarchy_valid and alpha_valid
 
     def s(self, t):
         """The survival function at age t.
@@ -294,7 +298,7 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         The survival function gives the fraction of input remaining at age t.
 
         The expression for s(t) is
-            s(t) = exp(- t / t_max) * ( t_min / (t_min + t) )^β
+            s(t) = exp(- t / t_max) * ( t_min / (t_min + t) )^α
 
         Args:
             t: float
@@ -304,7 +308,7 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
             float
                 The fraction of input remaining at age t.
         """
-        return np.exp(-t / self.t_max) * (self.t_min / (self.t_min + t)) ** self.beta
+        return np.exp(-t / self.t_max) * (self.t_min / (self.t_min + t)) ** self.alpha
     
     def impulse(self, t, X):
         """Calculate the change in state of the system at time t.
@@ -327,7 +331,7 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
     
     def cdfA(self, a):
         """Calculate the cumulative distribution function of the age distribution."""
-        return 1 - (self.t_min / (self.t_min + a)) ** (self.beta - 1) * expint(self.beta, (self.t_min + a) / self.t_max) / expint(self.beta, self.tratio)
+        return 1 - (self.t_min / (self.t_min + a)) ** (self.alpha - 1) * expint(self.alpha, (self.t_min + a) / self.t_max) / expint(self.alpha, self.tratio)
 
 
 class PowerLawDisKin(AbstractDiskinModel):

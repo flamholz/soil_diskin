@@ -52,16 +52,16 @@ DEFAULT_INITIAL_GUESSES = (
     (1.0, 3.0),
 )
 
-BETA_RUNS = (
+ALPHA_RUNS = (
     {
-        'beta': float(np.exp(-GAMMA)),
+        'alpha': float(np.exp(-GAMMA)),
         'label': 'np.exp(-GAMMA)',
         'output_name': 'general_powerlaw_model_optimization_results.csv',
     },
     {
-        'beta': float(np.exp(-GAMMA) / 2),
+        'alpha': float(np.exp(-GAMMA) / 2),
         'label': 'np.exp(-GAMMA) / 2',
-        'output_name': 'general_powerlaw_model_optimization_results_beta_half.csv',
+        'output_name': 'general_powerlaw_model_optimization_results_alpha_half.csv',
     },
 )
 
@@ -88,9 +88,9 @@ def approximate_radiocarbon_ratio(model):
     return float(np.trapezoid(integrand_values, FAST_INTEGRATION_AGES))
 
 
-def get_model_predictions(t_min, t_max, beta, use_fast_14c=False):
+def get_model_predictions(t_min, t_max, alpha, use_fast_14c=False):
     """Return the model, predicted turnover, and steady-state radiocarbon."""
-    model = GeneralPowerLawDisKin(t_min=t_min, t_max=t_max, beta=beta)
+    model = GeneralPowerLawDisKin(t_min=t_min, t_max=t_max, alpha=alpha)
     if use_fast_14c:
         predicted_14c_ratio = approximate_radiocarbon_ratio(model)
     else:
@@ -103,14 +103,14 @@ def get_model_predictions(t_min, t_max, beta, use_fast_14c=False):
     return model, predicted_14c_ratio
 
 
-def residuals_function(params, beta, site_data):
+def residuals_function(params, alpha, site_data):
     """Return normalized residuals for turnover and radiocarbon at one site."""
     try:
         t_min, t_max = unpack_optimization_params(params)
         model, predicted_14c_ratio = get_model_predictions(
             t_min=t_min,
             t_max=t_max,
-            beta=beta,
+            alpha=alpha,
             use_fast_14c=True,
         )
     except (ArithmeticError, OverflowError, ValueError, ZeroDivisionError):
@@ -149,7 +149,7 @@ def build_initial_guesses(warm_start=None):
     return unique_guesses
 
 
-def fit_single_site(site_data, beta, warm_start=None):
+def fit_single_site(site_data, alpha, warm_start=None):
     """Fit one site using multiple starting points and keep the best result."""
     best_result = None
     best_objective = np.inf
@@ -159,7 +159,7 @@ def fit_single_site(site_data, beta, warm_start=None):
         fit_result = least_squares(
             residuals_function,
             x0=start,
-            args=(beta, site_data),
+            args=(alpha, site_data),
             bounds=(LOWER_BOUNDS, UPPER_BOUNDS),
             xtol=1e-12,
             ftol=1e-12,
@@ -176,7 +176,7 @@ def fit_single_site(site_data, beta, warm_start=None):
     model, predicted_14c_ratio = get_model_predictions(
         t_min=t_min,
         t_max=t_max,
-        beta=beta,
+        alpha=alpha,
         use_fast_14c=False,
     )
     turnover_scale = max(abs(site_data['turnover']), 1e-6)
@@ -195,14 +195,14 @@ def fit_single_site(site_data, beta, warm_start=None):
         'initial_log10_t_gap': float(best_start[1]),
         't_min': t_min,
         't_max': t_max,
-        'beta': beta,
+        'alpha': alpha,
         'modeled_T': model.T,
         'modeled_14C': predicted_14c_ratio,
         'params_valid': model.params_valid(),
     }
 
 
-def fit_sites(site_data, beta, description, initialization_df=None):
+def fit_sites(site_data, alpha, description, initialization_df=None):
     """Run the per-site calibration for all rows in a DataFrame."""
     results = []
     for idx, row in tqdm(site_data.iterrows(), total=len(site_data), desc=description):
@@ -210,7 +210,7 @@ def fit_sites(site_data, beta, description, initialization_df=None):
         if initialization_df is not None and idx in initialization_df.index:
             init_row = initialization_df.loc[idx]
             warm_start = pack_optimization_params(init_row['t_min'], init_row['t_max'])
-        results.append(fit_single_site(row, beta=beta, warm_start=warm_start))
+        results.append(fit_single_site(row, alpha=alpha, warm_start=warm_start))
 
     return results_to_dataframe(results, site_data)
 
@@ -247,26 +247,26 @@ def build_uncertainty_frame(site_data, turnover_column):
     return uncertainty_df
 
 
-def run_single_beta_calibration(merged_site_data, beta_config, backfilled_sites):
-    """Run central, q05, and q95 fits for one fixed beta value."""
-    beta = beta_config['beta']
-    label = beta_config['label']
+def run_single_alpha_calibration(merged_site_data, alpha_config, backfilled_sites):
+    """Run central, q05, and q95 fits for one fixed alpha value."""
+    alpha = alpha_config['alpha']
+    label = alpha_config['label']
 
-    print(f'Running optimization for generalized power law with beta = {label}...')
+    print(f'Running optimization for generalized power law with alpha = {label}...')
     result_df = fit_sites(
         merged_site_data,
-        beta=beta,
-        description=f'beta={label}',
+        alpha=alpha,
+        description=f'alpha={label}',
     )
-    summarize_fit(result_df, f'Central fit summary for beta = {label}')
+    summarize_fit(result_df, f'Central fit summary for alpha = {label}')
 
     results_by_suffix = {}
     for suffix in ('05', '95'):
         uncertainty_df = build_uncertainty_frame(backfilled_sites, f'turnover_q{suffix}')
         results_by_suffix[suffix] = fit_sites(
             uncertainty_df,
-            beta=beta,
-            description=f'beta={label} q{suffix}',
+            alpha=alpha,
+            description=f'alpha={label} q{suffix}',
             initialization_df=result_df.loc[backfilled_sites.index],
         )
 
@@ -280,7 +280,7 @@ def run_single_beta_calibration(merged_site_data, beta_config, backfilled_sites)
             how='left',
         )
 
-    output_path = path.join(OUTPUT_DIR, beta_config['output_name'])
+    output_path = path.join(OUTPUT_DIR, alpha_config['output_name'])
     merged_result_df.to_csv(output_path, index=False)
     print(f'Saved results to {output_path}')
 
@@ -293,10 +293,10 @@ def main():
         merged_site_data['turnover_q05'].notna() & merged_site_data['turnover_q95'].notna()
     ]
 
-    for beta_config in BETA_RUNS:
-        run_single_beta_calibration(
+    for alpha_config in ALPHA_RUNS:
+        run_single_alpha_calibration(
             merged_site_data=merged_site_data,
-            beta_config=beta_config,
+            alpha_config=alpha_config,
             backfilled_sites=backfilled_sites,
         )
 

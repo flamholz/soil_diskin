@@ -65,25 +65,25 @@ def main():
     result = generate_predictions(PowerLawDisKin, power_law_params, ['t_min', 't_max'])
     result.to_csv('results/04_model_predictions/power_law_model_predictions.csv', index=False)
 
-    #%% Generalized Power-law model with beta = np.exp(-GAMMA)
+    #%% Generalized Power-law model with alpha = np.exp(-GAMMA)
 
     # load the power-law parameters
     fname = 'general_powerlaw_model_optimization_results.csv'
     general_power_law_params = pd.read_csv(f'results/03_calibrate_models/{fname}')
 
     print("Generating generalized power-law model predictions...")
-    result = generate_predictions(GeneralPowerLawDisKin, general_power_law_params, ['t_min', 't_max', 'beta'])
+    result = generate_predictions(GeneralPowerLawDisKin, general_power_law_params, ['t_min', 't_max', 'alpha'])
     result.to_csv('results/04_model_predictions/general_power_law_model_predictions.csv', index=False)
 
-    #%% Generalized Power-law model with beta = np.exp(-GAMMA) / 2
+    #%% Generalized Power-law model with alpha = np.exp(-GAMMA) / 2
 
     # load the power-law parameters
-    fname = 'general_powerlaw_model_optimization_results_beta_half.csv'
+    fname = 'general_powerlaw_model_optimization_results_alpha_half.csv'
     general_power_law_params = pd.read_csv(f'results/03_calibrate_models/{fname}')
 
     print("Generating generalized power-law model predictions...")
-    result = generate_predictions(GeneralPowerLawDisKin, general_power_law_params, ['t_min', 't_max', 'beta'])
-    result.to_csv('results/04_model_predictions/general_power_law_model_predictions_beta_half.csv', index=False)
+    result = generate_predictions(GeneralPowerLawDisKin, general_power_law_params, ['t_min', 't_max', 'alpha'])
+    result.to_csv('results/04_model_predictions/general_power_law_model_predictions_alpha_half.csv', index=False)
 
 
     #%% Weibull / hockey-stick model

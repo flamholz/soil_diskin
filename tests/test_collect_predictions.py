@@ -25,13 +25,13 @@ def test_collect_bulk_and_layer_predictions(tmp_path, monkeypatch, with_layers):
     sites.to_csv(tmp_path/'results/processed_balesdent_2018.csv', index=False)
     for name, params in [
         ('powerlaw', {'t_min': 1., 't_max': 100.}),
-        ('general_powerlaw', {'t_min': 1., 't_max': 100., 'beta': .5}),
+        ('general_powerlaw', {'t_min': 1., 't_max': 100., 'alpha': .5}),
         ('weibull', {'k': .5, 'alpha': 10.}),
     ]:
         table = pd.DataFrame(params, index=sites.index)
         table.to_csv(calibration/f'{name}_model_optimization_results.csv', index=False)
         if name == 'general_powerlaw':
-            table.to_csv(calibration/f'{name}_model_optimization_results_beta_half.csv', index=False)
+            table.to_csv(calibration/f'{name}_model_optimization_results_alpha_half.csv', index=False)
     params = pd.DataFrame({'turnover': [10., 2000., np.nan], 'pred': [9000., 9000., np.nan],
         'turnover_q05': [np.nan, 1600., np.nan], 'pred_05': [np.nan, 8000., np.nan],
         'turnover_q95': [np.nan, 2400., np.nan], 'pred_95': [np.nan, 10000., np.nan]})

@@ -273,58 +273,58 @@ class TestGeneralPowerLawDisKin(unittest.TestCase):
 
     T_MIN_VALS = [1.0, 10.0, 100.0]  # short time scale values
     T_MAX_VALS = [1000.0, 10000.0]  # long time scale values
-    BETA_VALS = [0.5, np.exp(-GAMMA), 0.9]  # beta parameter values
+    ALPHA_VALS = [0.5, np.exp(-GAMMA), 0.9]  # alpha parameter values
 
     def test_numerical_T_integral(self):
         """Test that the analytical and numerical transit times match."""
-        for t_min, t_max, beta in itertools.product(self.T_MIN_VALS, self.T_MAX_VALS, self.BETA_VALS):
-            model = GeneralPowerLawDisKin(t_min, t_max, beta)
+        for t_min, t_max, alpha in itertools.product(self.T_MIN_VALS, self.T_MAX_VALS, self.ALPHA_VALS):
+            model = GeneralPowerLawDisKin(t_min, t_max, alpha)
             T_int = model.calc_transit_time()
             T_calc = model.T
             print(f'Calculated transit time: {T_calc}')
             print(f'Integrated transit time: {T_int[0]}')
             
             self.assertAlmostEqual(T_calc, T_int[0], places=3,
-                                 msg=f"Transit time mismatch for t_min={t_min}, t_max={t_max}, beta={beta}")
+                                 msg=f"Transit time mismatch for t_min={t_min}, t_max={t_max}, alpha={alpha}")
 
     def test_numerical_age_integral(self):
         """Test that the analytical and numerical mean ages can be calculated."""
-        for t_min, t_max, beta in itertools.product(self.T_MIN_VALS, self.T_MAX_VALS, self.BETA_VALS):
-            model = GeneralPowerLawDisKin(t_min, t_max, beta)
+        for t_min, t_max, alpha in itertools.product(self.T_MIN_VALS, self.T_MAX_VALS, self.ALPHA_VALS):
+            model = GeneralPowerLawDisKin(t_min, t_max, alpha)
             A_int = model.calc_mean_age()
             print(f'Integrated mean age: {A_int[0]}')
             
             # Mean age should be positive
             self.assertGreater(
-                A_int[0], 0, msg=f"Mean age is not positive for t_min={t_min}, t_max={t_max}, beta={beta}")
+                A_int[0], 0, msg=f"Mean age is not positive for t_min={t_min}, t_max={t_max}, alpha={alpha}")
 
             self.assertAlmostEqual(
                 model.A, A_int[0], places=3,
-                msg=f"Mean age mismatch for t_min={t_min}, t_max={t_max}, beta={beta}")
+                msg=f"Mean age mismatch for t_min={t_min}, t_max={t_max}, alpha={alpha}")
     
     def test_pdf_properties(self):
         """Test that the age distribution PDF has valid properties."""
-        for t_min, t_max, beta in itertools.product(self.T_MIN_VALS, self.T_MAX_VALS, self.BETA_VALS):
-            model = GeneralPowerLawDisKin(t_min, t_max, beta)
+        for t_min, t_max, alpha in itertools.product(self.T_MIN_VALS, self.T_MAX_VALS, self.ALPHA_VALS):
+            model = GeneralPowerLawDisKin(t_min, t_max, alpha)
             
             # PDF should be non-negative
             test_ages = np.logspace(0, 3, 20)
             for age in test_ages:
                 pA = model.pA(age)
                 self.assertGreaterEqual(
-                    pA, 0, msg=f"PDF is negative at age={age} for t_min={t_min}, t_max={t_max}, beta={beta}")
+                    pA, 0, msg=f"PDF is negative at age={age} for t_min={t_min}, t_max={t_max}, alpha={alpha}")
             
             # s(t) should be decreasing
             s_vals = [model.s(t) for t in test_ages]
             for i in range(len(s_vals) - 1):
                 self.assertGreaterEqual(
                     s_vals[i], s_vals[i+1],
-                    msg=f"s(t) is not decreasing for t_min={t_min}, t_max={t_max}, beta={beta}")
+                    msg=f"s(t) is not decreasing for t_min={t_min}, t_max={t_max}, alpha={alpha}")
 
     def test_cdf_properties(self):
         """Test that the CDF has valid properties."""
-        for t_min, t_max, beta in itertools.product(self.T_MIN_VALS, self.T_MAX_VALS, self.BETA_VALS):
-            model = GeneralPowerLawDisKin(t_min, t_max, beta)
+        for t_min, t_max, alpha in itertools.product(self.T_MIN_VALS, self.T_MAX_VALS, self.ALPHA_VALS):
+            model = GeneralPowerLawDisKin(t_min, t_max, alpha)
             
             test_ages = np.logspace(0, 3, 20)
             cdf_vals = [model.cdfA(t) for t in test_ages]
@@ -332,14 +332,14 @@ class TestGeneralPowerLawDisKin(unittest.TestCase):
             # CDF should be non-decreasing
             for i in range(len(cdf_vals) - 1):
                 self.assertLessEqual(cdf_vals[i], cdf_vals[i+1],
-                                   msg=f"CDF is not increasing for t_min={t_min}, t_max={t_max}, beta={beta}")
+                                   msg=f"CDF is not increasing for t_min={t_min}, t_max={t_max}, alpha={alpha}")
             
             # CDF should be between 0 and 1
             for i, cdf in enumerate(cdf_vals):
                 self.assertGreaterEqual(cdf, 0,
-                                      msg=f"CDF < 0 at age={test_ages[i]} for t_min={t_min}, t_max={t_max}, beta={beta}")
+                                      msg=f"CDF < 0 at age={test_ages[i]} for t_min={t_min}, t_max={t_max}, alpha={alpha}")
                 self.assertLessEqual(cdf, 1.1,  # Allow small numerical error
-                                   msg=f"CDF > 1 at age={test_ages[i]} for t_min={t_min}, t_max={t_max}, beta={beta}")
+                                   msg=f"CDF > 1 at age={test_ages[i]} for t_min={t_min}, t_max={t_max}, alpha={alpha}")
 
     def test_params_valid(self):
         """Test params_valid method. 
@@ -347,34 +347,34 @@ class TestGeneralPowerLawDisKin(unittest.TestCase):
         For GeneralPowerLawDisKin, t_min and t_max must be positive, and t_min < t_max.
         """
         valid_params = [(10, 1000, 0.5), (1, 10000, np.exp(-GAMMA)), (50, 5000, 0.9)]
-        for t_min, t_max, beta in valid_params:
-            model = GeneralPowerLawDisKin(t_min, t_max, beta)
+        for t_min, t_max, alpha in valid_params:
+            model = GeneralPowerLawDisKin(t_min, t_max, alpha)
             self.assertTrue(model.params_valid(),
-                            msg=f"Valid parameters t_min={t_min}, t_max={t_max}, beta={beta} marked as invalid.")
+                            msg=f"Valid parameters t_min={t_min}, t_max={t_max}, alpha={alpha} marked as invalid.")
         
         invalid_params = [(-0.001, 1000, 0.5), (-10, 5000, 0.8), (10, -100, 0.3)]
-        for t_min, t_max, beta in invalid_params:
-            model = GeneralPowerLawDisKin(t_min, t_max, beta)
+        for t_min, t_max, alpha in invalid_params:
+            model = GeneralPowerLawDisKin(t_min, t_max, alpha)
             self.assertFalse(model.params_valid(),
-                             msg=f"Invalid parameters t_min={t_min}, t_max={t_max}, beta={beta} marked as valid.")
+                             msg=f"Invalid parameters t_min={t_min}, t_max={t_max}, alpha={alpha} marked as valid.")
         
-        # Beta is required to be positive (constructor enforces > 0).
-        # Beta > 1 is allowed under the new behavior; it should construct
+        # Alpha is required to be positive (constructor enforces > 0).
+        # Alpha > 1 is allowed under the new behavior; it should construct
         # and be considered valid by `params_valid`.
-        model = GeneralPowerLawDisKin(t_min=10, t_max=1000, beta=1.5)  # beta > 1 should construct
+        model = GeneralPowerLawDisKin(t_min=10, t_max=1000, alpha=1.5)  # alpha > 1 should construct
         self.assertTrue(model.params_valid(),
-                        msg=f"beta > 1 should be valid for params_valid() (beta=1.5)")
+                        msg=f"alpha > 1 should be valid for params_valid() (alpha=1.5)")
 
-        # Negative beta should still raise
+        # Negative alpha should still raise
         with self.assertRaises(ValueError):
-            GeneralPowerLawDisKin(t_min=10, t_max=1000, beta=-0.1)  # beta < 0
+            GeneralPowerLawDisKin(t_min=10, t_max=1000, alpha=-0.1)  # alpha < 0
 
     def test_radiocarbon_ratio(self):
         """Test that the radiocarbon ratio calculation runs without error."""
-        for t_min, t_max, beta in itertools.product(self.T_MIN_VALS, self.T_MAX_VALS, self.BETA_VALS):
-            model = GeneralPowerLawDisKin(t_min, t_max, beta)
+        for t_min, t_max, alpha in itertools.product(self.T_MIN_VALS, self.T_MAX_VALS, self.ALPHA_VALS):
+            model = GeneralPowerLawDisKin(t_min, t_max, alpha)
             rc_ratio = model.calc_radiocarbon_ratio_ss()
-            print(f'Radiocarbon ratio for t_min={t_min}, t_max={t_max}, beta={beta}: {rc_ratio}')
+            print(f'Radiocarbon ratio for t_min={t_min}, t_max={t_max}, alpha={alpha}: {rc_ratio}')
             
             # The result should be a tuple (value, error_estimate)
             self.assertIsInstance(rc_ratio, tuple,
@@ -385,9 +385,9 @@ class TestGeneralPowerLawDisKin(unittest.TestCase):
             # The radiocarbon ratio should be between 0 and 1 (approximately)
             ratio_value = rc_ratio[0]
             self.assertGreaterEqual(ratio_value, 0,
-                                  msg=f"Radiocarbon ratio < 0 for t_min={t_min}, t_max={t_max}, beta={beta}")
+                                  msg=f"Radiocarbon ratio < 0 for t_min={t_min}, t_max={t_max}, alpha={alpha}")
             self.assertLessEqual(ratio_value, 1.5,  # Allow some wiggle room
-                               msg=f"Radiocarbon ratio > 1.5 for t_min={t_min}, t_max={t_max}, beta={beta}")
+                               msg=f"Radiocarbon ratio > 1.5 for t_min={t_min}, t_max={t_max}, alpha={alpha}")
 
 
 class TestLognormalDisKin(unittest.TestCase):

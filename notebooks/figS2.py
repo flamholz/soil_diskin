@@ -36,7 +36,7 @@ WORLDCLIM_LABELS = {
 
 powerlaw_params = pd.read_csv('results/03_calibrate_models/powerlaw_model_optimization_results.csv')
 gen_powerlaw_params = pd.read_csv('results/03_calibrate_models/general_powerlaw_model_optimization_results.csv')
-gen_powerlaw_params_beta_half = pd.read_csv('results/03_calibrate_models/general_powerlaw_model_optimization_results_beta_half.csv')
+gen_powerlaw_params_alpha_half = pd.read_csv('results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv')
 lognormal_raw = pd.read_csv('results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv')
 
 # Derive mu and sigma from fitted mean age and turnover time
@@ -65,7 +65,7 @@ row1_panels = [
     ('A', 'lognormal model',                        lognormal_raw,                pal['dark_blue'],  'mu',    'sigma',  '$\\mu$',    '$\\sigma$',   False, False),
     ('B', 'power law ($\\alpha=1$)',                 powerlaw_params,              pal['blue'],       't_min', 't_max',  '$\\tau_\\text{min}$', '$\\tau_\\text{max}$',   True,  True),
     ('C', 'power law ($\\alpha=e^{-\\gamma}$)',      gen_powerlaw_params,          pal['light_blue'], 't_min', 't_max',  '$\\tau_\\text{min}$', '$\\tau_\\text{max}$',   True,  True),
-    ('D', 'power law ($\\alpha=e^{-\\gamma}/2$)',    gen_powerlaw_params_beta_half,pal['dark_grey'],  't_min', 't_max',  '$\\tau_\\text{min}$', '$\\tau_\\text{max}$',   True,  True),
+    ('D', 'power law ($\\alpha=e^{-\\gamma}/2$)',    gen_powerlaw_params_alpha_half,pal['dark_grey'],  't_min', 't_max',  '$\\tau_\\text{min}$', '$\\tau_\\text{max}$',   True,  True),
 ]
 for key, title, df, color, xcol, ycol, xlabel, ylabel, xlog, ylog in row1_panels:
     scatter(ax_dict[key], df[xcol], df[ycol], color, xlabel, ylabel, xlog, ylog)

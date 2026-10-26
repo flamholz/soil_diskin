@@ -8,28 +8,28 @@ from soil_diskin.continuum_models import GeneralPowerLawDisKin
 """
 Script should be run from the project root directory.
 
-Calibrates the Generalized Power Law model with a single beta shared across
+Calibrates the Generalized Power Law model with a single alpha shared across
 all sites while holding t_min fixed at 1.
 """
 
 DATA_PATH = 'results/all_sites_14C_turnover.csv'
 OUTPUT_DIR = 'results/03_calibrate_models/'
-OUTPUT_NAME = 'general_powerlaw_model_optimization_results_shared_beta_fixed_tmin.csv'
+OUTPUT_NAME = 'general_powerlaw_model_optimization_results_shared_alpha_fixed_tmin.csv'
 INITIALIZATION_FILES = (
     'results/03_calibrate_models/general_powerlaw_model_optimization_results_fixed_tmin2.csv',
     'results/03_calibrate_models/general_powerlaw_model_optimization_results_fixed_tmin.csv',
 )
 DEFAULT_INITIAL_LOG10_T_MAX = 4.0
-DEFAULT_INITIAL_BETA = 0.8
+DEFAULT_INITIAL_ALPHA = 0.8
 MAX_LOG10_T_MAX = 8.0
-MIN_BETA = 1e-8
-MAX_BETA = np.inf
+MIN_ALPHA = 1e-8
+MAX_ALPHA = np.inf
 T_MIN = 1.0
 
 
-def get_model_predictions(t_min, t_max, beta):
+def get_model_predictions(t_min, t_max, alpha):
     """Return the model predictions for turnover and steady-state radiocarbon."""
-    model = GeneralPowerLawDisKin(t_min=t_min, t_max=t_max, beta=beta)
+    model = GeneralPowerLawDisKin(t_min=t_min, t_max=t_max, alpha=alpha)
     predicted_14c_ratio = model.calc_radiocarbon_ratio_ss()[0]
     return model, predicted_14c_ratio
 
@@ -42,34 +42,34 @@ def build_initial_guess(n_sites, t_min):
             continue
 
         init_df = pd.read_csv(candidate_path)
-        if len(init_df) != n_sites or not {'t_max', 'beta'}.issubset(init_df.columns):
+        if len(init_df) != n_sites or not {'t_max', 'alpha'}.issubset(init_df.columns):
             continue
 
         initial_log10_t_max = np.log10(
             init_df['t_max'].fillna(10 ** DEFAULT_INITIAL_LOG10_T_MAX).clip(lower=min_t_max).to_numpy()
         )
-        beta_values = init_df['beta'].dropna()
-        initial_beta = DEFAULT_INITIAL_BETA if beta_values.empty else float(np.clip(beta_values.median(), MIN_BETA, MAX_BETA))
-        initial_params = np.concatenate([initial_log10_t_max, [initial_beta]])
+        alpha_values = init_df['alpha'].dropna()
+        initial_alpha = DEFAULT_INITIAL_ALPHA if alpha_values.empty else float(np.clip(alpha_values.median(), MIN_ALPHA, MAX_ALPHA))
+        initial_params = np.concatenate([initial_log10_t_max, [initial_alpha]])
         return initial_params, candidate_path
 
     default_params = np.concatenate(
-        [np.full(n_sites, DEFAULT_INITIAL_LOG10_T_MAX), [DEFAULT_INITIAL_BETA]]
+        [np.full(n_sites, DEFAULT_INITIAL_LOG10_T_MAX), [DEFAULT_INITIAL_ALPHA]]
     )
     return default_params, None
 
 
 def joint_residuals_function(params, t_min, turnover_values, fm_values):
-    """Return all site residuals for a shared beta and sitewise t_max values."""
+    """Return all site residuals for a shared alpha and sitewise t_max values."""
     log10_t_max_values = params[:-1]
-    beta = params[-1]
+    alpha = params[-1]
     residuals = np.empty(2 * len(turnover_values))
 
     for idx, (log10_t_max, turnover, fm) in enumerate(
         zip(log10_t_max_values, turnover_values, fm_values)
     ):
         t_max = 10 ** log10_t_max
-        model, predicted_14c_ratio = get_model_predictions(t_min=t_min, t_max=t_max, beta=beta)
+        model, predicted_14c_ratio = get_model_predictions(t_min=t_min, t_max=t_max, alpha=alpha)
         turnover_scale = max(abs(turnover), 1e-6)
         fm_scale = max(abs(fm), 1e-6)
 
@@ -80,8 +80,8 @@ def joint_residuals_function(params, t_min, turnover_values, fm_values):
 
 
 def results_to_dataframe(merged_site_data, t_min, fit_result, initialization_source):
-    """Convert the shared-beta fit result into a per-site output table."""
-    shared_beta = float(fit_result.x[-1])
+    """Convert the shared-alpha fit result into a per-site output table."""
+    shared_alpha = float(fit_result.x[-1])
     t_max_values = 10 ** fit_result.x[:-1]
     site_residuals = fit_result.fun.reshape(-1, 2)
     result_df = merged_site_data.copy()
@@ -90,14 +90,14 @@ def results_to_dataframe(merged_site_data, t_min, fit_result, initialization_sou
     modeled_14c = []
     params_valid = []
     for t_max in t_max_values:
-        model, predicted_14c_ratio = get_model_predictions(t_min=t_min, t_max=t_max, beta=shared_beta)
+        model, predicted_14c_ratio = get_model_predictions(t_min=t_min, t_max=t_max, alpha=shared_alpha)
         modeled_turnover.append(model.T)
         modeled_14c.append(predicted_14c_ratio)
         params_valid.append(model.params_valid())
 
     result_df['t_min'] = t_min
     result_df['t_max'] = t_max_values
-    result_df['beta'] = shared_beta
+    result_df['alpha'] = shared_alpha
     result_df['modeled_T'] = modeled_turnover
     result_df['modeled_14C'] = modeled_14c
     result_df['params_valid'] = params_valid
@@ -122,15 +122,15 @@ def main():
     initial_guess, initialization_source = build_initial_guess(len(merged_site_data), T_MIN)
     lower_bounds = np.concatenate([
         np.full(len(merged_site_data), np.log10(T_MIN + 1e-8)),
-        [MIN_BETA],
+        [MIN_ALPHA],
     ])
     upper_bounds = np.concatenate([
         np.full(len(merged_site_data), MAX_LOG10_T_MAX),
-        [MAX_BETA],
+        [MAX_ALPHA],
     ])
 
     print(
-        f'Running shared-beta optimization for generalized power law with fixed t_min={T_MIN} '
+        f'Running shared-alpha optimization for generalized power law with fixed t_min={T_MIN} '
         f'across {len(merged_site_data)} sites...'
     )
     if initialization_source is None:
@@ -155,7 +155,7 @@ def main():
     output_path = path.join(OUTPUT_DIR, OUTPUT_NAME)
     result_df.to_csv(output_path, index=False)
 
-    print(f'Optimized shared beta: {fit_result.x[-1]:.6f}')
+    print(f'Optimized shared alpha: {fit_result.x[-1]:.6f}')
     print(f'Global objective value: {np.sum(fit_result.fun ** 2):.6f}')
     print(f'Max site objective value: {result_df["site_objective_value"].max():.6f}')
     print(f'Median site objective value: {result_df["site_objective_value"].median():.6f}')
