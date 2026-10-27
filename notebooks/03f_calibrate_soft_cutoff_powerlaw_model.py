@@ -13,7 +13,7 @@ from tqdm import tqdm
 Script should be run from the project root directory.
 
 Calibrates the soft-cutoff power law model (SoftCutoffPowerLawDisKin) with
-alpha fixed, sweeping alpha from 0.2 to 1.0 in steps of 0.1, plus 0.75. For each alpha,
+alpha fixed, sweeping alpha from 0.2 to 1.0 in steps of 0.1, plus 0.55, 0.65 and 0.75. For each alpha,
 t_min and t_max are fit per site to turnover and radiocarbon, following
 03c_calibrate_generalized_powerlaw_model.py.
 
@@ -27,8 +27,8 @@ OUTPUT_PATH = 'results/03_calibrate_models/soft_cutoff_powerlaw_model_alpha_swee
 # grows only logarithmically in t_max/t_min, too slowly to match the observed
 # radiocarbon. In a 0.0-1.0 sweep, t_min hit its 1e-8 yr lower bound and only
 # 6/99 (alpha = 0.0) and 49/99 (alpha = 0.1) sites fit, vs. 98-99/99 for alpha >= 0.2.
-# 0.75 adds resolution near the peak in f_new prediction skill (0.7-0.8).
-ALPHA_VALUES = np.sort(np.append(np.round(np.linspace(0.2, 1.0, 9), 1), 0.75))
+# 0.55-0.75 add resolution where f_new prediction skill peaks (MSRE at 0.5-0.6, KGE at 0.7-0.8).
+ALPHA_VALUES = np.sort(np.append(np.round(np.linspace(0.2, 1.0, 9), 1), [0.55, 0.65, 0.75]))
 OBJECTIVE_THRESHOLD = 1e-4
 QUAD_LIMIT = 2000
 QUAD_EPSABS = 1e-6

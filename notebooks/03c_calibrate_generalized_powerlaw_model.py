@@ -73,8 +73,8 @@ ALPHA_RUNS = (
 # GeneralPowerLawDisKin requires alpha < 1, and alpha = 1 is PowerLawDisKin,
 # already fit by 03a_calibrate_powerlaw_model.py. At alpha = 0.2 only ~81/99
 # sites fit; fast sites push t_min to its 1e-8 yr lower bound.
-# 0.75 adds resolution near the peak in f_new prediction skill (0.7-0.8).
-SWEEP_ALPHA_VALUES = np.sort(np.append(np.round(np.linspace(0.2, 0.9, 8), 1), 0.75))
+# 0.55-0.75 add resolution where f_new prediction skill peaks (MSRE at 0.5-0.6, KGE at 0.7-0.8).
+SWEEP_ALPHA_VALUES = np.sort(np.append(np.round(np.linspace(0.2, 0.9, 8), 1), [0.55, 0.65, 0.75]))
 SWEEP_OUTPUT_NAME = 'general_powerlaw_model_alpha_sweep.csv'
 
 
