@@ -173,7 +173,7 @@ parameters, predicted stock/radiocarbon/`f_new`, and diagnostics. Check both
 `success` and `quadrature_ok`. Convergence does not guarantee a good scientific fit.
 
 `implied_turnover_years` is observed stock divided by modeled input.
-`model_turnover_years` is `exp(-mu + sigma²/2)`. The saved
+`model_T` is `exp(-mu + sigma²/2)`. The saved
 `observed_turnover_years` column remains an alias for implied turnover.
 
 | Output | Contains |

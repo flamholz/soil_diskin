@@ -167,7 +167,7 @@ class Test02GetTurnover14C(unittest.TestCase):
             '14C': [-50.0, 0.0],
             'NPP': [100.0, 150.0],
             'Ctotal_0-100estim': [1000.0, 1500.0],
-            'fm': [0.95, 1.0],
+            'fm_obs': [0.95, 1.0],
             'turnover': [10.0, 10.0]
         })
         

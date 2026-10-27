@@ -27,7 +27,7 @@ def objective_function(params, model, merged_site_data, weights):
     params : list
         List of parameters [a, b] for the PowerLawDisKin model.
     merged_site_data : pd.DataFrame
-        DataFrame containing the observed data for each site, including 'fm' (14C ratio) and 'turnover'.
+        DataFrame containing the observed data for each site, including 'fm_obs' (14C ratio) and 'turnover'.
     
     Returns
     -------
@@ -43,7 +43,7 @@ def objective_function(params, model, merged_site_data, weights):
                                0, np.inf, limit=1500, epsabs=1e-3)[0]
 
     # Calculate the difference between the predicted and observed data
-    diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm'])**2)
+    diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm_obs'])**2)
     diff_turnover = np.nansum((model.T - merged_site_data['turnover'])**2)
     
     # Return the sum of squared differences

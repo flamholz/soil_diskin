@@ -20,7 +20,7 @@ def objective_function(log_width, site):
     """Squared relative radiocarbon mismatch for one site."""
     model = LogUniformDisKin(*model_params_from_turnover(site['turnover'], log_width))
     modeled_14c = model.calc_radiocarbon_ratio_ss()[0]
-    return ((modeled_14c - site['fm']) / (site['fm'] + 1e-6)) ** 2
+    return ((modeled_14c - site['fm_obs']) / (site['fm_obs'] + 1e-6)) ** 2
 
 
 def fit_site(site):
@@ -34,14 +34,16 @@ def fit_site(site):
     )
     k_min, log_width = model_params_from_turnover(site['turnover'], fit.x)
     model = LogUniformDisKin(k_min, log_width)
+    model_fm = model.calc_radiocarbon_ratio_ss()[0]
     return {
         'objective_value': fit.fun,
         'k_min': k_min,
         'log_width': log_width,
         'log_k_max': model.log_k_max,
-        'modeled_turnover': model.T,
-        'modeled_age': model.A,
-        'modeled_14C': model.calc_radiocarbon_ratio_ss()[0],
+        'model_T': model.T,
+        'model_A': model.A,
+        'model_fm': model_fm,
+        'relative_fm_error': (model_fm - site['fm_obs']) / site['fm_obs'],
         'params_valid': model.params_valid(),
     }
 
@@ -65,7 +67,7 @@ def main():
         bound_data['turnover'] = bound_data[f'turnover_q{suffix}']
         result = result.join(fit_sites(bound_data).add_suffix(f'_{suffix}'))
 
-    result = result.join(site_data[['fm', 'turnover']])
+    result = result.join(site_data[['fm_obs', 'turnover']])
     output = Path('results/03_calibrate_models/loguniform_model_optimization_results.csv')
     output.parent.mkdir(parents=True, exist_ok=True)
     result.to_csv(output, index=False)

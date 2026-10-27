@@ -31,22 +31,7 @@ WORLDCLIM_VARS = {
     19: 'precip_coldest_quarter',
 }
 
-def lognormal_mu_sigma(age, tau):
-    """Derive lognormal mu and sigma from mean age and turnover time."""
-    sigma = np.sqrt(np.log(age / tau))
-    mu = -np.log(np.sqrt(tau**3 / age))
-    return mu, sigma
-
-
-def load_lognormal_params(csv_path):
-    """Load lognormal calibration output and add derived mu and sigma columns."""
-    df = pd.read_csv(csv_path)
-    df['mu'], df['sigma'] = lognormal_mu_sigma(df['pred'].values, df['turnover'].values)
-    return df
-
-
 # Model parameter definitions: (label, csv_path_or_df, [param_cols])
-# For lognormal we pass the DataFrame directly after deriving mu/sigma.
 MODELS = [
     ('lognormal',
      'results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv',
@@ -102,10 +87,7 @@ def correlations_with_worldclim(param_series, site_df, bio_cols):
 
 
 for model_label, csv_path, param_cols in MODELS:
-    if model_label == 'lognormal':
-        params = load_lognormal_params(csv_path)
-    else:
-        params = pd.read_csv(csv_path)
+    params = pd.read_csv(csv_path)
     summary_frames = []
     for param in param_cols:
         corr_df = correlations_with_worldclim(params[param], site_data, bio_cols)

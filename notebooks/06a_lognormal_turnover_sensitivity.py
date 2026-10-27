@@ -117,7 +117,7 @@ for ratio, label in zip(ratios, ratio_labels):
 
     ages[label] = Parallel(n_jobs=-1, verbose=1)(
         delayed(predict_age)(turnover, fm)
-        for turnover, fm in zip(turnovers, turnover_14C['fm']))
+        for turnover, fm in zip(turnovers, turnover_14C['fm_obs']))
 
     cdfs = Parallel(n_jobs=-1, verbose=1)(
         delayed(predict_cdf)(turnover, age)
@@ -142,7 +142,7 @@ pd.DataFrame(fnew).to_csv('results/06_sensitivity_analysis/06a_lognormal_fnew.cs
 for quantile in ['q05', 'q95']:
     print(f'Scanning {quantile} for {len(backfilled_sites)} backfilled sites...')
     predictions = Parallel(n_jobs=-1, verbose=1)(
-        delayed(predict_fnew)(row[f'turnover_{quantile}'] * ratio, row['fm'],
+        delayed(predict_fnew)(row[f'turnover_{quantile}'] * ratio, row['fm_obs'],
                               site_data.loc[i, 'Duration_labeling'])
         for ratio in ratios for i, row in backfilled_sites.iterrows()
     )

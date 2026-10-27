@@ -51,7 +51,7 @@ def objective_function(params, merged_site_data):
     params : list
         [k, alpha] for the WeibullDisKin model.
     merged_site_data : pd.Series
-        Observed data for a site, including 'fm' (14C ratio) and 'turnover'.
+        Observed data for a site, including 'fm_obs' (14C ratio) and 'turnover'.
 
     Returns
     -------
@@ -68,8 +68,8 @@ def objective_function(params, merged_site_data):
     predicted_14C_ratio = quad(model.radiocarbon_age_integrand,
                                0, np.inf, limit=1500, epsabs=1e-3)[0]
 
-    diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm']))
-    total_14C = np.nansum(merged_site_data['fm'] + 1e-6)
+    diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm_obs']))
+    total_14C = np.nansum(merged_site_data['fm_obs'] + 1e-6)
     relative_diff_14C = diff_14C / total_14C
 
     diff_turnover = np.nansum((model.T - merged_site_data['turnover']))
@@ -79,7 +79,7 @@ def objective_function(params, merged_site_data):
     return relative_diff_14C**2 + relative_diff_turnover**2
 
 
-def parse_results(result, index):
+def parse_results(result, index, fm_obs):
     """Convert optimization results to a DataFrame and compute model metrics."""
     df = pd.DataFrame(result, columns=['params', 'objective_value'], index=index)
 
@@ -88,11 +88,12 @@ def parse_results(result, index):
     df.drop(columns='params', inplace=True)
 
     model_x = lambda x: WeibullDisKin(x['k'], x['alpha'])
-    df['modeled_turnover'] = df.apply(lambda x: model_x(x).T, axis=1)
-    df['modeled_age'] = df.apply(lambda x: model_x(x).A, axis=1)
-    df['modeled_14C'] = df.apply(
+    df['model_T'] = df.apply(lambda x: model_x(x).T, axis=1)
+    df['model_A'] = df.apply(lambda x: model_x(x).A, axis=1)
+    df['model_fm'] = df.apply(
         lambda x: quad(model_x(x).radiocarbon_age_integrand,
                        0, np.inf, limit=1500, epsabs=1e-3)[0], axis=1)
+    df['relative_fm_error'] = (df['model_fm'] - fm_obs.loc[index]) / fm_obs.loc[index]
     df['params_valid'] = df.apply(lambda x: model_x(x).params_valid(), axis=1)
 
     return df
@@ -150,7 +151,7 @@ result = []
 for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
     result.append(fit_site(row, initial_guess, bounds, alpha_grid))
 
-result_df = parse_results(result, merged_site_data.index)
+result_df = parse_results(result, merged_site_data.index, merged_site_data['fm_obs'])
 
 #%% Optimize the 5% and 95% turnover uncertainty bounds
 results_05 = []
@@ -166,11 +167,11 @@ for i, row in tqdm(backfilled_sites.iterrows(), total=len(backfilled_sites)):
     results_05.append(fit_site(row_05, initial_guess, bounds, alpha_grid))
     results_95.append(fit_site(row_95, initial_guess, bounds, alpha_grid))
 
-result_df_05 = parse_results(results_05, backfilled_sites.index)
-result_df_95 = parse_results(results_95, backfilled_sites.index)
+result_df_05 = parse_results(results_05, backfilled_sites.index, merged_site_data['fm_obs'])
+result_df_95 = parse_results(results_95, backfilled_sites.index, merged_site_data['fm_obs'])
 
 merged_result_df = pd.concat(
-    [result_df, merged_site_data[['fm', 'turnover']]], axis=1)
+    [result_df, merged_site_data[['fm_obs', 'turnover']]], axis=1)
 merged_result_df = pd.merge(merged_result_df, result_df_05.add_suffix('_05'),
                             left_index=True, right_index=True, how='left')
 merged_result_df = pd.merge(merged_result_df, result_df_95.add_suffix('_95'),

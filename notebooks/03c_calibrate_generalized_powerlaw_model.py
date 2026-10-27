@@ -14,6 +14,10 @@ from tqdm import tqdm
 Script should be run from the project root directory.
 
 Calibrates the generalized power law model from Rothman, PNAS 2025.
+
+Fits t_min and t_max per site at fixed alpha. The two named alpha values in
+ALPHA_RUNS each get their own output file. A sweep over SWEEP_ALPHA_VALUES is
+written to a single long-format file with one row per (alpha, site).
 """
 
 DATA_PATH = 'results/all_sites_14C_turnover.csv'
@@ -64,6 +68,14 @@ ALPHA_RUNS = (
         'output_name': 'general_powerlaw_model_optimization_results_alpha_half.csv',
     },
 )
+# Same grid as 03f_calibrate_soft_cutoff_powerlaw_model.py so the hard- and
+# soft-cutoff sweeps can be compared directly, except alpha = 1.0:
+# GeneralPowerLawDisKin requires alpha < 1, and alpha = 1 is PowerLawDisKin,
+# already fit by 03a_calibrate_powerlaw_model.py. At alpha = 0.2 only ~81/99
+# sites fit; fast sites push t_min to its 1e-8 yr lower bound.
+# 0.75 adds resolution near the peak in f_new prediction skill (0.7-0.8).
+SWEEP_ALPHA_VALUES = np.sort(np.append(np.round(np.linspace(0.2, 0.9, 8), 1), 0.75))
+SWEEP_OUTPUT_NAME = 'general_powerlaw_model_alpha_sweep.csv'
 
 
 def unpack_optimization_params(params):
@@ -124,9 +136,9 @@ def residuals_function(params, alpha, site_data):
         return np.array([LARGE_RESIDUAL, LARGE_RESIDUAL], dtype=float)
 
     turnover_scale = max(abs(site_data['turnover']), 1e-6)
-    fm_scale = max(abs(site_data['fm']), 1e-6)
+    fm_scale = max(abs(site_data['fm_obs']), 1e-6)
     turnover_residual = (model.T - site_data['turnover']) / turnover_scale
-    fm_residual = (predicted_14c_ratio - site_data['fm']) / fm_scale
+    fm_residual = (predicted_14c_ratio - site_data['fm_obs']) / fm_scale
     return np.array([turnover_residual, fm_residual], dtype=float)
 
 
@@ -180,10 +192,10 @@ def fit_single_site(site_data, alpha, warm_start=None):
         use_fast_14c=False,
     )
     turnover_scale = max(abs(site_data['turnover']), 1e-6)
-    fm_scale = max(abs(site_data['fm']), 1e-6)
+    fm_scale = max(abs(site_data['fm_obs']), 1e-6)
     exact_objective_value = float(
         ((model.T - site_data['turnover']) / turnover_scale) ** 2
-        + ((predicted_14c_ratio - site_data['fm']) / fm_scale) ** 2
+        + ((predicted_14c_ratio - site_data['fm_obs']) / fm_scale) ** 2
     )
     return {
         'objective_value': exact_objective_value,
@@ -196,9 +208,9 @@ def fit_single_site(site_data, alpha, warm_start=None):
         't_min': t_min,
         't_max': t_max,
         'alpha': alpha,
-        'modeled_T': model.T,
-        'modeled_14C': predicted_14c_ratio,
-        'modeled_A': model.A,
+        'model_T': model.T,
+        'model_fm': predicted_14c_ratio,
+        'model_A': model.A,
         'params_valid': model.params_valid(),
     }
 
@@ -220,12 +232,12 @@ def results_to_dataframe(results, site_data):
     """Attach modeled values and relative errors to the fit results."""
     result_df = pd.DataFrame(results, index=site_data.index)
     turnover_scale = site_data['turnover'].abs().clip(lower=1e-6)
-    fm_scale = site_data['fm'].abs().clip(lower=1e-6)
+    fm_scale = site_data['fm_obs'].abs().clip(lower=1e-6)
     result_df['relative_turnover_error'] = (
-        result_df['modeled_T'] - site_data['turnover']
+        result_df['model_T'] - site_data['turnover']
     ) / turnover_scale
-    result_df['relative_14C_error'] = (
-        result_df['modeled_14C'] - site_data['fm']
+    result_df['relative_fm_error'] = (
+        result_df['model_fm'] - site_data['fm_obs']
     ) / fm_scale
     return result_df
 
@@ -248,16 +260,18 @@ def build_uncertainty_frame(site_data, turnover_column):
     return uncertainty_df
 
 
-def run_single_alpha_calibration(merged_site_data, alpha_config, backfilled_sites):
-    """Run central, q05, and q95 fits for one fixed alpha value."""
-    alpha = alpha_config['alpha']
-    label = alpha_config['label']
+def run_single_alpha_calibration(merged_site_data, alpha, label, backfilled_sites, initialization_df=None):
+    """Run central, q05, and q95 fits for one fixed alpha value.
 
+    initialization_df optionally warm-starts the central fit, e.g. from the
+    previous alpha in the sweep.
+    """
     print(f'Running optimization for generalized power law with alpha = {label}...')
     result_df = fit_sites(
         merged_site_data,
         alpha=alpha,
         description=f'alpha={label}',
+        initialization_df=initialization_df,
     )
     summarize_fit(result_df, f'Central fit summary for alpha = {label}')
 
@@ -271,7 +285,7 @@ def run_single_alpha_calibration(merged_site_data, alpha_config, backfilled_site
             initialization_df=result_df.loc[backfilled_sites.index],
         )
 
-    merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
+    merged_result_df = pd.concat([result_df, merged_site_data[['fm_obs', 'turnover']]], axis=1)
     for suffix, uncertainty_result_df in results_by_suffix.items():
         merged_result_df = pd.merge(
             merged_result_df,
@@ -281,11 +295,7 @@ def run_single_alpha_calibration(merged_site_data, alpha_config, backfilled_site
             how='left',
         )
 
-    output_path = path.join(OUTPUT_DIR, alpha_config['output_name'])
-    merged_result_df.to_csv(output_path, index=False)
-    print(f'Saved results to {output_path}')
-
-    return merged_result_df
+    return result_df, merged_result_df
 
 
 def main():
@@ -295,11 +305,35 @@ def main():
     ]
 
     for alpha_config in ALPHA_RUNS:
-        run_single_alpha_calibration(
+        _, merged_result_df = run_single_alpha_calibration(
             merged_site_data=merged_site_data,
-            alpha_config=alpha_config,
+            alpha=alpha_config['alpha'],
+            label=alpha_config['label'],
             backfilled_sites=backfilled_sites,
         )
+        output_path = path.join(OUTPUT_DIR, alpha_config['output_name'])
+        merged_result_df.to_csv(output_path, index=False)
+        print(f'Saved results to {output_path}')
+
+    sweep_results = []
+    previous_result_df = None
+    for alpha in SWEEP_ALPHA_VALUES:
+        previous_result_df, merged_result_df = run_single_alpha_calibration(
+            merged_site_data=merged_site_data,
+            alpha=float(alpha),
+            label=f'{alpha:g}',
+            backfilled_sites=backfilled_sites,
+            initialization_df=previous_result_df,
+        )
+        # site_index matches row order in DATA_PATH
+        sweep_results.append(merged_result_df.rename_axis('site_index').reset_index())
+
+    sweep_df = pd.concat(sweep_results, ignore_index=True)
+    leading_columns = ['alpha', 'site_index', 't_min', 't_max']
+    sweep_df = sweep_df[leading_columns + [c for c in sweep_df.columns if c not in leading_columns]]
+    output_path = path.join(OUTPUT_DIR, SWEEP_OUTPUT_NAME)
+    sweep_df.to_csv(output_path, index=False)
+    print(f'Saved results to {output_path}')
 
 
 if __name__ == '__main__':

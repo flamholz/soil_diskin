@@ -39,10 +39,6 @@ gen_powerlaw_params = pd.read_csv('results/03_calibrate_models/general_powerlaw_
 gen_powerlaw_params_alpha_half = pd.read_csv('results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv')
 lognormal_raw = pd.read_csv('results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv')
 
-# Derive mu and sigma from fitted mean age and turnover time
-lognormal_raw['mu'] = -np.log(np.sqrt(lognormal_raw['turnover']**3 / lognormal_raw['pred']))
-lognormal_raw['sigma'] = np.sqrt(np.log(lognormal_raw['pred'] / lognormal_raw['turnover']))
-
 # %%
 def scatter(ax, x, y, color, xlabel, ylabel, xlog=False, ylog=False):
     ax.scatter(x, y, color=color, s=8, linewidths=0.5, edgecolors='k')

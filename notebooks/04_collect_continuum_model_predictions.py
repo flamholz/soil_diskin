@@ -55,6 +55,20 @@ def generate_predictions(model_class, params_df, param_names, site_data=None):
             result.loc[i, 'predicted_fnew'+suffix] = model.cdfA(durations.loc[i])
     return result
 
+def generate_sweep_predictions(model_class, sweep_df, site_data):
+    """Predict f_new for a long-format alpha sweep (one row per alpha and site).
+
+    site_index in sweep_df aligns with site_data rows. Returns one row per
+    (alpha, site) with leading alpha and site_index columns.
+    """
+    results = []
+    for alpha, alpha_params in sweep_df.groupby('alpha'):
+        result = generate_predictions(model_class, alpha_params.set_index('site_index'),
+                                      ['t_min', 't_max', 'alpha'], site_data)
+        result.insert(0, 'alpha', alpha)
+        results.append(result.rename_axis('site_index').reset_index())
+    return pd.concat(results, ignore_index=True)
+
 def main():
     site_data = pd.read_csv('results/processed_balesdent_2018.csv')
     #%% Power-law model
@@ -86,19 +100,18 @@ def main():
     result = generate_predictions(GeneralPowerLawDisKin, general_power_law_params, ['t_min', 't_max', 'alpha'])
     result.to_csv('results/04_model_predictions/general_power_law_model_predictions_alpha_half.csv', index=False)
 
+    #%% Generalized (hard-cutoff) power-law model, swept over fixed alpha values
+
+    fname = 'general_powerlaw_model_alpha_sweep.csv'
+    general_power_law_sweep = pd.read_csv(f'results/03_calibrate_models/{fname}')
+    result = generate_sweep_predictions(GeneralPowerLawDisKin, general_power_law_sweep, site_data)
+    result.to_csv('results/04_model_predictions/general_power_law_model_predictions_alpha_sweep.csv', index=False)
+
     #%% Soft-cutoff power-law model, swept over fixed alpha values
 
-    # The sweep is long format (one row per alpha and site); site_index aligns with site_data rows.
     fname = 'soft_cutoff_powerlaw_model_alpha_sweep.csv'
     soft_cutoff_params = pd.read_csv(f'results/03_calibrate_models/{fname}')
-
-    results = []
-    for alpha, alpha_params in soft_cutoff_params.groupby('alpha'):
-        result = generate_predictions(SoftCutoffPowerLawDisKin, alpha_params.set_index('site_index'),
-                                      ['t_min', 't_max', 'alpha'], site_data)
-        result.insert(0, 'alpha', alpha)
-        results.append(result.rename_axis('site_index').reset_index())
-    result = pd.concat(results, ignore_index=True)
+    result = generate_sweep_predictions(SoftCutoffPowerLawDisKin, soft_cutoff_params, site_data)
     result.to_csv('results/04_model_predictions/soft_cutoff_power_law_model_predictions_alpha_sweep.csv', index=False)
 
 

@@ -45,8 +45,8 @@ def fit_observation(atm, fm_evaluator, turnover, fm):
         return (np.array([model.T, fm_pred])-[turnover, fm])/np.array([turnover, fm])
 
     best = dict.fromkeys(
-        ['mu', 'sigma', 'pred', 'model_turnover_years', 'fm_pred',
-         'turnover_relative_residual', 'fm_residual'], np.nan)
+        ['mu', 'sigma', 'model_A', 'model_T', 'model_fm',
+         'turnover_relative_residual', 'fm_residual', 'relative_fm_error'], np.nan)
     best.update(objective=np.inf, calibration_status='fit_failed')
     best_key = (1, np.inf)
     for sigma0 in [2.5, 1., 4.]:
@@ -69,9 +69,12 @@ def fit_observation(atm, fm_evaluator, turnover, fm):
         best_key = key
         best = {'mu': mu if fit.success else np.nan,
                 'sigma': sigma if fit.success else np.nan,
-                'pred': model.A if fit.success else np.nan,
-                'model_turnover_years': model.T, 'fm_pred': fm_pred,
-                'turnover_relative_residual': relative_error, 'fm_residual': fm_error,
+                'model_A': model.A if fit.success else np.nan,
+                'model_T': model.T, 
+                'model_fm': fm_pred,
+                'fm_residual': fm_error,
+                'relative_fm_error': fm_error/fm,
+                'turnover_relative_residual': relative_error, 
                 'objective': objective,
                 'calibration_status': ('calibrated' if exact else 'approximate_fit') if fit.success else 'fit_failed'}
     return best
@@ -80,8 +83,8 @@ def fit_observation(atm, fm_evaluator, turnover, fm):
 def main(n_jobs: int = -1, sites_path: Path = SITES_PATH, out_dir: Path | None = None) -> None:
     """Calibrate each usable observation and stock scenario, preserving input rows."""
     sites = pd.read_csv(sites_path, dtype={'profile_id': str})
-    sites = sites.rename(columns={'fm_obs': 'fm', 'implied_turnover_years': 'turnover'})
-    numeric = sites.columns.intersection(['turnover', 'fm', 'turnover_q05', 'turnover_q95'])
+    sites = sites.rename(columns={'implied_turnover_years': 'turnover'})
+    numeric = sites.columns.intersection(['turnover', 'fm_obs', 'turnover_q05', 'turnover_q95'])
     sites[numeric] = sites[numeric].apply(pd.to_numeric, errors='coerce').astype(float)
     out_dir = Path(out_dir) if out_dir is not None else OUT_DIR/('depth_resolved' if 'z_top_cm' in sites else '')
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -90,14 +93,14 @@ def main(n_jobs: int = -1, sites_path: Path = SITES_PATH, out_dir: Path | None =
     fm_evaluator = cached_radiocarbon(atm)
     out = sites.copy()
     for column, suffix in [('turnover', ''), ('turnover_q05', '_05'), ('turnover_q95', '_95')]:
-        for name in ['mu', 'sigma', 'pred', 'model_turnover_years', 'fm_pred',
-                     'turnover_relative_residual', 'fm_residual', 'objective']:
+        for name in ['mu', 'sigma', 'model_A', 'model_T', 'model_fm',
+                     'turnover_relative_residual', 'fm_residual', 'relative_fm_error', 'objective']:
             out[name+suffix] = np.nan
         out['calibration_status'+suffix] = 'invalid_input'
         if column not in sites:
             continue
-        valid = np.isfinite(sites[[column, 'fm']]).all(axis=1) & sites[column].gt(0) & sites.fm.gt(0)
-        observations = sites.loc[valid, [column, 'fm']]
+        valid = np.isfinite(sites[[column, 'fm_obs']]).all(axis=1) & sites[column].gt(0) & sites.fm_obs.gt(0)
+        observations = sites.loc[valid, [column, 'fm_obs']]
         print(f'Fitting {column}: {len(observations)} rows', flush=True)
         if observations.empty:
             continue

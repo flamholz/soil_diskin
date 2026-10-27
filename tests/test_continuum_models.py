@@ -362,16 +362,10 @@ class TestGeneralPowerLawDisKin(unittest.TestCase):
             self.assertFalse(model.params_valid(),
                              msg=f"Invalid parameters t_min={t_min}, t_max={t_max}, alpha={alpha} marked as valid.")
         
-        # Alpha is required to be positive (constructor enforces > 0).
-        # Alpha > 1 is allowed under the new behavior; it should construct
-        # and be considered valid by `params_valid`.
-        model = GeneralPowerLawDisKin(t_min=10, t_max=1000, alpha=1.5)  # alpha > 1 should construct
-        self.assertTrue(model.params_valid(),
-                        msg=f"alpha > 1 should be valid for params_valid() (alpha=1.5)")
-
-        # Negative alpha should still raise
-        with self.assertRaises(ValueError):
-            GeneralPowerLawDisKin(t_min=10, t_max=1000, alpha=-0.1)  # alpha < 0
+        # The constructor enforces 0 < alpha < 1: expint gives NaN T and A for alpha >= 1.
+        for alpha in [-0.1, 0.0, 1.0, 1.5]:
+            with self.assertRaises(ValueError, msg=f"alpha={alpha} should raise"):
+                GeneralPowerLawDisKin(t_min=10, t_max=1000, alpha=alpha)
 
     def test_radiocarbon_ratio(self):
         """Test that the radiocarbon ratio calculation runs without error."""

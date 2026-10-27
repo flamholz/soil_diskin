@@ -13,7 +13,7 @@ from tqdm import tqdm
 Script should be run from the project root directory.
 
 Calibrates the soft-cutoff power law model (SoftCutoffPowerLawDisKin) with
-alpha fixed, sweeping alpha from 0.2 to 1.0 in steps of 0.1. For each alpha,
+alpha fixed, sweeping alpha from 0.2 to 1.0 in steps of 0.1, plus 0.75. For each alpha,
 t_min and t_max are fit per site to turnover and radiocarbon, following
 03c_calibrate_generalized_powerlaw_model.py.
 
@@ -27,7 +27,8 @@ OUTPUT_PATH = 'results/03_calibrate_models/soft_cutoff_powerlaw_model_alpha_swee
 # grows only logarithmically in t_max/t_min, too slowly to match the observed
 # radiocarbon. In a 0.0-1.0 sweep, t_min hit its 1e-8 yr lower bound and only
 # 6/99 (alpha = 0.0) and 49/99 (alpha = 0.1) sites fit, vs. 98-99/99 for alpha >= 0.2.
-ALPHA_VALUES = np.round(np.linspace(0.2, 1.0, 9), 1)
+# 0.75 adds resolution near the peak in f_new prediction skill (0.7-0.8).
+ALPHA_VALUES = np.sort(np.append(np.round(np.linspace(0.2, 1.0, 9), 1), 0.75))
 OBJECTIVE_THRESHOLD = 1e-4
 QUAD_LIMIT = 2000
 QUAD_EPSABS = 1e-6
@@ -121,9 +122,9 @@ def residuals_function(params, alpha, site_data):
         return np.array([LARGE_RESIDUAL, LARGE_RESIDUAL], dtype=float)
 
     turnover_scale = max(abs(site_data['turnover']), 1e-6)
-    fm_scale = max(abs(site_data['fm']), 1e-6)
+    fm_scale = max(abs(site_data['fm_obs']), 1e-6)
     turnover_residual = (model.T - site_data['turnover']) / turnover_scale
-    fm_residual = (predicted_14c_ratio - site_data['fm']) / fm_scale
+    fm_residual = (predicted_14c_ratio - site_data['fm_obs']) / fm_scale
     return np.array([turnover_residual, fm_residual], dtype=float)
 
 
@@ -177,10 +178,10 @@ def fit_single_site(site_data, alpha, warm_start=None):
         use_fast_14c=False,
     )
     turnover_scale = max(abs(site_data['turnover']), 1e-6)
-    fm_scale = max(abs(site_data['fm']), 1e-6)
+    fm_scale = max(abs(site_data['fm_obs']), 1e-6)
     exact_objective_value = float(
         ((model.T - site_data['turnover']) / turnover_scale) ** 2
-        + ((predicted_14c_ratio - site_data['fm']) / fm_scale) ** 2
+        + ((predicted_14c_ratio - site_data['fm_obs']) / fm_scale) ** 2
     )
     return {
         'objective_value': exact_objective_value,
@@ -193,9 +194,9 @@ def fit_single_site(site_data, alpha, warm_start=None):
         't_min': t_min,
         't_max': t_max,
         'alpha': alpha,
-        'modeled_T': model.T,
-        'modeled_14C': predicted_14c_ratio,
-        'modeled_A': model.A,
+        'model_T': model.T,
+        'model_fm': predicted_14c_ratio,
+        'model_A': model.A,
         'params_valid': model.params_valid(),
     }
 
@@ -217,12 +218,12 @@ def results_to_dataframe(results, site_data):
     """Attach modeled values and relative errors to the fit results."""
     result_df = pd.DataFrame(results, index=site_data.index)
     turnover_scale = site_data['turnover'].abs().clip(lower=1e-6)
-    fm_scale = site_data['fm'].abs().clip(lower=1e-6)
+    fm_scale = site_data['fm_obs'].abs().clip(lower=1e-6)
     result_df['relative_turnover_error'] = (
-        result_df['modeled_T'] - site_data['turnover']
+        result_df['model_T'] - site_data['turnover']
     ) / turnover_scale
-    result_df['relative_14C_error'] = (
-        result_df['modeled_14C'] - site_data['fm']
+    result_df['relative_fm_error'] = (
+        result_df['model_fm'] - site_data['fm_obs']
     ) / fm_scale
     return result_df
 
@@ -270,7 +271,7 @@ def run_single_alpha_calibration(merged_site_data, alpha, backfilled_sites, init
             initialization_df=result_df.loc[backfilled_sites.index],
         )
 
-    merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
+    merged_result_df = pd.concat([result_df, merged_site_data[['fm_obs', 'turnover']]], axis=1)
     for suffix, uncertainty_result_df in results_by_suffix.items():
         merged_result_df = pd.merge(
             merged_result_df,

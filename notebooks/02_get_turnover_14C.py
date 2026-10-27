@@ -98,12 +98,12 @@ def prepare_turnover(data, shi, distribution=DEFAULT_ALLOCATION):
     if distribution is None:
         weights = sites.filter(regex=r'^weight_\d+').to_numpy()
         result['14C'] = np.nansum(delta.reshape(-1, 10, 10).mean(axis=2)*weights, axis=1)[rows]
-        result['fm'] = result['14C']/1000+1
+        result['fm_obs'] = result['14C']/1000+1
         suffixes = ['', '_q05', '_q95']
         stocks = ['Ctotal_0-100estim'+suffix for suffix in suffixes]
         for stock, suffix in zip(stocks, suffixes):
             result['turnover'+suffix] = result[stock]/result.npp_kg_m2_yr
-        columns = coords+['14C', 'NPP', *stocks, 'fm']+['turnover'+suffix for suffix in suffixes]
+        columns = coords+['14C', 'NPP', *stocks, 'fm_obs']+['turnover'+suffix for suffix in suffixes]
         return result[columns].rename(columns={v: k for k, v in names.items()})
 
     top, bottom = result[['z_top_cm', 'z_bottom_cm']].to_numpy(float).T
@@ -113,7 +113,7 @@ def prepare_turnover(data, shi, distribution=DEFAULT_ALLOCATION):
     thickness = np.where(supported, bottom-top, np.nan)
     # Missing contributing depths invalidate the mean; missing depths elsewhere do not.
     result['14C'] = (np.where(overlap > 0, delta[rows], 0)*overlap).sum(axis=1)/thickness
-    result['fm'] = result['14C']/1000+1
+    result['fm_obs'] = result['14C']/1000+1
     result['radiocarbon_spatially_filled'] = (filled[rows] & (overlap > 0)).any(axis=1) & supported
     result = result.assign(**asdict(distribution), npp_distribution='InputAllocation')
     result['input_kg_m2_yr'] = distribution.layer_input(result.npp_kg_m2_yr, result.z_top_cm, result.z_bottom_cm)

@@ -21,7 +21,7 @@ def objective_function(params, merged_site_data):
     params : list
         List of parameters [a, b] for the PowerLawDisKin model.
     merged_site_data : pd.DataFrame
-        DataFrame containing the observed data for each site, including 'fm' (14C ratio) and 'turnover'.
+        DataFrame containing the observed data for each site, including 'fm_obs' (14C ratio) and 'turnover'.
     
     Returns
     -------
@@ -41,8 +41,8 @@ def objective_function(params, merged_site_data):
         0, np.inf, limit=1500,epsabs=1e-3)[0]
     
     # Calculate the difference between the predicted and observed data
-    diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm']))
-    total_14C = np.nansum(merged_site_data['fm'] + 1e-6)
+    diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm_obs']))
+    total_14C = np.nansum(merged_site_data['fm_obs'] + 1e-6)
     relative_diff_14C = diff_14C / total_14C
     diff_turnover = np.nansum((model.T - merged_site_data['turnover']))
     total_turnover = np.nansum(merged_site_data['turnover'] + 1e-6)
@@ -62,7 +62,7 @@ def parse_results(result,index):
     df[['a','b']] = df['params'].apply(lambda x: pd.Series(x,index = ['a','b']))
     df.drop(columns ='params',inplace=True)
     df['modeled_turnover'] = df.apply(lambda x: GammaDisKin(x['a'], x['b']).T, axis=1)
-    df['modeled_14C'] = df.apply(lambda x: quad(GammaDisKin(x['a'], x['b']).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
+    df['model_fm'] = df.apply(lambda x: quad(GammaDisKin(x['a'], x['b']).radiocarbon_age_integrand, 0, np.inf, limit=1500,epsabs=1e-3)[0], axis=1)
     df['params_valid'] = df.apply(lambda x: GammaDisKin(x['a'], x['b']).params_valid(), axis=1)
     return df
 
@@ -106,7 +106,7 @@ for i, row in tqdm(backfilled_sites.iterrows(), total=len(backfilled_sites)):
 result_df_05 = parse_results(results_05, backfilled_sites.index)
 result_df_95 = parse_results(results_95, backfilled_sites.index)
 
-merged_result_df = pd.concat([result_df, merged_site_data[['fm', 'turnover']]], axis=1)
+merged_result_df = pd.concat([result_df, merged_site_data[['fm_obs', 'turnover']]], axis=1)
 merged_result_df = pd.merge(merged_result_df, result_df_05.add_suffix('_05'), left_index=True, right_index=True, how='left')
 merged_result_df = pd.merge(merged_result_df, result_df_95.add_suffix('_95'), left_index=True, right_index=True, how='left')
 

@@ -96,7 +96,7 @@ Both lognormal classes share the analytic turnover helper in `lognormal.py`.
   check. Keep failed fits visible rather than reducing the evaluation cohort.
 - `layers.csv` includes inputs, parameters, predictions, residuals, diagnostics,
   `implied_turnover_years` (observed stock / modeled input), and
-  `model_turnover_years` (T_i). `observed_turnover_years` remains a legacy alias
+  `model_T` (T_i). `observed_turnover_years` remains a legacy alias
   for the implied quantity, which is not an independent observation.
 - Retain all starts, requested-time predictions, near-best prediction ranges,
   exclusions, and settings/source fingerprints. Runs preserve existing output

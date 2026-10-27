@@ -66,10 +66,10 @@ def refit(sites, inputs, atmosphere, fm_evaluator, n_jobs):
         columns = ['mu'+suffix, 'sigma'+suffix]
         params[columns] = np.nan
         turnover = sites.get('stock_kg_m2'+stock_suffix, np.nan)/inputs
-        valid = np.isfinite(turnover) & turnover.gt(0) & np.isfinite(sites.fm) & sites.fm.gt(0)
+        valid = np.isfinite(turnover) & turnover.gt(0) & np.isfinite(sites.fm_obs) & sites.fm_obs.gt(0)
         if valid.any():
             fits = Parallel(n_jobs=n_jobs)(delayed(fit_observation)(atmosphere, fm_evaluator, tau, fm)
-                                          for tau, fm in zip(turnover[valid], sites.fm[valid]))
+                                          for tau, fm in zip(turnover[valid], sites.fm_obs[valid]))
             params.loc[valid, columns] = pd.DataFrame(fits)[['mu', 'sigma']].to_numpy()
     return generate_predictions(LognormalDisKin, params, ['mu', 'sigma'], params)
 

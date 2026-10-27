@@ -22,7 +22,7 @@ matching documentation; unrelated workspace files are outside its scope.
 | Partial result dictionaries and vague workflow names | `FitResult` supplies a complete schema for success/failure; workflow uses `layer_input`, `layer_record`, `new_carbon`, and `near_best`. |
 | Workbook reread through nested metadata | `PreparedProfiles.raw_profiles` retains metadata for Jackson vegetation assignment. |
 | No evaluation output without observed f_new | Always write a metrics record and explanatory PNG/PDF, with zero pairs, NaN scores, and explicit status. Failed predictions cannot silently reduce the cohort. |
-| Missing modeled turnover | Write `model_turnover_years` and `implied_turnover_years`; retain `observed_turnover_years` as a compatibility alias for the implied value. |
+| Missing modeled turnover | Write `model_T` and `implied_turnover_years`; retain `observed_turnover_years` as a compatibility alias for the implied value. |
 | Historical zero-transport comparison exists only in prose | Added executable frozen-input refit and comparison against both saved independent and coupled D=v=0 outputs. |
 
 ## Numerical regression

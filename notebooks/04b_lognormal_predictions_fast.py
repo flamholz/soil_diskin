@@ -86,9 +86,9 @@ def main(params_path: Path = DEFAULT_PARAMS_PATH, out_dir: Path = DEFAULT_OUT_DI
     print(f"Loaded {n} param rows from {params_path}")
 
     # --- Main scan over all sites ---
-    print("Scanning main (turnover, pred)…")
+    print("Scanning main (turnover, model_A)…")
     t0 = time.perf_counter()
-    results = _scan(params["turnover"].to_numpy(float), params["pred"].to_numpy(float), n_jobs=n_jobs)
+    results = _scan(params["turnover"].to_numpy(float), params["model_A"].to_numpy(float), n_jobs=n_jobs)
     print(f"  elapsed: {time.perf_counter() - t0:.2f} s  shape {results.shape}")
     _write_with_ts_header(out_dir / "04b_lognormal_cdfs_python.csv", results)
 
@@ -103,17 +103,17 @@ def main(params_path: Path = DEFAULT_PARAMS_PATH, out_dir: Path = DEFAULT_OUT_DI
     results_05 = np.empty((n, TS_SIZE), dtype=np.float64)
     results_95 = np.empty((n, TS_SIZE), dtype=np.float64)
 
-    print("Scanning q05 (turnover_q05, pred_05)…")
+    print("Scanning q05 (turnover_q05, model_A_05)…")
     t0 = time.perf_counter()
     block_05 = _scan(backfilled["turnover_q05"].to_numpy(float),
-                     backfilled["pred_05"].to_numpy(float), n_jobs=n_jobs)
+                     backfilled["model_A_05"].to_numpy(float), n_jobs=n_jobs)
     results_05[:nb, :] = block_05
     print(f"  elapsed: {time.perf_counter() - t0:.2f} s  filled rows {nb}")
 
-    print("Scanning q95 (turnover_q95, pred_95)…")
+    print("Scanning q95 (turnover_q95, model_A_95)…")
     t0 = time.perf_counter()
     block_95 = _scan(backfilled["turnover_q95"].to_numpy(float),
-                     backfilled["pred_95"].to_numpy(float), n_jobs=n_jobs)
+                     backfilled["model_A_95"].to_numpy(float), n_jobs=n_jobs)
     results_95[:nb, :] = block_95
     print(f"  elapsed: {time.perf_counter() - t0:.2f} s  filled rows {nb}")
 

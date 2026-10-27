@@ -1,13 +1,13 @@
 """Export calibrated lognormal and power-law results as one tidy CSV per model.
 
 Each row is a processed Balesdent site. Columns are the site identifiers and
-observations (source_row, latitude, longitude, turnover, fm, A_r), the
-calibrated parameters, and the model's steady-state turnover (model_turnover)
+observations (source_row, latitude, longitude, turnover, fm_obs, A_r), the
+calibrated parameters, and the model's steady-state turnover (model_T)
 and mean age (model_A).
 
 A_r is the apparent radiocarbon age, -ln(fm)/LAMBDA_14C, computed from the
-observed fm with the project's 14C decay constant. It is not the model's mean
-age and is negative where fm > 1 (post-bomb carbon).
+observed fm_obs with the project's 14C decay constant. It is not the model's mean
+age and is negative where fm_obs > 1 (post-bomb carbon).
 
 source_row is the 0-based row of results/processed_balesdent_2018.csv. Rows are
 site-level means, so it does not map back to a single row of the raw workbook.
@@ -31,12 +31,12 @@ OUT_DIR = Path('results/04_calibration_exports')
 MODELS = {
     'powerlaw': ('powerlaw_model_optimization_results.csv',
                  {'t_min': 't_min', 't_max': 't_max',
-                  'model_turnover': 'modeled_turnover', 'model_A': 'modeled_A'}),
+                  'model_T': 'model_T', 'model_A': 'model_A'}),
     'lognormal': ('03b_lognormal_predictions_calcurve_python.csv',
                   {'mu': 'mu', 'sigma': 'sigma',
-                   'model_turnover': 'model_turnover_years', 'model_A': 'pred'}),
+                   'model_T': 'model_T', 'model_A': 'model_A'}),
 }
-OBSERVATIONS = ['turnover', 'fm']
+OBSERVATIONS = ['turnover', 'fm_obs']
 
 
 def apparent_radiocarbon_age(fm):
@@ -59,7 +59,7 @@ def export_model(sites, calibration_path, columns):
                         'latitude': sites.Latitude, 'longitude': sites.Longitude})
     for name in OBSERVATIONS:
         out[name] = calibration[name]
-    out['A_r'] = apparent_radiocarbon_age(out.fm)
+    out['A_r'] = apparent_radiocarbon_age(out.fm_obs)
     for name, source in columns.items():
         out[name] = calibration[source]
     return out

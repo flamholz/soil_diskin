@@ -41,7 +41,7 @@ J_ratio = np.percentile(stock_ratios.dropna(), [2.5, 25, 50, 75, 97.5])
 
 # The unperturbed system is the mean turnover time and mean age across all sites
 site_params = pd.read_csv('results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv')
-mean_age = site_params['pred'].mean()
+mean_age = site_params['model_A'].mean()
 mean_turnover = site_params['turnover'].mean()
 
 

@@ -189,9 +189,19 @@ rule calibrate_generalized_powerlaw:
         "results/all_sites_14C_turnover.csv",
     output:
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
-        "results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv"
+        "results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv",
+        "results/03_calibrate_models/general_powerlaw_model_alpha_sweep.csv"
     script:
         "notebooks/03c_calibrate_generalized_powerlaw_model.py"
+
+
+rule calibrate_soft_cutoff_powerlaw:
+    input:
+        "results/all_sites_14C_turnover.csv",
+    output:
+        "results/03_calibrate_models/soft_cutoff_powerlaw_model_alpha_sweep.csv"
+    script:
+        "notebooks/03f_calibrate_soft_cutoff_powerlaw_model.py"
 
 
 # Fit lognormal mu/sigma directly to turnover and radiocarbon.
@@ -290,6 +300,8 @@ rule continuum_model_predictions:
         "results/03_calibrate_models/depth_resolved/03b_lognormal_predictions_calcurve_python.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv",
+        "results/03_calibrate_models/general_powerlaw_model_alpha_sweep.csv",
+        "results/03_calibrate_models/soft_cutoff_powerlaw_model_alpha_sweep.csv",
         "results/03_calibrate_models/weibull_model_optimization_results.csv"
     output:
         "results/04_model_predictions/weibull_model_predictions.csv",
@@ -298,6 +310,8 @@ rule continuum_model_predictions:
         "results/04_model_predictions/depth_resolved/lognormal_model_predictions.csv",
         "results/04_model_predictions/general_power_law_model_predictions.csv",
         "results/04_model_predictions/general_power_law_model_predictions_alpha_half.csv",
+        "results/04_model_predictions/general_power_law_model_predictions_alpha_sweep.csv",
+        "results/04_model_predictions/soft_cutoff_power_law_model_predictions_alpha_sweep.csv",
     script:
         "notebooks/04_collect_continuum_model_predictions.py"
 
@@ -603,8 +617,8 @@ rule clean:
 rule clean_results:
     shell:
         """
-        find results -type f -name '*.csv' -delete || true
-        find results -type f -name '*.npz' -delete || true
+        find results -type f -name '*.csv' -not -path 'results/experimental/*' -delete || true
+        find results -type f -name '*.npz' -not -path 'results/experimental/*' -delete || true
         rm -rf figures/*
         """
 
@@ -612,7 +626,7 @@ rule clean_results:
 rule clean_light:
     shell:
         """
-        find results -type f -name '*.csv' ! -name 'CLM45*.csv' ! -name 'JSBACH*.csv' ! -name 'processed_balesdent_2018.csv' ! -name 'all_sites_14C_turnover.csv' ! -name 'processed_balesdent_2018_sampled_soilgrids.csv' ! -name 'all_sites_14C_turnover_depth_resolved.csv' -delete || true
-        find results -type f -name '*.npz' ! -name 'CLM45*.npz' ! -name 'JSBACH*.npz' -delete || true
+        find results -type f -name '*.csv' -not -path 'results/experimental/*' ! -name 'CLM45*.csv' ! -name 'JSBACH*.csv' ! -name 'processed_balesdent_2018.csv' ! -name 'all_sites_14C_turnover.csv' ! -name 'processed_balesdent_2018_sampled_soilgrids.csv' ! -name 'all_sites_14C_turnover_depth_resolved.csv' -delete || true
+        find results -type f -name '*.npz' -not -path 'results/experimental/*' ! -name 'CLM45*.npz' ! -name 'JSBACH*.npz' -delete || true
         rm -rf figures/*
         """

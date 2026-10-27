@@ -244,6 +244,16 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
     """A model where rates of decay are proportional to alpha/t between two bounding timescales.
 
     The decay rate at age t is alpha/(t_min + t) + 1/t_max, i.e. ~alpha/t for t_min << t << t_max.
+
+    The model itself is well defined for any alpha > 0: the survival function
+    s(t) = exp(-t/t_max) (t_min/(t_min + t))^alpha is the Laplace transform of a
+    Gamma(alpha, scale=1/t_min) rate distribution shifted to start at k = 1/t_max,
+    and T and A are finite for all alpha > 0. This class nonetheless requires
+    alpha < 1 because T, A and cdfA are computed with the expint helper, whose
+    E_n(x) = x^(n-1) Gamma(1-n, x) uses scipy's gammaincc(1-n, x) and so needs
+    1 - n > 0. At alpha >= 1 it returns NaN. Lifting the restriction only needs
+    expint to handle n >= 1, e.g. via E_{n+1}(x) = (exp(-x) - x E_n(x))/n.
+    Meanwhile, alpha = 1 is available as PowerLawDisKin.
     """
     def __init__(self, t_min, t_max, alpha = np.exp(-GAMMA), interp_r_14c=None, I=None):
         """
@@ -253,7 +263,9 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         t_max: float
             The long time scale
         alpha: float
-            The exponent of the power law decay with age. Must be positive.
+            The exponent of the power law decay with age. Must be in (0, 1);
+            the upper limit comes from the expint helper, not the model (see
+            the class docstring). The alpha = 1 case is PowerLawDisKin.
             Unrelated to the Weibull shape parameter of WeibullDisKin.alpha.
         interp_r_14c: callable
             An interpolator for the estimated historical radiocarbon concentration.
@@ -264,8 +276,9 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         """
         super().__init__(interp_r_14c=interp_r_14c)
 
-        if alpha <= 0:
-            raise ValueError("Alpha parameter must be positive.")
+        # alpha <= 0 is not a decaying model; alpha >= 1 gives NaN T, A and cdfA from expint.
+        if not 0 < alpha < 1:
+            raise ValueError("Alpha parameter must be in (0, 1); use PowerLawDisKin for alpha = 1.")
 
         self.t_min = t_min  # short time scale
         self.t_max = t_max  # long time scale
@@ -289,7 +302,7 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
         t_min_valid = self.t_min > 0
         t_max_valid = self.t_max > 0
         t_hierarchy_valid = self.t_max > self.t_min
-        alpha_valid = self.alpha > 0
+        alpha_valid = 0 < self.alpha < 1
         return t_min_valid and t_max_valid and t_hierarchy_valid and alpha_valid
 
     def s(self, t):
