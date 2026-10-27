@@ -2,13 +2,17 @@ import itertools
 import unittest
 import numpy as np
 
+from scipy.integrate import quad
+from scipy.stats import geninvgauss
+
 from soil_diskin.continuum_models import PowerLawDisKin, GammaDisKin, LogUniformDisKin
 from soil_diskin.continuum_models import GeneralPowerLawDisKin, LognormalDisKin, LognormalDisKinFast
+from soil_diskin.continuum_models import SoftCutoffPowerLawDisKin
 from soil_diskin.constants import GAMMA
 from soil_diskin.radiocarbon_utils import load_atm14c
 
 model_classes = [PowerLawDisKin, GammaDisKin,
-                 GeneralPowerLawDisKin, LognormalDisKin, LogUniformDisKin]
+                 GeneralPowerLawDisKin, SoftCutoffPowerLawDisKin, LognormalDisKin, LogUniformDisKin]
 
 
 class TestLogUniformDisKin(unittest.TestCase):
@@ -388,6 +392,100 @@ class TestGeneralPowerLawDisKin(unittest.TestCase):
                                   msg=f"Radiocarbon ratio < 0 for t_min={t_min}, t_max={t_max}, alpha={alpha}")
             self.assertLessEqual(ratio_value, 1.5,  # Allow some wiggle room
                                msg=f"Radiocarbon ratio > 1.5 for t_min={t_min}, t_max={t_max}, alpha={alpha}")
+
+
+class TestSoftCutoffPowerLawDisKin(unittest.TestCase):
+
+    T_MIN_VALS = [1.0, 10.0, 100.0]  # short time scale values
+    T_MAX_VALS = [1000.0, 10000.0]  # long time scale values
+    ALPHA_VALS = [0.5, np.exp(-GAMMA), 1.5]  # alpha parameter values
+
+    def params(self):
+        return itertools.product(self.T_MIN_VALS, self.T_MAX_VALS, self.ALPHA_VALS)
+
+    def rate_dist(self, t_min, t_max, alpha):
+        """The GIG rate distribution p(k) ∝ k^(alpha-1) exp(-k t_min - 1/(k t_max))."""
+        return geninvgauss(alpha, 2 * np.sqrt(t_min / t_max), scale=1 / np.sqrt(t_min * t_max))
+
+    def test_s_is_laplace_transform_of_rate_dist(self):
+        """Test that s(t) = E[exp(-k t)] under the GIG rate distribution."""
+        for t_min, t_max, alpha in self.params():
+            model = SoftCutoffPowerLawDisKin(t_min, t_max, alpha)
+            dist = self.rate_dist(t_min, t_max, alpha)
+            for t in [0., 1., 30., 1000., 30000.]:
+                expected = dist.expect(lambda k: np.exp(-k * t))
+                self.assertAlmostEqual(model.s(t), expected, places=6,
+                                       msg=f"s({t}) mismatch for t_min={t_min}, t_max={t_max}, alpha={alpha}")
+
+    def test_moments_match_rate_dist(self):
+        """Test that T = E[1/k] and A = E[1/k^2] / E[1/k] under the GIG rate distribution."""
+        for t_min, t_max, alpha in self.params():
+            model = SoftCutoffPowerLawDisKin(t_min, t_max, alpha)
+            dist = self.rate_dist(t_min, t_max, alpha)
+            T = dist.expect(lambda k: 1 / k)
+            A = dist.expect(lambda k: 1 / k**2) / T
+            self.assertAlmostEqual(model.T / T, 1, places=6,
+                                   msg=f"T mismatch for t_min={t_min}, t_max={t_max}, alpha={alpha}")
+            self.assertAlmostEqual(model.A / A, 1, places=6,
+                                   msg=f"A mismatch for t_min={t_min}, t_max={t_max}, alpha={alpha}")
+
+    def test_numerical_T_integral(self):
+        """Test that the analytical and numerical transit times match."""
+        for t_min, t_max, alpha in self.params():
+            model = SoftCutoffPowerLawDisKin(t_min, t_max, alpha)
+            T_int = model.calc_transit_time()
+            self.assertAlmostEqual(model.T / T_int[0], 1, places=4,
+                                   msg=f"Transit time mismatch for t_min={t_min}, t_max={t_max}, alpha={alpha}")
+
+    def test_numerical_age_integral(self):
+        """Test that the analytical and numerical mean ages match."""
+        for t_min, t_max, alpha in self.params():
+            model = SoftCutoffPowerLawDisKin(t_min, t_max, alpha)
+            A_int = model.calc_mean_age()
+            self.assertAlmostEqual(model.A / A_int[0], 1, places=4,
+                                   msg=f"Mean age mismatch for t_min={t_min}, t_max={t_max}, alpha={alpha}")
+
+    def test_cdf_matches_integrated_pdf(self):
+        """Test that the closed-form CDF matches the integral of pA."""
+        for t_min, t_max, alpha in self.params():
+            model = SoftCutoffPowerLawDisKin(t_min, t_max, alpha)
+            self.assertAlmostEqual(model.cdfA(0), 0, places=12)
+            self.assertAlmostEqual(model.cdfA(1e12), 1, places=12)
+            test_ages = np.logspace(0, 4, 9)
+            for age in test_ages:
+                expected = quad(model.pA, 0, age, limit=500)[0]
+                self.assertAlmostEqual(model.cdfA(age), expected, places=6,
+                                       msg=f"CDF mismatch at age={age} for t_min={t_min}, t_max={t_max}, alpha={alpha}")
+            cdf_vals = model.cdfA(test_ages)
+            self.assertTrue(np.all(np.diff(cdf_vals) > 0),
+                            msg=f"CDF is not increasing for t_min={t_min}, t_max={t_max}, alpha={alpha}")
+
+    def test_params_valid(self):
+        """Test params_valid method."""
+        valid_params = [(10, 1000, 0.5), (1, 10000, np.exp(-GAMMA)), (50, 5000, 1.5)]
+        for t_min, t_max, alpha in valid_params:
+            model = SoftCutoffPowerLawDisKin(t_min, t_max, alpha)
+            self.assertTrue(model.params_valid(),
+                            msg=f"Valid parameters t_min={t_min}, t_max={t_max}, alpha={alpha} marked as invalid.")
+
+        invalid_params = [(-0.001, 1000, 0.5), (1000, 10, 0.8), (10, -100, 0.3)]
+        for t_min, t_max, alpha in invalid_params:
+            model = SoftCutoffPowerLawDisKin(t_min, t_max, alpha)
+            self.assertFalse(model.params_valid(),
+                             msg=f"Invalid parameters t_min={t_min}, t_max={t_max}, alpha={alpha} marked as valid.")
+
+        with self.assertRaises(ValueError):
+            SoftCutoffPowerLawDisKin(t_min=10, t_max=1000, alpha=-0.1)
+
+    def test_radiocarbon_ratio(self):
+        """Test that the radiocarbon ratio calculation runs and gives a plausible value."""
+        for t_min, t_max, alpha in self.params():
+            model = SoftCutoffPowerLawDisKin(t_min, t_max, alpha)
+            ratio_value = model.calc_radiocarbon_ratio_ss()[0]
+            self.assertGreaterEqual(ratio_value, 0,
+                                    msg=f"Radiocarbon ratio < 0 for t_min={t_min}, t_max={t_max}, alpha={alpha}")
+            self.assertLessEqual(ratio_value, 1.5,
+                                 msg=f"Radiocarbon ratio > 1.5 for t_min={t_min}, t_max={t_max}, alpha={alpha}")
 
 
 class TestLognormalDisKin(unittest.TestCase):

@@ -1,7 +1,7 @@
 import numpy as np
 
 from scipy.integrate import quad
-from scipy.special import exp1, gamma, gammaincc, log_ndtr, gammainc
+from scipy.special import exp1, gamma, gammaincc, log_ndtr, gammainc, kve
 from scipy.stats import lognorm, norm
 from soil_diskin import constants
 from soil_diskin.constants import LAMBDA_14C, GAMMA
@@ -332,6 +332,106 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
     def cdfA(self, a):
         """Calculate the cumulative distribution function of the age distribution."""
         return 1 - (self.t_min / (self.t_min + a)) ** (self.alpha - 1) * expint(self.alpha, (self.t_min + a) / self.t_max) / expint(self.alpha, self.tratio)
+
+
+class SoftCutoffPowerLawDisKin(AbstractDiskinModel):
+    """A power law in rate space with soft (exponential) cutoffs at both ends.
+
+    With k_min = 1/t_max and k_max = 1/t_min, the rate distribution is a power
+    law multiplied by a soft cutoff at each end,
+        p(k) = powerLaw(k) * fastCutoff(k) * slowCutoff(k) / Z
+        powerLaw(k)   = k^(alpha - 1)
+        fastCutoff(k) = exp(-k / k_max)
+        slowCutoff(k) = exp(-k_min / k)
+        Z = 2 (k_min k_max)^(alpha/2) K_alpha(2 sqrt(k_min / k_max))
+    where K_alpha is the modified Bessel function of the second kind. This is
+    a generalized inverse Gaussian (GIG) distribution.
+
+    The survival function is the Laplace transform of p(k),
+        s(t) = (1 + k_max t)^(-alpha/2) K_alpha(2 sqrt(k_min (1/k_max + t))) / K_alpha(2 sqrt(k_min/k_max))
+
+    Writing z = 2 sqrt(t_min / t_max), the moments are
+        T = E[1/k] = sqrt(t_min t_max) K_{alpha-1}(z) / K_alpha(z)
+        A = E[1/k^2] / E[1/k] = sqrt(t_min t_max) K_{alpha-2}(z) / K_{alpha-1}(z)
+
+    Expressions follow Mathematica/extended_power_law.nb. Bessel functions are
+    evaluated with the exponentially scaled kve for numerical stability at
+    large arguments.
+    """
+    def __init__(self, t_min, t_max, alpha=np.exp(-GAMMA), interp_r_14c=None, I=None):
+        """
+        Args:
+        t_min: float
+            The short time scale, 1/k_max.
+        t_max: float
+            The long time scale, 1/k_min.
+        alpha: float
+            The exponent of the power law in rate space. Must be positive.
+        interp_r_14c: callable
+            An interpolator for the estimated historical radiocarbon concentration.
+            Takes a single argument, the number of years before a reference time (e.g. 2000).
+            If None uses the default interpolator from constants.
+        I: np.ndarray, optional
+            An array of inputs to the model, representing the carbon input to the system.
+        """
+        super().__init__(interp_r_14c=interp_r_14c)
+
+        if alpha <= 0:
+            raise ValueError("Alpha parameter must be positive.")
+
+        self.t_min = t_min  # short time scale
+        self.t_max = t_max  # long time scale
+        self.I = I
+        self.alpha = alpha
+
+        # Bessel argument at age 0
+        self.z = 2 * np.sqrt(t_min / t_max)
+
+        # steady-state transit time
+        self.T = np.sqrt(t_min * t_max) * kve(alpha - 1, self.z) / kve(alpha, self.z)
+
+        # mean age at steady-state
+        self.A = np.sqrt(t_min * t_max) * kve(alpha - 2, self.z) / kve(alpha - 1, self.z)
+
+    def params_valid(self):
+        """Returns True if the parameters are valid, False otherwise."""
+        t_min_valid = self.t_min > 0
+        t_max_valid = self.t_max > 0
+        t_hierarchy_valid = self.t_max > self.t_min
+        alpha_valid = self.alpha > 0
+        return t_min_valid and t_max_valid and t_hierarchy_valid and alpha_valid
+
+    def _x(self, t):
+        """Bessel argument 2 sqrt((t_min + t) / t_max) at age t."""
+        return 2 * np.sqrt((self.t_min + t) / self.t_max)
+
+    def s(self, t):
+        """The survival function at age t.
+
+        The expression for s(t) is
+            s(t) = (1 + t/t_min)^(-α/2) K_α(x(t)) / K_α(z),  x(t) = 2 sqrt((t_min + t) / t_max)
+
+        Args:
+            t: float
+                The age at which to evaluate the survival function.
+
+        Returns:
+            float
+                The fraction of input remaining at age t.
+        """
+        x = self._x(t)
+        return ((1 + t / self.t_min) ** (-self.alpha / 2)
+                * kve(self.alpha, x) / kve(self.alpha, self.z) * np.exp(self.z - x))
+
+    def cdfA(self, a):
+        """Calculate the cumulative distribution function of the age distribution.
+
+        Uses the antiderivative of x^(1-α) K_α(x), which is -x^(1-α) K_{α-1}(x), so
+            cdfA(a) = 1 - (x(a)/z)^(1-α) K_{α-1}(x(a)) / K_{α-1}(z)
+        """
+        x = self._x(a)
+        return 1 - ((x / self.z) ** (1 - self.alpha)
+                    * kve(self.alpha - 1, x) / kve(self.alpha - 1, self.z) * np.exp(self.z - x))
 
 
 class PowerLawDisKin(AbstractDiskinModel):
