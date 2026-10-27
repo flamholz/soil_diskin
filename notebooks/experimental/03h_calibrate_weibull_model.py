@@ -88,7 +88,7 @@ def parse_results(result, index):
     df.drop(columns='params', inplace=True)
 
     model_x = lambda x: WeibullDisKin(x['k'], x['alpha'])
-    df['modeled_tau'] = df.apply(lambda x: model_x(x).T, axis=1)
+    df['modeled_turnover'] = df.apply(lambda x: model_x(x).T, axis=1)
     df['modeled_age'] = df.apply(lambda x: model_x(x).A, axis=1)
     df['modeled_14C'] = df.apply(
         lambda x: quad(model_x(x).radiocarbon_age_integrand,
