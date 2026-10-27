@@ -398,7 +398,7 @@ class TestSoftCutoffPowerLawDisKin(unittest.TestCase):
 
     T_MIN_VALS = [1.0, 10.0, 100.0]  # short time scale values
     T_MAX_VALS = [1000.0, 10000.0]  # long time scale values
-    ALPHA_VALS = [0.5, np.exp(-GAMMA), 1.5]  # alpha parameter values
+    ALPHA_VALS = [0.0, 0.5, np.exp(-GAMMA), 1.0, 1.5]  # alpha parameter values
 
     def params(self):
         return itertools.product(self.T_MIN_VALS, self.T_MAX_VALS, self.ALPHA_VALS)
@@ -407,13 +407,23 @@ class TestSoftCutoffPowerLawDisKin(unittest.TestCase):
         """The GIG rate distribution p(k) ∝ k^(alpha-1) exp(-k t_min - 1/(k t_max))."""
         return geninvgauss(alpha, 2 * np.sqrt(t_min / t_max), scale=1 / np.sqrt(t_min * t_max))
 
+    def expect(self, dist, func, t_min, t_max):
+        """E[func(k)], integrated over log k.
+
+        dist.expect integrates over k directly and loses accuracy for small alpha,
+        where p(k) ~ 1/k spreads mass over many decades.
+        """
+        integrand = lambda u: func(np.exp(u)) * dist.pdf(np.exp(u)) * np.exp(u)
+        lo, hi = np.log(1 / t_max) - 25, np.log(1 / t_min) + 5
+        return quad(integrand, lo, hi, points=[np.log(1 / t_max), np.log(1 / t_min)], limit=500)[0]
+
     def test_s_is_laplace_transform_of_rate_dist(self):
         """Test that s(t) = E[exp(-k t)] under the GIG rate distribution."""
         for t_min, t_max, alpha in self.params():
             model = SoftCutoffPowerLawDisKin(t_min, t_max, alpha)
             dist = self.rate_dist(t_min, t_max, alpha)
             for t in [0., 1., 30., 1000., 30000.]:
-                expected = dist.expect(lambda k: np.exp(-k * t))
+                expected = self.expect(dist, lambda k: np.exp(-k * t), t_min, t_max)
                 self.assertAlmostEqual(model.s(t), expected, places=6,
                                        msg=f"s({t}) mismatch for t_min={t_min}, t_max={t_max}, alpha={alpha}")
 
@@ -422,8 +432,8 @@ class TestSoftCutoffPowerLawDisKin(unittest.TestCase):
         for t_min, t_max, alpha in self.params():
             model = SoftCutoffPowerLawDisKin(t_min, t_max, alpha)
             dist = self.rate_dist(t_min, t_max, alpha)
-            T = dist.expect(lambda k: 1 / k)
-            A = dist.expect(lambda k: 1 / k**2) / T
+            T = self.expect(dist, lambda k: 1 / k, t_min, t_max)
+            A = self.expect(dist, lambda k: 1 / k**2, t_min, t_max) / T
             self.assertAlmostEqual(model.T / T, 1, places=6,
                                    msg=f"T mismatch for t_min={t_min}, t_max={t_max}, alpha={alpha}")
             self.assertAlmostEqual(model.A / A, 1, places=6,
@@ -462,7 +472,7 @@ class TestSoftCutoffPowerLawDisKin(unittest.TestCase):
 
     def test_params_valid(self):
         """Test params_valid method."""
-        valid_params = [(10, 1000, 0.5), (1, 10000, np.exp(-GAMMA)), (50, 5000, 1.5)]
+        valid_params = [(10, 1000, 0.0), (10, 1000, 0.5), (1, 10000, np.exp(-GAMMA)), (50, 5000, 1.5)]
         for t_min, t_max, alpha in valid_params:
             model = SoftCutoffPowerLawDisKin(t_min, t_max, alpha)
             self.assertTrue(model.params_valid(),

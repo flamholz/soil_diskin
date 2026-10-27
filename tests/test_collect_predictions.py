@@ -32,6 +32,10 @@ def test_collect_bulk_and_layer_predictions(tmp_path, monkeypatch, with_layers):
         table.to_csv(calibration/f'{name}_model_optimization_results.csv', index=False)
         if name == 'general_powerlaw':
             table.to_csv(calibration/f'{name}_model_optimization_results_alpha_half.csv', index=False)
+    # Long-format sweep, deliberately not in site order.
+    sweep = pd.DataFrame({'alpha': [.2, .2, .2, .7, .7, .7], 'site_index': [2, 0, 1, 1, 2, 0],
+                          't_min': [.1, .2, .3, 1., 2., 3.], 't_max': [1e3, 2e3, 3e3, 1e4, 2e4, 3e4]})
+    sweep.to_csv(calibration/'soft_cutoff_powerlaw_model_alpha_sweep.csv', index=False)
     params = pd.DataFrame({'turnover': [10., 2000., np.nan], 'pred': [9000., 9000., np.nan],
         'turnover_q05': [np.nan, 1600., np.nan], 'pred_05': [np.nan, 8000., np.nan],
         'turnover_q95': [np.nan, 2400., np.nan], 'pred_95': [np.nan, 10000., np.nan]})
@@ -67,6 +71,13 @@ def test_collect_bulk_and_layer_predictions(tmp_path, monkeypatch, with_layers):
                 assert result.loc[i, 'predicted_fnew'+suffix] == pytest.approx(expected, abs=1e-10)
     if not with_layers:
         assert not (predictions/'depth_resolved').exists()
+    soft = pd.read_csv(predictions/'soft_cutoff_power_law_model_predictions_alpha_sweep.csv')
+    assert soft[['alpha', 'site_index']].values.tolist() == [[.2, 0], [.2, 1], [.2, 2], [.7, 0], [.7, 1], [.7, 2]]
+    for _, row in sweep.iterrows():
+        model = namespace['SoftCutoffPowerLawDisKin'](row.t_min, row.t_max, row.alpha)
+        duration = sites.Duration_labeling.iloc[int(row.site_index)]
+        predicted = soft.set_index(['alpha', 'site_index']).loc[(row.alpha, row.site_index), 'predicted_fnew']
+        assert predicted == pytest.approx(model.cdfA(duration))
     # Missing calibration/duration rows remain aligned instead of being dropped.
     data = pd.DataFrame({'Duration_labeling': [20., np.nan, -1., 4000.]}, index=[3, 5, 8, 9])
     fitted = pd.DataFrame({'mu': [-2., -2., -2., np.nan], 'sigma': 1.}, index=data.index)

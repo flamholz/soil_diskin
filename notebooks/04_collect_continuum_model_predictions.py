@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from soil_diskin.continuum_models import PowerLawDisKin, GeneralPowerLawDisKin, WeibullDisKin, LognormalDisKin
+from soil_diskin.continuum_models import SoftCutoffPowerLawDisKin
 
 """
 Collects the continuum model predictions for all sites and saves them to CSV files.
@@ -84,6 +85,21 @@ def main():
     print("Generating generalized power-law model predictions...")
     result = generate_predictions(GeneralPowerLawDisKin, general_power_law_params, ['t_min', 't_max', 'alpha'])
     result.to_csv('results/04_model_predictions/general_power_law_model_predictions_alpha_half.csv', index=False)
+
+    #%% Soft-cutoff power-law model, swept over fixed alpha values
+
+    # The sweep is long format (one row per alpha and site); site_index aligns with site_data rows.
+    fname = 'soft_cutoff_powerlaw_model_alpha_sweep.csv'
+    soft_cutoff_params = pd.read_csv(f'results/03_calibrate_models/{fname}')
+
+    results = []
+    for alpha, alpha_params in soft_cutoff_params.groupby('alpha'):
+        result = generate_predictions(SoftCutoffPowerLawDisKin, alpha_params.set_index('site_index'),
+                                      ['t_min', 't_max', 'alpha'], site_data)
+        result.insert(0, 'alpha', alpha)
+        results.append(result.rename_axis('site_index').reset_index())
+    result = pd.concat(results, ignore_index=True)
+    result.to_csv('results/04_model_predictions/soft_cutoff_power_law_model_predictions_alpha_sweep.csv', index=False)
 
 
     #%% Weibull / hockey-stick model

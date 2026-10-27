@@ -366,7 +366,8 @@ class SoftCutoffPowerLawDisKin(AbstractDiskinModel):
         t_max: float
             The long time scale, 1/k_min.
         alpha: float
-            The exponent of the power law in rate space. Must be positive.
+            The exponent of the power law in rate space. Must be non-negative;
+            the GIG and its moments are finite for any real alpha.
         interp_r_14c: callable
             An interpolator for the estimated historical radiocarbon concentration.
             Takes a single argument, the number of years before a reference time (e.g. 2000).
@@ -376,8 +377,8 @@ class SoftCutoffPowerLawDisKin(AbstractDiskinModel):
         """
         super().__init__(interp_r_14c=interp_r_14c)
 
-        if alpha <= 0:
-            raise ValueError("Alpha parameter must be positive.")
+        if alpha < 0:
+            raise ValueError("Alpha parameter must be non-negative.")
 
         self.t_min = t_min  # short time scale
         self.t_max = t_max  # long time scale
@@ -398,7 +399,7 @@ class SoftCutoffPowerLawDisKin(AbstractDiskinModel):
         t_min_valid = self.t_min > 0
         t_max_valid = self.t_max > 0
         t_hierarchy_valid = self.t_max > self.t_min
-        alpha_valid = self.alpha > 0
+        alpha_valid = self.alpha >= 0
         return t_min_valid and t_max_valid and t_hierarchy_valid and alpha_valid
 
     def _x(self, t):
