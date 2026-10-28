@@ -88,8 +88,7 @@ def test_refits_in_memory_and_writes_only_one_figure(tmp_path, monkeypatch):
     # Build a stand-in for the saved Fig. 4B table: baseline inputs and fits. It is
     # written in reverse row order to check that main() re-sorts by profile and layer.
     sites['input_kg_m2_yr'] = analysis.layer_inputs(sites, analysis.BASELINE_SCHEME, 1.)
-    fm_evaluator = analysis.cached_radiocarbon(atmosphere)
-    baseline = analysis.refit(sites, sites.input_kg_m2_yr, atmosphere, fm_evaluator, n_jobs=1)
+    baseline = analysis.refit(sites, sites.input_kg_m2_yr, atmosphere, n_jobs=1)
     source = tmp_path/'baseline.csv'
     sites.join(baseline.drop(columns=sites.columns, errors='ignore')).iloc[::-1].to_csv(source, index=False)
     figures, captured = [], {}
@@ -124,7 +123,7 @@ def test_refits_in_memory_and_writes_only_one_figure(tmp_path, monkeypatch):
     assert not np.allclose(captured[(.5, analysis.BASELINE_SCHEME)].predicted_fnew[:3], baseline.predicted_fnew[:3])
     # A missing scenario stock must not reuse baseline parameters from the input.
     missing = analysis.refit(sites.drop(columns='stock_kg_m2_q95'), sites.input_kg_m2_yr,
-                             atmosphere, fm_evaluator, n_jobs=1)
+                             atmosphere, n_jobs=1)
     assert missing.predicted_fnew_95.isna().all()
     # Every panel shows the same pairs: a failed fit in any one table drops that
     # row from all ten panels.

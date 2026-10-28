@@ -45,11 +45,10 @@ if __name__ == "__main__":
     # typical values based on fig. S2
     mu = 1
     sigma = 2.5
-    ppf_lim = 1e-9
-    focal_model = LognormalDisKin(mu=mu, sigma=sigma, ppf_lim=ppf_lim)
+    focal_model = LognormalDisKin(mu=mu, sigma=sigma)
     models = [
-        LognormalDisKin(mu=-1, sigma=2.5, ppf_lim=ppf_lim),
-        LognormalDisKin(mu=1, sigma=1.5, ppf_lim=ppf_lim),
+        LognormalDisKin(mu=-1, sigma=2.5),
+        LognormalDisKin(mu=1, sigma=1.5),
         focal_model, # mu=1, sigma=2.5
     ]
     model_color_order = [colors[x] for x in ['purple', 'dark_brown', 'dark_grey']]
@@ -72,7 +71,9 @@ if __name__ == "__main__":
     # Since we plot against ln k, we plot the density of ln k, which is the
     # underlying normal(ln k; mu, sigma) and integrates to 1 over ln k.
     # Each k bin decays exponentially with time t as exp(-k*t).
-    ln_k_bins = np.linspace(np.log(focal_model.k_min), np.log(focal_model.k_max), 10000)
+    # Span the focal model's 1e-9 and 1 - 1e-9 quantiles of ln k.
+    z = norm.isf(1e-9)
+    ln_k_bins = np.linspace(mu - z * sigma, mu + z * sigma, 10000)
     k_bins = np.exp(ln_k_bins)
     initial_distributions = [norm.pdf(ln_k_bins, loc=my_model.mu, scale=my_model.sigma) for my_model in models]
     
@@ -91,7 +92,7 @@ if __name__ == "__main__":
 
     for i, my_model in enumerate(models):
         color = model_color_order[i]
-        ax.plot(ages2plot, my_model.s_vec(ages2plot),
+        ax.plot(ages2plot, my_model.s(ages2plot),
                 color=color, lw=1.5,
                 label=f'$\\mu={my_model.mu}$, $\\sigma={my_model.sigma}$')
     ax.set_xlim(0, 20)

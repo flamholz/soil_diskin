@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from scipy import integrate
 from matplotlib.ticker import MaxNLocator, FormatStrFormatter
 
-from soil_diskin.continuum_models import LognormalDisKinFast
+from soil_diskin.continuum_models import LognormalDisKin
 from soil_diskin.radiocarbon_utils import load_atm14c
 
 import viz
@@ -58,7 +58,7 @@ for target_T, target_R_14C in zip(target_Ts, target_R_14Cs):
 
     calibrated_Ts.append(T_matrix[min_idx])
     calibrated_R_14Cs.append(R_14C_matrix[min_idx])
-    calibrated_models.append(LognormalDisKinFast(mu=mu_cal, sigma=sigma_cal, atm=atm))
+    calibrated_models.append(LognormalDisKin(mu=mu_cal, sigma=sigma_cal, atm=atm))
 
 calibrated_colors = [colors[c] for c in ['dark_green', 'purple', 'dark_blue', 'red']]
 print('(T, R_14C, hex_color)')
@@ -114,7 +114,7 @@ plt.sca(axs['E'])
 plt.xscale('log')
 ages = np.logspace(-3, np.log10(1800), 200)
 for i, (my_model, color) in enumerate(zip(calibrated_models, calibrated_colors)):
-    survival_fn = my_model.survival_discretized(ages)
+    survival_fn = my_model.s(ages)
     T_val = calibrated_Ts[i]
     R_14C_val = calibrated_R_14Cs[i]
     label = f'$T={int(T_val)}$; $^{{14}}C/^{{12}}C={R_14C_val:.2f}$'
@@ -133,7 +133,7 @@ plt.xscale('log')
 ages_cdf = np.logspace(-3, np.log10(100000), 200)
 for my_model, color in zip(calibrated_models, calibrated_colors):
     # Vectorized survival -> PDF -> normalized CDF using trapezoidal quadrature
-    s_tau = my_model.survival_discretized(ages_cdf)
+    s_tau = my_model.s(ages_cdf)
     pA = s_tau / my_model.T
     pA_integral = integrate.trapezoid(pA, ages_cdf)
     pA_normalized = pA / pA_integral

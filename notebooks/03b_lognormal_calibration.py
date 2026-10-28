@@ -23,8 +23,7 @@ from scipy.optimize import least_squares
 # Allow running this file directly from the checkout.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from soil_diskin.continuum_models import LognormalDisKinFast
-from soil_diskin.lognormal import cached_radiocarbon
+from soil_diskin.continuum_models import LognormalDisKin
 from soil_diskin.radiocarbon_utils import load_atm14c
 
 SITES_PATH = Path('results/all_sites_14C_turnover.csv')
@@ -32,15 +31,16 @@ ATM_PATH = Path('data/14C_atm_annot.csv')
 OUT_DIR = Path('results/03_calibrate_models')
 
 
-def fit_observation(atm, fm_evaluator, turnover, fm):
+def fit_observation(atm, turnover, fm):
     """Minimize squared relative turnover/Fm errors; prefer higher-sigma exact fits."""
     if not np.isfinite([turnover, fm]).all() or min(turnover, fm) <= 0:
         raise ValueError('positive finite turnover and fm required')
-    lower, upper = [-15., .01], [10., 5.]  # Must match cached_radiocarbon's bounds.
+    # Within these bounds the atmosphere's log-rate grid resolves the distribution.
+    lower, upper = [-15., .01], [10., 5.]
 
     def residual(parameters):
-        model = LognormalDisKinFast(*parameters, atm, fm_evaluator=fm_evaluator)
-        fm_pred, _ = model.calc_radiocarbon_ratio_ss_fast()
+        model = LognormalDisKin(*parameters, atm=atm)
+        fm_pred, _ = model.calc_radiocarbon_ratio_ss()
         # Relative turnover error equals relative stock error at the observed input.
         return (np.array([model.T, fm_pred])-[turnover, fm])/np.array([turnover, fm])
 
@@ -56,8 +56,8 @@ def fit_observation(atm, fm_evaluator, turnover, fm):
             fit = least_squares(residual, start, bounds=(lower, upper), x_scale='jac',
                                 max_nfev=2000, ftol=1e-13, xtol=1e-13, gtol=1e-13)
             mu, sigma = fit.x
-            model = LognormalDisKinFast(mu, sigma, atm, fm_evaluator=fm_evaluator)
-            fm_pred, _ = model.calc_radiocarbon_ratio_ss_fast()
+            model = LognormalDisKin(mu, sigma, atm=atm)
+            fm_pred, _ = model.calc_radiocarbon_ratio_ss()
         except (ValueError, FloatingPointError, np.linalg.LinAlgError):
             continue
         relative_error, fm_error = model.T/turnover-1, fm_pred-fm
@@ -90,7 +90,7 @@ def main(n_jobs: int = -1, sites_path: Path = SITES_PATH, out_dir: Path | None =
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f'Preparing atmospheric quadrature; {len(sites)} observations', flush=True)
     atm = load_atm14c(str(ATM_PATH))
-    fm_evaluator = cached_radiocarbon(atm)
+    atm.log_rate_response()  # Tabulate once here rather than in every worker.
     out = sites.copy()
     for column, suffix in [('turnover', ''), ('turnover_q05', '_05'), ('turnover_q95', '_95')]:
         for name in ['mu', 'sigma', 'model_A', 'model_T', 'model_fm',
@@ -104,7 +104,7 @@ def main(n_jobs: int = -1, sites_path: Path = SITES_PATH, out_dir: Path | None =
         print(f'Fitting {column}: {len(observations)} rows', flush=True)
         if observations.empty:
             continue
-        fits = Parallel(n_jobs=n_jobs)(delayed(fit_observation)(atm, fm_evaluator, tau, fm)
+        fits = Parallel(n_jobs=n_jobs)(delayed(fit_observation)(atm, tau, fm)
                                       for tau, fm in observations.itertuples(index=False, name=None))
         fitted = pd.DataFrame(fits, index=observations.index).add_suffix(suffix)
         out.loc[valid, fitted.columns] = fitted

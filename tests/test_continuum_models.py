@@ -6,7 +6,7 @@ from scipy.integrate import quad
 from scipy.stats import geninvgauss
 
 from soil_diskin.continuum_models import PowerLawDisKin, GammaDisKin, LogUniformDisKin
-from soil_diskin.continuum_models import GeneralPowerLawDisKin, LognormalDisKin, LognormalDisKinFast
+from soil_diskin.continuum_models import GeneralPowerLawDisKin, LognormalDisKin
 from soil_diskin.continuum_models import SoftCutoffPowerLawDisKin
 from soil_diskin.constants import GAMMA
 from soil_diskin.radiocarbon_utils import load_atm14c
@@ -559,25 +559,25 @@ class TestLognormalDisKin(unittest.TestCase):
             self.assertAlmostEqual(expected_T, T, msg=f"Transit time mismatch for a={a}, T={T}, mu={mu}, sigma={sigma}")    
 
 
-class TestLognormalDisKinFast(unittest.TestCase):
+class TestLognormalDisKinRadiocarbon(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
         cls.atm = load_atm14c()
 
-    def test_requires_atm_on_construction(self):
-        with self.assertRaises(TypeError):
-            LognormalDisKinFast(mu=0.0, sigma=0.5)
-
     def test_uses_supplied_atmosphere(self):
-        model = LognormalDisKinFast(mu=-1.0, sigma=0.8, atm=self.atm)
+        model = LognormalDisKin(mu=-1.0, sigma=0.8, atm=self.atm)
         self.assertIs(model.atm, self.atm)
 
     def test_calc_radiocarbon_ratio_ss_returns_tuple(self):
-        model = LognormalDisKinFast(mu=-1.0, sigma=0.8, atm=self.atm)
+        model = LognormalDisKin(mu=-1.0, sigma=0.8, atm=self.atm)
         ratio, err = model.calc_radiocarbon_ratio_ss()
         self.assertIsInstance(ratio, float)
-        self.assertIsInstance(err, float)
-        self.assertGreaterEqual(err, 0.0)
+        self.assertEqual(err, 0.0)
         self.assertGreaterEqual(ratio, 0.0)
         self.assertLessEqual(ratio, 1.5)
+
+    def test_unresolved_distribution_raises(self):
+        """Parameters whose tails leave the log-rate grid must not return a value."""
+        with self.assertRaises(ValueError):
+            LognormalDisKin(mu=-15.0, sigma=8.0, atm=self.atm).calc_radiocarbon_ratio_ss()

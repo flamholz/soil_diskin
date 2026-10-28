@@ -2,10 +2,10 @@ import numpy as np
 
 from scipy.integrate import quad
 from scipy.special import exp1, gamma, gammaincc, log_ndtr, gammainc, kve
-from scipy.stats import lognorm, norm
+from scipy.stats import norm
 from soil_diskin.constants import LAMBDA_14C, GAMMA
-from soil_diskin.lognormal import lognormal_radiocarbon, inner_integral, C14_MEAN_LIFE, diskin_C_of_t
-from soil_diskin.radiocarbon_utils import AtmC14, default_atmosphere
+from soil_diskin.lognormal import diskin_C_of_t
+from soil_diskin.radiocarbon_utils import default_atmosphere
 from functools import lru_cache
 from tqdm import tqdm
 
@@ -36,10 +36,20 @@ class AbstractDiskinModel:
     than static disorder as in the lognormal and gamma models. We have 
     kept the name nonetheless. 
     
-    It is expected that concrete subclasses expose analytically-calculated
-    values of the mean age and transit time at steady-state as properties
-    A and T.
+    Contract for concrete subclasses (checked by tests/test_model_contract.py):
+      * T and A: analytic steady-state transit time and mean age
+      * params_valid()
+      * s(t): survival function, s(0) = 1, accepting scalars and arrays
+      * cdfA(t): CDF of the steady-state age distribution pA = s/T
+    Radiocarbon comes from calc_radiocarbon_ratio_ss(). By default it integrates
+    pA against the atmosphere over age. A model defined by a rate distribution
+    p(k), with s(t) its Laplace transform, may instead define
+    log_rate_density(u), the density of u = ln k; the ratio is then computed
+    in rate space, which is faster and accurate for broad distributions.
     """
+
+    # Optional: density of u = ln k, for models defined by a rate distribution.
+    log_rate_density = None
 
     def __init__(self, atm=None):
         """Initialize the model.
@@ -201,13 +211,41 @@ class AbstractDiskinModel:
         return initial_r * self.pA(a) * radiocarbon_decay
 
     def calc_radiocarbon_ratio_ss(self, quad_limit=1500, quad_epsabs=1e-3):
-        """Calculate the radiocarbon age by integrating the age distribution.
-        
+        """Calculate the steady-state radiocarbon ratio.
+
+        Integrates the age distribution against the atmosphere, or uses the rate
+        distribution if the model defines log_rate_density. The quadrature
+        arguments apply only to the age integral.
+
         Returns:
-            A two-tuple of the radiocarbon age and an estimate of the absolute error.
+            A two-tuple of the radiocarbon ratio and an estimate of the absolute
+            error (0 for the rate-space calculation).
         """
+        if self.log_rate_density is not None:
+            return self._radiocarbon_ratio_from_rates(), 0.0
         return quad(self.radiocarbon_age_integrand, 0, np.inf,
                     limit=quad_limit, epsabs=quad_epsabs)
+
+    def _radiocarbon_ratio_from_rates(self):
+        """Steady-state radiocarbon ratio from the rate distribution.
+
+        With s(t) = integral of p(k) exp(-k t) dk, swapping the order of
+        integration gives
+
+            integral of pA(a) R(a) exp(-lambda a) da = (1/T) integral of p(k) I(k + lambda) dk,
+
+        where I is the Laplace transform of the atmospheric record R. I is
+        tabulated once per atmosphere on a grid in u = ln k (AtmC14.log_rate_response),
+        so each evaluation is a single trapezoid sum.
+        """
+        u, response = self.atm.log_rate_response()
+        weights = self.log_rate_density(u) * (u[1] - u[0])
+        weights[[0, -1]] *= .5
+        # The grid must hold the input-weighted mass and the 1/k-weighted stock.
+        mass, stock = np.sum(weights), np.sum(weights * np.exp(-u))
+        if not (abs(mass - 1) < 1e-6 and abs(stock / self.T - 1) < 1e-6):
+            raise ValueError('rate distribution is not resolved on the log-rate grid')
+        return float(np.sum(weights * response)) / self.T
 
 
 class GammaDisKin(AbstractDiskinModel):
@@ -659,52 +697,37 @@ class LogUniformDisKin(AbstractDiskinModel):
 
 
 class LognormalDisKin(AbstractDiskinModel):
-    """A model where the rate distribution is lognormal."""
+    """A model where the rate distribution is lognormal: ln k ~ N(mu, sigma).
 
-    def __init__(self, mu, sigma, k_min=None, k_max=None, atm=None, N=1000, ppf_lim=1e-5):
+    T and A are analytic. s(t) is integrated over ln k, and radiocarbon is
+    computed from the rate distribution (see AbstractDiskinModel).
+    """
+
+    def __init__(self, mu, sigma, atm=None, n_nodes=2000):
         """
         Args:
         mu: float
-            The mean of the underlying normal distribution
+            The mean of ln k, with k in yr^-1.
         sigma: float
-            The standard deviation underlying normal distribution
-        k_min: float
-            The minimum value of k to use in the integrals. UNITS?
-        k_max: float
-            The maximum value of k to use in the integrals. UNITS? 
+            The standard deviation of ln k.
         atm: AtmC14, optional
             The atmospheric 14C record. If None, uses the project default.
-        N: int
-            The number of elements to discretize p(k) into.
-        ppf_lim: float
-            The percent point function limit for the lognormal distribution.
+        n_nodes: int
+            Gauss-Legendre nodes for the survival-function integral.
         """
         super().__init__(atm=atm)
 
         self.mu = mu
-        self.k_star = np.exp(mu)
         self.sigma = sigma
-        self.k_min = k_min or lognorm.ppf(ppf_lim, s=sigma, scale=np.exp(mu))
-        self.k_max = k_max or lognorm.ppf(1.0-ppf_lim, s=sigma, scale=np.exp(mu))
-
-        # rescale ks by the median
-        self.kappa_min = self.k_min / self.k_star
-        self.kappa_max = self.k_max / self.k_star
-
-        # log scale
-        self.q_min = np.log(self.kappa_min)
-        self.q_max = np.log(self.kappa_max)        
+        self.n_nodes = n_nodes
 
         # steady-state transit time and mean age
         self.T = np.exp(-self.mu + ((self.sigma**2) / 2))
         # mean age at steady-state
         self.A = self.T * np.exp(self.sigma**2)
-        
-        self.ks = np.logspace(self.q_min, self.q_max, N, base=np.e)
-        self.I = lognorm.pdf(self.ks, s=self.sigma, scale=np.exp(self.mu))
 
     @classmethod
-    def from_age_and_transit_time(cls, a, T, N=1000, ppf_lim=1e-5):
+    def from_age_and_transit_time(cls, a, T, atm=None):
         """Construct a LognormalDisKin object from the mean age and transit time.
         
         Note: a/T >= 1 is required. a/T < 1 implies a negative lognormal standard deviation.
@@ -714,8 +737,8 @@ class LognormalDisKin(AbstractDiskinModel):
                 The mean age
             T: float
                 The transit time
-            N: int
-                The number of elements to discretize p(k) into.
+            atm: AtmC14, optional
+                The atmospheric 14C record. If None, uses the project default.
 
         Returns:
             LognormalDisKin
@@ -726,80 +749,34 @@ class LognormalDisKin(AbstractDiskinModel):
         sigma_squared = np.log(a/T)
         sigma = np.sqrt(sigma_squared)
         mu = sigma_squared/2 - np.log(T)
-        return cls(mu, sigma, N=N)
+        return cls(mu, sigma, atm=atm)
     
     def params_valid(self):
         """Returns True if the parameters are valid, False otherwise."""
-        return self.sigma > 0
-    
-    def _pk(self, k):
-        """The probability density function of the rate distribution p(k)."""
-        return lognorm.pdf(k, s=self.sigma, scale=np.exp(self.mu))
-    
-    def _s_integrand(self, t, k):
-        """Integrand for the survival function."""
-        return self._pk(k) * np.exp(-k * t)
+        return bool(np.isfinite(self.mu) and self.sigma > 0)
+
+    def log_rate_density(self, u):
+        """Density of u = ln k."""
+        return norm.pdf(u, loc=self.mu, scale=self.sigma)
 
     def s(self, t):
-        """The survival function at age t.
-        
-        The survival function gives the fraction of input remaining at age t.
+        """The survival function at age t (scalar or array).
 
-        For the lognormal model, the survival function is given by
+        With u = ln k, the survival function is the Laplace transform
 
-            𝑠(𝑡)= ∫_0^\infty (p(k) exp(-kt) dk)
+            s(t) = integral of phi(u; mu, sigma) exp(-e^u t) du,
 
-        where p(k) is a lognormal distribution over ks. Since this 
-        is the Laplace transform of a lognormal distribution, there is no
-        known closed-form solution, so we evaluate the integral numerically.
-
-        This integral is not very stable in general, and especially using 
-        scipy methods. In practice we resort to separate calculation in 
-        Mathematica. 
-
-        Args:
-            t: float
-                The age at which to evaluate the survival function.
-        
-        Returns:
-            float
-                The fraction of input remaining at age t.
-        """
-        # We picked some limits of integration based on the p(k)
-        # distribution in the constructor.
-        k_min = self.k_min
-        k_max = self.k_max
-        result, _ = quad(
-            self._s_integrand, k_min, k_max, args=(t,),
-            limit=500, epsabs=1e-5)
-        return result
-
-    def s_vec(self, t, n_nodes=2000):
-        """Vectorized survival function using fixed quadrature in log k.
-
-        Substituting u = ln k turns the integral into
-
-            𝑠(𝑡) = ∫_{ln k_min}^{ln k_max} φ(u; μ, σ) exp(-e^u t) du
-
-        where φ is the normal density of ln k. The integrand is smooth
-        in u, so a fixed Gauss-Legendre rule on [ln k_min, ln k_max]
-        is accurate and evaluates all t at once by broadcasting.
-
-        Args:
-            t: float or np.ndarray
-                The age(s) at which to evaluate the survival function.
-            n_nodes: int
-                The number of Gauss-Legendre nodes.
-
-        Returns:
-            float or np.ndarray
-                The fraction of input remaining at each age t.
+        evaluated with a fixed Gauss-Legendre rule. The limits run from
+        mu - sigma^2 - 10 sigma to mu + 10 sigma: the steady-state stock weights
+        rates by 1/k, which shifts its log-rate distribution down by sigma^2,
+        so s at long ages depends on rates far below the input distribution's bulk.
         """
         t_arr = np.asarray(t, dtype=float)
-        x, w = _leggauss(n_nodes)
+        x, w = _leggauss(self.n_nodes)
 
-        # map nodes from [-1, 1] to [ln k_min, ln k_max]
-        u_lo, u_hi = np.log(self.k_min), np.log(self.k_max)
+        # map nodes from [-1, 1] to [u_lo, u_hi]
+        u_lo = self.mu - self.sigma**2 - 10 * self.sigma
+        u_hi = self.mu + 10 * self.sigma
         half_width = 0.5 * (u_hi - u_lo)
         u = u_lo + half_width * (x + 1)
         weights = half_width * w * norm.pdf(u, loc=self.mu, scale=self.sigma)
@@ -814,158 +791,6 @@ class LognormalDisKin(AbstractDiskinModel):
         """Calculate the cumulative distribution function of the age distribution."""
         # Use the same stable log-rate quadrature as the 04b prediction script.
         return diskin_C_of_t([t], self.mu, self.sigma)[0] / self.T
-        
-    def _dX(self, t, X):
-        """Calculate the change in state of the system at time t.
-
-        Args:
-            t: float
-                The time at which to calculate the change in state.
-            X: np.ndarray
-                The current state of the system.
-
-        Returns:
-            np.ndarray
-                The change in state of the system.
-        """
-        # Unpack the state vector
-        # Implement the model equations to calculate dX
-        dX = self.I - self.ks * X
-        
-        return dX
-
-
-class LognormalDisKinFast(AbstractDiskinModel):
-    """Fast lognormal model with explicit atmospheric 14C input.
-
-    This class requires an ``AtmC14`` object on construction and uses it
-    directly for steady-state radiocarbon calculations.
-    Optional ``fm_evaluator(mu, sigma)`` supplies a cache built for that atmosphere.
-
-    NOTE: this class violates the contract of the base class, e.g., by skipping
-    the base initializer, having no params_valid(), and an array-only s(t).
-    
-    TODO: For the moment this class is only used for illustrative plotting. But we should 
-    make a contract that allows for this implementation. 
-    """
-    def __init__(
-        self,
-        mu,
-        sigma,
-        atm: AtmC14,
-        k_min=None,
-        k_max=None,
-        ppf_lim=1e-5,
-        fast_rtol=1e-4,
-        fm_evaluator=None,
-    ):
-        # Copy essential lognormal parameter setup from LognormalDisKin
-        self.mu = mu
-        self.k_star = np.exp(mu)
-        self.sigma = sigma
-
-        # steady-state transit time and mean age
-        self.T = np.exp(-self.mu + ((self.sigma ** 2) / 2))
-        self.A = self.T * np.exp(self.sigma ** 2)
-
-        self.atm = atm
-        self.fast_rtol = fast_rtol
-        self.fm_evaluator = fm_evaluator
-
-        # keep k bounds available; numeric routines may reference `k_min`/`k_max`
-        # but we don't build discrete ks/I arrays in the fast implementation.
-
-    def _survival_matrix_discretized(self, t, n_ks=200, q_low=1e-3, q_high=1 - 1e-3):
-        """Return discretized survival contribution matrix M[k, t].
-
-        This method is vector-only: ``t`` must be an array-like of ages.
-        """
-        if n_ks < 2:
-            raise ValueError("n_ks must be >= 2")
-        if not (0 < q_low < q_high < 1):
-            raise ValueError("Require 0 < q_low < q_high < 1")
-
-        qvals = np.array([q_low, q_high], dtype=float)
-        ln_k_bounds = np.log(lognorm.ppf(qvals, s=self.sigma, scale=np.exp(self.mu)))
-        ln_ks = np.linspace(ln_k_bounds[0], ln_k_bounds[1], n_ks)
-        ks = np.exp(ln_ks)
-
-        # Normal density over ln(k), then normalize to discrete weights.
-        z = (ln_ks - self.mu) / self.sigma
-        k_weights = np.exp(-0.5 * z * z) / (self.sigma * np.sqrt(2 * np.pi))
-        k_weights /= np.sum(k_weights)
-
-        t_arr = np.asarray(t, dtype=float)
-        if t_arr.ndim != 1:
-            raise ValueError("t must be a 1D array-like of ages")
-
-        M = np.exp(-np.outer(ks, t_arr)) * k_weights[:, None]
-        return M
-
-    def survival_discretized(self, t, n_ks=200, q_low=1e-3, q_high=1 - 1e-3):
-        """Evaluate survival using a discretized lognormal rate spectrum.
-
-        This mirrors the strategy used in ``lognormal_sim``:
-        discretize log-rates, weight by normal density in log-space,
-        then sum weighted exponentials.
-
-        Args:
-            t: array-like
-                1D array of ages at which to evaluate survival.
-            n_ks: int
-                Number of discretized rate points.
-            q_low: float
-                Lower quantile for log-rate support.
-            q_high: float
-                Upper quantile for log-rate support.
-
-        Returns:
-            np.ndarray
-                Survival values for each age in ``t``.
-        """
-        M = self._survival_matrix_discretized(
-            t=t,
-            n_ks=n_ks,
-            q_low=q_low,
-            q_high=q_high,
-        )
-
-        return np.sum(M, axis=0)
-    
-    def s(self, t):
-        """Evaluate survival at age t using the discretized method."""
-        return self.survival_discretized(t)
-
-    def cdfA(self, t):
-        result, _ = quad(self.pA, 0, t, limit=500, epsabs=1e-5)
-        return result
-
-    def calc_radiocarbon_ratio_ss_fast(
-        self,
-        quad_limit=1500,
-        quad_epsabs=1e-3,
-    ):
-        """Calculate steady-state radiocarbon ratio using fast helper functions.
-
-        Use the supplied cached evaluator, or the original adaptive integral
-        with ``fast_rtol`` when no evaluator is supplied.
-        """
-        if self.fm_evaluator is not None:
-            return float(self.fm_evaluator(self.mu, self.sigma)), 0.0
-        ratio = lognormal_radiocarbon(
-            atm=self.atm,
-            tau=float(self.T),
-            age=float(self.A),
-            rtol=self.fast_rtol,
-        )
-        # return a numeric error estimate (0.0) so tests treat it as valid
-        return float(ratio), 0.0
-    
-    def calc_radiocarbon_ratio_ss(self):
-        """Calculate steady-state radiocarbon ratio using fast helper functions."""
-        return self.calc_radiocarbon_ratio_ss_fast()
-    
-
 
 
 class WeibullDisKin(AbstractDiskinModel):

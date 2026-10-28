@@ -11,7 +11,7 @@ if os.path.basename(os.getcwd()) == 'notebooks':
 # %% imports
 import numpy as np
 
-from soil_diskin.continuum_models import LognormalDisKinFast
+from soil_diskin.continuum_models import LognormalDisKin
 from soil_diskin.radiocarbon_utils import load_atm14c
 import multiprocessing
 from tqdm import tqdm
@@ -35,7 +35,7 @@ def _init_worker(atm_path):
 
 def _compute_cell(task):
     i, j, mu, sigma = task
-    model = LognormalDisKinFast(mu=mu, sigma=sigma, atm=WORKER_ATM)
+    model = LognormalDisKin(mu=mu, sigma=sigma, atm=WORKER_ATM)
     r14c, _ = model.calc_radiocarbon_ratio_ss()
     return (i, j, model.T, r14c)
 

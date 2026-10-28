@@ -30,12 +30,18 @@ class AtmC14:
         R_14C beyond the last knot; defaults to the last value, fm[-1].
     """
 
-    __slots__ = ("ages", "fm", "tail_fm")
+    __slots__ = ("ages", "fm", "tail_fm", "_log_rate_response")
+
+    # Grid of u = ln k (k in yr^-1) for rate-space radiocarbon calculations.
+    # The 0.005 step resolves log-rate densities with sigma >= 0.01, and the range
+    # covers k from e^-100 to e^70 per year with room for 12-sigma tails.
+    LOG_RATE_GRID = np.linspace(-100., 70., 34001)
 
     def __init__(self, ages: np.ndarray, fm: np.ndarray, tail_fm: float | None = None):
         self.ages = np.ascontiguousarray(ages, dtype=np.float64)
         self.fm = np.ascontiguousarray(fm, dtype=np.float64)
         self.tail_fm = float(self.fm[-1] if tail_fm is None else tail_fm)
+        self._log_rate_response = None
 
     def R(self, a):
         """Atmospheric 14C ratio a years before 2000 (scalar or array, a >= 0)."""
@@ -49,6 +55,18 @@ class AtmC14:
         e = np.exp(-alpha * self.ages)
         body = self.fm[:-1] * (e[:-1] - e[1:])
         return (body.sum() + self.tail_fm * e[-1]) / alpha
+
+    def log_rate_response(self):
+        """(u, I(e^u + lambda)) on LOG_RATE_GRID, with I = laplace; computed once.
+
+        A pool decaying at rate k contributes I(k + lambda) to the steady-state
+        14C stock per unit input, where lambda is the 14C decay constant.
+        """
+        if self._log_rate_response is None:
+            from soil_diskin.constants import LAMBDA_14C
+            u = self.LOG_RATE_GRID
+            self._log_rate_response = (u, np.array([self.laplace(k + LAMBDA_14C) for k in np.exp(u)]))
+        return self._log_rate_response
 
 
 def load_atm14c(path: str = "data/14C_atm_annot.csv") -> AtmC14:
