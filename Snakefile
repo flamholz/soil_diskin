@@ -177,6 +177,9 @@ rule calibrate_powerlaw:
     input:
         "results/all_sites_14C_turnover.csv",
         "data/14C_atm_annot.csv",
+        "soil_diskin/calibration.py",
+        "soil_diskin/continuum_models.py",
+    threads: workflow.cores
     output:
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv"
     script:
@@ -220,7 +223,7 @@ rule run_lognormal_calibration_python:
               "soil_diskin/radiocarbon_utils.py"],
     output:
         "results/03_calibrate_models/lognormal_model_optimization_results.csv",
-    threads: 4
+    threads: workflow.cores
     shell:
         """
         python notebooks/03b_lognormal_calibration.py --input {input.sites:q} --n-jobs {threads}
@@ -235,7 +238,7 @@ rule run_layered_lognormal_calibration_python:
               "soil_diskin/radiocarbon_utils.py"],
     output:
         "results/03_calibrate_models/depth_resolved/lognormal_model_optimization_results.csv",
-    threads: 4
+    threads: workflow.cores
     shell:
         """
         python notebooks/03b_lognormal_calibration.py --input {input.sites:q} \
@@ -245,7 +248,10 @@ rule run_layered_lognormal_calibration_python:
 # Step 03d: Calibrate weibull model
 rule calibrate_weibull:
     input:
-        "results/all_sites_14C_turnover.csv"
+        "results/all_sites_14C_turnover.csv",
+        "soil_diskin/calibration.py",
+        "soil_diskin/continuum_models.py",
+    threads: workflow.cores
     output:
         "results/03_calibrate_models/weibull_model_optimization_results.csv"
     script:
@@ -256,6 +262,9 @@ rule calibrate_loguniform:
     input:
         "results/all_sites_14C_turnover.csv",
         "data/14C_atm_annot.csv",
+        "soil_diskin/calibration.py",
+        "soil_diskin/continuum_models.py",
+    threads: workflow.cores
     output:
         "results/03_calibrate_models/loguniform_model_optimization_results.csv"
     script:

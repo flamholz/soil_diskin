@@ -86,7 +86,7 @@ fig.savefig(output, dpi=600, bbox_inches='tight')
 params = pd.read_csv(
     'results/03_calibrate_models/loguniform_model_optimization_results.csv'
 )
-params = params[params['params_valid'].astype(bool)]
+params = params[params['calibration_status'].isin(['calibrated', 'approximate_fit'])]
 log10_e = np.log10(np.e)
 
 fig, ax = plt.subplots(figsize=(2.5, 2.5), dpi=300, constrained_layout=True)

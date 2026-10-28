@@ -1,128 +1,33 @@
-import pandas as pd
-import numpy as np
+"""
+Script should be run from the project root directory.
+
+Calibrates the power law model with alpha = 1 (PowerLawDisKin) to each site's
+turnover and radiocarbon with the shared calibration
+(soil_diskin.calibration.power_law_spec), fitting the central turnover and the
+q05/q95 stock scenarios. Sites run in parallel.
+"""
 from os import path
-from scipy.integrate import quad
-from scipy.optimize import minimize
-from soil_diskin.continuum_models import PowerLawDisKin
-from tqdm import tqdm
 
-# Define the objective function for optimization
-# optimize the two parameters of the model to match the turnover and 14C data
-def objective_function(params, merged_site_data):
-    """
-    Objective function to minimize the difference between the model predictions and the observed data.
-    
-    Parameters
-    ----------
-    params : list
-        List of parameters [a, b] for the PowerLawDisKin model.
-    merged_site_data : pd.DataFrame
-        DataFrame containing the observed data for each site, including 'fm_obs' (14C ratio) and 'turnover'.
-    
-    Returns
-    -------
-    float
-        The sum of squared differences between the predicted and observed data.
-    """
-    
-    # Unpack the parameters
-    t_min, t_max = params
+import pandas as pd
 
-    # Create an instance of the PowerLawDisKin model with the given parameters
-    model = PowerLawDisKin(t_min, t_max)
-    # Invalid parameters give NaN predictions, which np.nansum below would score as a perfect fit.
-    if not model.params_valid() or not np.isfinite(model.T):
-        return 1e6
+from soil_diskin.calibration import calibrate, power_law_spec
 
-    # Calculate the predicted 14C ratio and turnover
-    predicted_14C_ratio = quad(model.radiocarbon_age_integrand,
-                               0, np.inf, limit=1500, epsabs=1e-3)[0]
-    if not np.isfinite(predicted_14C_ratio):
-        return 1e6
+DATA_PATH = 'results/all_sites_14C_turnover.csv'
+OUTPUT_PATH = path.join('results/03_calibrate_models', 'powerlaw_model_optimization_results.csv')
 
-    # Calculate the difference between the predicted and observed data
-    diff_14C = np.nansum((predicted_14C_ratio - merged_site_data['fm_obs']))
-    total_14C = np.nansum(merged_site_data['fm_obs'] + 1e-6)
-    relative_diff_14C = diff_14C / total_14C
-    diff_turnover = np.nansum((model.T - merged_site_data['turnover']))
-    total_turnover = np.nansum(merged_site_data['turnover'] + 1e-6)
-    relative_diff_turnover = diff_turnover / total_turnover
-    
-    # Return the sum of squared relative differences 
-    return relative_diff_14C**2 + relative_diff_turnover**2
+# Snakemake's thread allowance when run by Snakemake, otherwise all cores.
+N_JOBS = snakemake.threads if 'snakemake' in globals() else -1  # noqa: F821
 
 
-def parse_results(result, index, fm_obs):
-    """Convert optimization results to a DataFrame and compute additional metrics."""
+def main():
+    site_data = pd.read_csv(DATA_PATH)
+    fits = calibrate(power_law_spec(), site_data, n_jobs=N_JOBS)
+    for suffix in ['', '_05', '_95']:
+        print(suffix or 'central', fits['calibration_status'+suffix].value_counts().to_dict())
+    print(f'maximum objective {fits.objective.max():.3e}')
+    fits.join(site_data[['fm_obs', 'turnover']]).to_csv(OUTPUT_PATH, index=False)
+    print(f'wrote {OUTPUT_PATH}')
 
-    # Convert the result list to a DataFrame
-    df = pd.DataFrame(result,columns=['params','objective_value'],index=index)
 
-    # Unpack the parameters into separate columns
-    df[['t_min','t_max']] = df['params'].apply(lambda x: pd.Series(x,index = ['t_min','t_max']))
-    df.drop(columns ='params',inplace=True)
-
-    model_x = lambda x: PowerLawDisKin(x['t_min'], x['t_max'])
-    model_14C = lambda x: quad(model_x(x).radiocarbon_age_integrand,
-                               0, np.inf, limit=1500, epsabs=1e-3)[0]
-    df['model_T'] = df.apply(lambda x: model_x(x).T, axis=1)
-    df['model_fm'] = df.apply(lambda x: model_14C(x), axis=1)
-    df['relative_fm_error'] = (df['model_fm'] - fm_obs.loc[index]) / fm_obs.loc[index]
-    df['model_A'] = df.apply(lambda x: model_x(x).A, axis=1)
-    df['params_valid'] = df.apply(lambda x: model_x(x).params_valid(), axis=1)
-
-    return df
-
-#%% Load the data
-
-merged_site_data = pd.read_csv('results/all_sites_14C_turnover.csv')
-
-# initial guess for the parameters
-initial_guess = [0.5, 10000]
-
-# optimize the parameters using a simple optimization method
-result = []
-        
-#%% Perform optimization for each site
-# iterate over each row in the merged_site_data DataFrame
-for i, row in tqdm(merged_site_data.iterrows(), total=len(merged_site_data)):
-    # Minimize the objective function for each site
-    res = minimize(objective_function, initial_guess, args=(row,), method='L-BFGS-B',  bounds=[(0, None), (0, None)], tol = 1e-16)
-    
-    if res.fun == 0:
-        print(f'Optimization converged to zero objective value for site index {i}. Rerunnig with Nelder-Mead method for better convergence.')
-        res = minimize(objective_function, initial_guess, args=(row,), method='Nelder-Mead', bounds=[(0, None), (0, None)])
-    # Append the optimized parameters to the result list
-    result.append([res.x,res.fun])
-
-# Convert the result list to a DataFrame
-result_df = parse_results(result, merged_site_data.index, merged_site_data['fm_obs'])
-
-#%% Perform optimization for the 5% and 95% uncertainty bounds
-results_05 = []
-results_95 = []
-backfilled_sites = merged_site_data[merged_site_data['turnover_q05'].notna() & merged_site_data['turnover_q95'].notna()]
-for i, row in tqdm(backfilled_sites.iterrows(), total=len(backfilled_sites)):
-    row_05 = row.copy()
-    row_05['turnover'] = row.loc['turnover_q05']
-    row_95 = row.copy()
-    row_95['turnover'] = row.loc['turnover_q95']
-    res = minimize(objective_function, initial_guess, args=(row_05,), method='Nelder-Mead', bounds=[(0, None), (0, None)])
-    results_05.append([res.x,res.fun])
-    res = minimize(objective_function, initial_guess, args=(row_95,), method='Nelder-Mead', bounds=[(0, None), (0, None)])
-    results_95.append([res.x,res.fun])
-
-result_df_05 = parse_results(results_05, backfilled_sites.index, merged_site_data['fm_obs'])
-result_df_95 = parse_results(results_95, backfilled_sites.index, merged_site_data['fm_obs'])
-
-merged_result_df = pd.concat([result_df, merged_site_data[['fm_obs', 'turnover']]], axis=1)
-merged_result_df = pd.merge(merged_result_df, result_df_05.add_suffix('_05'), left_index=True, right_index=True, how='left')
-merged_result_df = pd.merge(merged_result_df, result_df_95.add_suffix('_95'), left_index=True, right_index=True, how='left')
-
-print(f'the Maximum objective value is {result_df["objective_value"].max():.3f}')
-
-# Save the result to a CSV file
-output_dir = 'results/03_calibrate_models'
-output_fname = 'powerlaw_model_optimization_results.csv'
-output_path = path.join(output_dir, output_fname)
-merged_result_df.to_csv(output_path, index=False)
+if __name__ == '__main__':
+    main()

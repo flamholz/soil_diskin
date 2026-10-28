@@ -26,14 +26,16 @@ import pandas as pd
 from joblib import Parallel, delayed
 from scipy.integrate import IntegrationWarning
 from scipy.optimize import least_squares
+from scipy.special import gamma
 
 from soil_diskin.constants import LAMBDA_14C
-from soil_diskin.continuum_models import GeneralPowerLawDisKin, LognormalDisKin, SoftCutoffPowerLawDisKin
+from soil_diskin.continuum_models import (GeneralPowerLawDisKin, LognormalDisKin, LogUniformDisKin,
+                                          PowerLawDisKin, SoftCutoffPowerLawDisKin, WeibullDisKin)
 from soil_diskin.radiocarbon_utils import default_atmosphere
 
 __all__ = ['ModelSpec', 'SCENARIOS', 'FIT_COLUMNS', 'exact_fm', 'age_grid_fm', 'fit_observation',
            'calibrate', 'calibrate_sweep', 'lognormal_spec', 'general_powerlaw_spec',
-           'soft_cutoff_powerlaw_spec']
+           'soft_cutoff_powerlaw_spec', 'power_law_spec', 'weibull_spec', 'loguniform_spec']
 
 # (turnover column, output suffix) for the central fit and the stock scenarios.
 SCENARIOS = (('turnover', ''), ('turnover_q05', '_05'), ('turnover_q95', '_95'))
@@ -321,3 +323,53 @@ def general_powerlaw_spec(alpha):
 def soft_cutoff_powerlaw_spec(alpha):
     """SoftCutoffPowerLawDisKin at fixed alpha >= 0."""
     return _power_law_spec(SoftCutoffPowerLawDisKin, alpha)
+
+
+# Models without a rate-space fm or a fast approximation accurate enough for
+# their fits are searched with the exact (quadrature) fm, as they were before.
+EXACT_FM_TOL = 1e-6
+EXACT_FM_OPTIONS = dict(x_scale='jac', xtol=1e-12, ftol=1e-12, gtol=1e-12, max_nfev=300)
+
+
+def power_law_spec():
+    """PowerLawDisKin (alpha = 1), in the same timescale space as the other power laws."""
+    return ModelSpec(
+        model_class=PowerLawDisKin, param_names=('t_min', 't_max'),
+        lower=(-8., -8.), upper=(8., 8.),
+        starts=lambda turnover, fm_obs: POWER_LAW_STARTS + ((np.log10(.5), 4.),),
+        to_params=_log_timescales, from_params=_log_timescales_inverse,
+        exact_tol=EXACT_FM_TOL, least_squares_options=EXACT_FM_OPTIONS)
+
+
+# Shapes to start the Weibull fit from, each with k matching the turnover.
+WEIBULL_STARTING_ALPHAS = (.1, .15, .2, .3, .5, 1.)
+
+
+def weibull_spec():
+    """WeibullDisKin, fit in (log10 k, alpha)."""
+    def starts(turnover, fm_obs):
+        return [[np.log10(gamma(1 + 1 / alpha) / turnover), alpha] for alpha in WEIBULL_STARTING_ALPHAS]
+
+    return ModelSpec(
+        model_class=WeibullDisKin, param_names=('k', 'alpha'),
+        lower=(-8., .01), upper=(6., 5.), starts=starts,
+        to_params=lambda x: (10 ** x[0], x[1]), from_params=lambda k, alpha: (np.log10(k), alpha),
+        exact_tol=EXACT_FM_TOL, least_squares_options=EXACT_FM_OPTIONS)
+
+
+# Log-rate widths to start the log-uniform fit from, each with k_min matching the turnover.
+LOGUNIFORM_STARTING_WIDTHS = (10., 100., 1000.)
+
+
+def loguniform_spec():
+    """LogUniformDisKin, fit in (log10 k_min, log10 log_width); log_width <= 5000."""
+    def starts(turnover, fm_obs):
+        return [[np.log10(-np.expm1(-width) / (turnover * width)), np.log10(width)]
+                for width in LOGUNIFORM_STARTING_WIDTHS]
+
+    return ModelSpec(
+        model_class=LogUniformDisKin, param_names=('k_min', 'log_width'),
+        lower=(-10., -3.), upper=(4., np.log10(5000.)), starts=starts,
+        to_params=lambda x: (10 ** x[0], 10 ** x[1]),
+        from_params=lambda k_min, log_width: (np.log10(k_min), np.log10(log_width)),
+        exact_tol=EXACT_FM_TOL, least_squares_options=EXACT_FM_OPTIONS)

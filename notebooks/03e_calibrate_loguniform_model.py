@@ -1,77 +1,36 @@
-"""Calibrate a log-uniform decay-rate model to turnover and radiocarbon."""
+"""
+Script should be run from the project root directory.
 
-from pathlib import Path
+Calibrates the log-uniform decay-rate model (LogUniformDisKin) to each site's
+turnover and radiocarbon with the shared calibration
+(soil_diskin.calibration.loguniform_spec), fitting the central turnover and
+the q05/q95 stock scenarios. Sites run in parallel.
+"""
+from os import path
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize_scalar
-from tqdm import tqdm
 
-from soil_diskin.continuum_models import LogUniformDisKin
+from soil_diskin.calibration import calibrate, loguniform_spec
 
+DATA_PATH = 'results/all_sites_14C_turnover.csv'
+OUTPUT_PATH = path.join('results/03_calibrate_models', 'loguniform_model_optimization_results.csv')
 
-def model_params_from_turnover(turnover, log_width):
-    """Return model parameters with the requested turnover and log-rate width."""
-    k_min = (1 - np.exp(-log_width)) / (turnover * log_width)
-    return k_min, log_width
-
-
-def objective_function(log_width, site):
-    """Squared relative radiocarbon mismatch for one site."""
-    model = LogUniformDisKin(*model_params_from_turnover(site['turnover'], log_width))
-    modeled_14c = model.calc_radiocarbon_ratio_ss()[0]
-    return ((modeled_14c - site['fm_obs']) / (site['fm_obs'] + 1e-6)) ** 2
-
-
-def fit_site(site):
-    """Fit log-rate width while matching observed turnover analytically."""
-    fit = minimize_scalar(
-        objective_function,
-        args=(site,),
-        method='bounded',
-        bounds=(1e-3, 5000),
-        options={'xatol': 1e-6},
-    )
-    k_min, log_width = model_params_from_turnover(site['turnover'], fit.x)
-    model = LogUniformDisKin(k_min, log_width)
-    model_fm = model.calc_radiocarbon_ratio_ss()[0]
-    return {
-        'objective_value': fit.fun,
-        'k_min': k_min,
-        'log_width': log_width,
-        'log_k_max': model.log_k_max,
-        'model_T': model.T,
-        'model_A': model.A,
-        'model_fm': model_fm,
-        'relative_fm_error': (model_fm - site['fm_obs']) / site['fm_obs'],
-        'params_valid': model.params_valid(),
-    }
-
-
-def fit_sites(site_data):
-    return pd.DataFrame(
-        [fit_site(row) for _, row in tqdm(site_data.iterrows(), total=len(site_data))],
-        index=site_data.index,
-    )
+# Snakemake's thread allowance when run by Snakemake, otherwise all cores.
+N_JOBS = snakemake.threads if 'snakemake' in globals() else -1  # noqa: F821
 
 
 def main():
-    site_data = pd.read_csv('results/all_sites_14C_turnover.csv')
-    result = fit_sites(site_data)
-
-    backfilled = site_data[
-        site_data['turnover_q05'].notna() & site_data['turnover_q95'].notna()
-    ]
-    for suffix in ('05', '95'):
-        bound_data = backfilled.copy()
-        bound_data['turnover'] = bound_data[f'turnover_q{suffix}']
-        result = result.join(fit_sites(bound_data).add_suffix(f'_{suffix}'))
-
-    result = result.join(site_data[['fm_obs', 'turnover']])
-    output = Path('results/03_calibrate_models/loguniform_model_optimization_results.csv')
-    output.parent.mkdir(parents=True, exist_ok=True)
-    result.to_csv(output, index=False)
-    print(f'wrote {output}; maximum objective value: {result.objective_value.max():.3e}')
+    site_data = pd.read_csv(DATA_PATH)
+    fits = calibrate(loguniform_spec(), site_data, n_jobs=N_JOBS)
+    # ln k_max, for plotting tau_min = 1/k_max without underflow (figS8).
+    for suffix in ['', '_05', '_95']:
+        fits['log_k_max'+suffix] = np.log(fits['k_min'+suffix]) + fits['log_width'+suffix]
+    for suffix in ['', '_05', '_95']:
+        print(suffix or 'central', fits['calibration_status'+suffix].value_counts().to_dict())
+    print(f'maximum objective {fits.objective.max():.3e}')
+    fits.join(site_data[['fm_obs', 'turnover']]).to_csv(OUTPUT_PATH, index=False)
+    print(f'wrote {OUTPUT_PATH}')
 
 
 if __name__ == '__main__':
