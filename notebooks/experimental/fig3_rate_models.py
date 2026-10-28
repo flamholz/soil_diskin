@@ -189,6 +189,7 @@ for ax, label in zip(axs, 'ABCDEF'):
         ha='left',
     )
 
-plt.savefig('figures/fig3_rate_models.png', dpi=300, bbox_inches='tight')
-plt.savefig('figures/fig3_rate_models.svg', dpi=300, bbox_inches='tight')
+os.makedirs('figures/experimental', exist_ok=True)
+plt.savefig('figures/experimental/fig3_rate_models.png', dpi=300, bbox_inches='tight')
+plt.savefig('figures/experimental/fig3_rate_models.svg', dpi=300, bbox_inches='tight')
 # %%

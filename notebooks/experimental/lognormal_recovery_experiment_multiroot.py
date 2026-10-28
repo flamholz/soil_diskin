@@ -38,8 +38,8 @@ N_GRID = 101
 LOWESS_FRAC = 0.2
 ATM_PATH = Path("data/14C_atm_annot.csv")
 OUT = Path("results/03_calibrate_models/lognormal_recovery_experiment_multiroot.csv")
-FIG_OUT = Path("figures/lognormal_recovery_experiment_multiroot.png")
-FIG_CORR_OUT = Path("figures/lognormal_recovery_experiment_multiroot_musigma_corr.png")
+FIG_OUT = Path("figures/experimental/lognormal_recovery_experiment_multiroot.png")
+FIG_CORR_OUT = Path("figures/experimental/lognormal_recovery_experiment_multiroot_musigma_corr.png")
 
 
 def _build_agelist(tau: float, age: float, n: int = N_GRID) -> np.ndarray:

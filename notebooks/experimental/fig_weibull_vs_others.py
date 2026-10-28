@@ -56,6 +56,6 @@ panel(axs[1], lognormal, "lognormal", pal["blue"])
 for ax, label in zip(axs, "AB"):
     ax.text(-0.2, 1.12, label, transform=ax.transAxes, fontsize=8, va="top")
 
-os.makedirs("figures", exist_ok=True)
-fig.savefig("figures/fig_weibull_vs_others.png", dpi=300, bbox_inches="tight")
-print("wrote figures/fig_weibull_vs_others.png")
+os.makedirs("figures/experimental", exist_ok=True)
+fig.savefig("figures/experimental/fig_weibull_vs_others.png", dpi=300, bbox_inches="tight")
+print("wrote figures/experimental/fig_weibull_vs_others.png")

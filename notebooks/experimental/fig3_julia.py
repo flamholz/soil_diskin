@@ -131,7 +131,8 @@ plt.sca(axs[2])
 gen_powerlaw_err_half = gen_powerlaw_preds_alpha_half[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_alpha_half['predicted_fnew'], axis=0).abs().fillna(0).values.T
 plot_model_predictions(axs[2], gen_powerlaw_preds_alpha_half['predicted_fnew'], 'generalized power law model (alpha/2)', pal['light_blue'], gen_powerlaw_err_half)
 
-plt.savefig('figures/gen_powerlaw.png', dpi=300, bbox_inches='tight')
+os.makedirs('figures/experimental', exist_ok=True)
+plt.savefig('figures/experimental/gen_powerlaw.png', dpi=300, bbox_inches='tight')
 
 # %% Plot the predictions predictions
 fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(7.24, 3.5),
@@ -179,9 +180,9 @@ for i, (ax, label) in enumerate(zip(axs, "ABCDEFGH")):
             -0.15, 1.1, label, transform=ax.transAxes,
             fontsize=7, va='top', ha='left')
 # %% Save the figure
-out_fname = f'figures/fig3_julia.png'
+out_fname = f'figures/experimental/fig3_julia.png'
 plt.savefig(out_fname, dpi=300, bbox_inches='tight')
-plt.savefig('figures/fig3_julia.svg', dpi=300, bbox_inches='tight')
+plt.savefig('figures/experimental/fig3_julia.svg', dpi=300, bbox_inches='tight')
 
 # %% make a supplementary version of the above plot where the points are colored by the
 # timing of the land use change event. Using a log color scale. Also, we now include the 
@@ -284,7 +285,7 @@ axs['K'].text(-0.04, 1.1, 'K', transform=axs['K'].transAxes,
 axs['K'].tick_params(axis='y', which='major', labelsize=5)
 axs['K'].set_yticks(np.arange(-1, 1.1, 1.0))
 
-out_fname = f'figures/figS3.png'
+out_fname = f'figures/experimental/figS3.png'
 plt.savefig(out_fname, dpi=300, bbox_inches='tight')
 
 # %% make a presentation version with no subpanel labels
@@ -312,7 +313,7 @@ for ax in axs:
 axs[0].set_ylabel('predicted F$_{new}$')
 
 # %% Save the presentation figure
-out_fname = f'figures/fig3_presentation_julia.png'
+out_fname = f'figures/experimental/fig3_presentation_julia.png'
 plt.savefig(out_fname, dpi=300, bbox_inches='tight')
 
 # Make a version of the presentation figure where the points are colored by the
@@ -340,6 +341,6 @@ for ax, predictions, title, color in zip(axs[3:5], ESM_models,
 colorbar_label = 'time since transition (yrs)'
 cbar = plt.colorbar(sc, ax=axs, orientation='vertical', label=colorbar_label, pad=0.01)
 
-plt.savefig('figures/fig3_presentation_colored_by_labeling_duration_julia.png', dpi=300, bbox_inches='tight')
+plt.savefig('figures/experimental/fig3_presentation_colored_by_labeling_duration_julia.png', dpi=300, bbox_inches='tight')
 
 # %%

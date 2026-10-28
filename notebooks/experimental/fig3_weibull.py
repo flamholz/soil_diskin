@@ -109,10 +109,10 @@ for j, label in zip(range(9), "ABCDEFGHI"):
     axs[j].text(-0.2, 1.12, label, transform=axs[j].transAxes,
                 fontsize=7, va="top", ha="left")
 
-os.makedirs("figures", exist_ok=True)
-fig.savefig("figures/fig3_weibull.png", dpi=300, bbox_inches="tight")
-fig.savefig("figures/fig3_weibull.svg", bbox_inches="tight")
-print("wrote figures/fig3_weibull.png")
+os.makedirs("figures/experimental", exist_ok=True)
+fig.savefig("figures/experimental/fig3_weibull.png", dpi=300, bbox_inches="tight")
+fig.savefig("figures/experimental/fig3_weibull.svg", bbox_inches="tight")
+print("wrote figures/experimental/fig3_weibull.png")
 
 #%% metrics table for the continuum models (incl. Weibull)
 print("\nmodel          KGE     RMSE")
