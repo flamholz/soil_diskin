@@ -97,3 +97,10 @@ def test_sweep_is_long_format_and_independent_of_n_jobs(sites):
     assert exact.mu == pytest.approx(-3., abs=1e-6)
     pd.testing.assert_frame_equal(
         sweep, calibrate_sweep(fixed_sigma_spec, values, sites, name='sigma_fixed', n_jobs=2))
+
+
+def test_sweep_over_a_fixed_parameter_keeps_one_column(sites):
+    """Sweeping a fixed model parameter moves its column to the front, not twice."""
+    sweep = calibrate_sweep(fixed_sigma_spec, [.8], sites, name='sigma', n_jobs=1)
+    assert list(sweep.columns[:3]) == ['sigma', 'site_index', 'mu']
+    assert list(sweep.columns).count('sigma') == 1

@@ -27,11 +27,13 @@ from joblib import Parallel, delayed
 from scipy.integrate import IntegrationWarning
 from scipy.optimize import least_squares
 
-from soil_diskin.continuum_models import LognormalDisKin
+from soil_diskin.constants import LAMBDA_14C
+from soil_diskin.continuum_models import GeneralPowerLawDisKin, LognormalDisKin, SoftCutoffPowerLawDisKin
 from soil_diskin.radiocarbon_utils import default_atmosphere
 
-__all__ = ['ModelSpec', 'SCENARIOS', 'FIT_COLUMNS', 'exact_fm', 'fit_observation',
-           'calibrate', 'calibrate_sweep', 'lognormal_spec']
+__all__ = ['ModelSpec', 'SCENARIOS', 'FIT_COLUMNS', 'exact_fm', 'age_grid_fm', 'fit_observation',
+           'calibrate', 'calibrate_sweep', 'lognormal_spec', 'general_powerlaw_spec',
+           'soft_cutoff_powerlaw_spec']
 
 # (turnover column, output suffix) for the central fit and the stock scenarios.
 SCENARIOS = (('turnover', ''), ('turnover_q05', '_05'), ('turnover_q95', '_95'))
@@ -91,6 +93,22 @@ def exact_fm(model):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', IntegrationWarning)
         return model.calc_radiocarbon_ratio_ss(quad_limit=2000, quad_epsabs=1e-6)[0]
+
+
+# Ages (yr) for age_grid_fm: dense near zero, where power-law age densities
+# diverge, and out to 60 kyr.
+FAST_AGES = np.unique(np.concatenate([
+    [0.], np.geomspace(1e-8, 1e-2, 300), np.geomspace(1e-2, 1., 300), np.geomspace(1., 100., 600),
+    np.geomspace(100., 5000., 1000), np.geomspace(5000., 60000., 1500)]))
+_fast_weights = (None, None)  # (atmosphere, R(a) exp(-lambda a) on FAST_AGES), last one used
+
+
+def age_grid_fm(model):
+    """Fast fm: trapezoid of pA(a) R(a) exp(-lambda a) on FAST_AGES (~1e-4 accurate)."""
+    global _fast_weights
+    if _fast_weights[0] is not model.atm:
+        _fast_weights = (model.atm, model.atm.R(FAST_AGES) * np.exp(-LAMBDA_14C * FAST_AGES))
+    return float(np.trapezoid(_fast_weights[1] * model.pA(FAST_AGES), FAST_AGES))
 
 
 def _residuals(x, spec, turnover, fm_obs, atm, fm_function):
@@ -213,7 +231,7 @@ def _to_frame(records, index):
     return pd.concat(frames, axis=1)
 
 
-def calibrate(spec, sites, atm=None, n_jobs=1, warm_start_scenarios=False, initial=None):
+def calibrate(spec, sites, atm=None, n_jobs=-1, warm_start_scenarios=False, initial=None):
     """Fit every site's central turnover and stock scenarios.
 
     sites needs fm_obs and turnover; turnover_q05/turnover_q95 are optional.
@@ -222,27 +240,28 @@ def calibrate(spec, sites, atm=None, n_jobs=1, warm_start_scenarios=False, initi
     parameters (indexed like sites) to warm-start the central fits.
 
     Returns a frame indexed like sites with the parameters and FIT_COLUMNS for
-    each scenario, suffixed '', '_05' and '_95'.
+    each scenario, suffixed '', '_05' and '_95'. n_jobs = -1 uses all cores.
     """
     records = _fit_sites([spec], sites, atm, n_jobs, warm_start_scenarios, initial)
     return _to_frame([site[0] for site in records], sites.index)
 
 
-def calibrate_sweep(spec_for, values, sites, name='alpha', atm=None, n_jobs=1,
+def calibrate_sweep(spec_for, values, sites, name='alpha', atm=None, n_jobs=-1,
                     warm_start_scenarios=True):
     """calibrate() for each fixed value, in order, warm-starting along the sweep.
 
     spec_for: value -> ModelSpec. Each site's central fit at one value starts
     from its fit at the previous value. Returns a long frame with one row per
     (value, site): leading columns name and site_index, where site_index is
-    the row label in sites.
+    the row label in sites. If name is also a fixed model parameter, that
+    column is moved to the front rather than repeated.
     """
     specs = [spec_for(value) for value in values]
     records = _fit_sites(specs, sites, atm, n_jobs, warm_start_scenarios, None)
     frames = []
     for i, value in enumerate(values):
         frame = _to_frame([site[i] for site in records], sites.index).rename_axis('site_index').reset_index()
-        frame.insert(0, name, value)
+        frame.insert(0, name, frame.pop(name) if name in frame else value)
         frames.append(frame)
     return pd.concat(frames, ignore_index=True)
 
@@ -264,3 +283,41 @@ def lognormal_spec():
         lower=(-15., .01), upper=(10., 5.), starts=starts,
         prefer=lambda params: -params['sigma'],
         least_squares_options=dict(x_scale='jac', max_nfev=2000, ftol=1e-13, xtol=1e-13, gtol=1e-13))
+
+
+# Power laws are fit in (log10 t_min, log10(t_max - t_min)), which keeps
+# t_min < t_max and scales parameters spanning many decades.
+POWER_LAW_STARTS = ((-4., -1.), (-3.5, 3.), (-2., 1.), (-1., 2.), (0., 2.5), (.5, 3.), (1., 3.))
+
+
+def _log_timescales(x):
+    t_min = 10 ** x[0]
+    return t_min, t_min + 10 ** x[1]
+
+
+def _log_timescales_inverse(t_min, t_max):
+    return np.log10(max(t_min, 1e-8)), np.log10(max(t_max - t_min, 1e-8))
+
+
+def _power_law_spec(model_class, alpha):
+    """t_min and t_max at fixed alpha, searched with the fast age-grid fm.
+
+    exact_tol is 1e-3: the age grid is ~1e-4 accurate, so fits converge to
+    ~1e-4 of the observations under the exact fm reported afterwards.
+    """
+    return ModelSpec(
+        model_class=model_class, param_names=('t_min', 't_max'), fixed={'alpha': alpha},
+        lower=(-8., -8.), upper=(8., 8.), starts=lambda turnover, fm_obs: POWER_LAW_STARTS,
+        to_params=_log_timescales, from_params=_log_timescales_inverse,
+        fast_fm=age_grid_fm, exact_tol=1e-3,
+        least_squares_options=dict(xtol=1e-12, ftol=1e-12, gtol=1e-12, max_nfev=150))
+
+
+def general_powerlaw_spec(alpha):
+    """GeneralPowerLawDisKin (hard cutoffs) at fixed alpha in (0, 1)."""
+    return _power_law_spec(GeneralPowerLawDisKin, alpha)
+
+
+def soft_cutoff_powerlaw_spec(alpha):
+    """SoftCutoffPowerLawDisKin at fixed alpha >= 0."""
+    return _power_law_spec(SoftCutoffPowerLawDisKin, alpha)

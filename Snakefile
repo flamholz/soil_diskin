@@ -187,6 +187,9 @@ rule calibrate_powerlaw:
 rule calibrate_generalized_powerlaw:
     input:
         "results/all_sites_14C_turnover.csv",
+        "soil_diskin/calibration.py",
+        "soil_diskin/continuum_models.py",
+    threads: workflow.cores
     output:
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv",
@@ -198,6 +201,9 @@ rule calibrate_generalized_powerlaw:
 rule calibrate_soft_cutoff_powerlaw:
     input:
         "results/all_sites_14C_turnover.csv",
+        "soil_diskin/calibration.py",
+        "soil_diskin/continuum_models.py",
+    threads: workflow.cores
     output:
         "results/03_calibrate_models/soft_cutoff_powerlaw_model_alpha_sweep.csv"
     script:
