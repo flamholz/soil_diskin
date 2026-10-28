@@ -37,5 +37,5 @@ wcs:
 # shuffled across sites. Replicate r uses the seed pair [seed, r], so adding
 # replicates never changes existing ones.
 permutation:
-  replicates: 1
+  replicates: 10
   seed: 20261028
