@@ -58,6 +58,14 @@ def test_collect_bulk_and_layer_predictions(tmp_path, monkeypatch, with_layers):
                           't_min': [.1, .2, .3, 1., 2., 3.], 't_max': [1e3, 2e3, 3e3, 1e4, 2e4, 3e4]})
     sweep.to_csv(calibration/'soft_cutoff_powerlaw_model_alpha_sweep.csv', index=False)
     sweep.to_csv(calibration/'general_powerlaw_model_alpha_sweep.csv', index=False)
+    # Permuted-fm null: one row per (replicate, site), also not in site order.
+    permuted = pd.DataFrame({'replicate': [0, 0, 0, 1, 1, 1], 'site_index': [1, 0, 2, 2, 1, 0],
+                             't_min': [.5, 1., 2., .3, .6, .9], 't_max': [1e3, 2e3, 3e3, 4e3, 5e3, 6e3],
+                             'mu': [-1., -2., -3., -4., -1.5, -2.5], 'sigma': [.5, 1., 1.5, 2., .8, 1.2]})
+    permuted.drop(columns=['mu', 'sigma']).to_csv(
+        calibration/'powerlaw_model_optimization_results_permuted.csv', index=False)
+    permuted.drop(columns=['t_min', 't_max']).to_csv(
+        calibration/'lognormal_model_optimization_results_permuted.csv', index=False)
     # Lognormal calibration (03b format). Site 0 is fast and site 1 slow; site 2 has
     # no fit. Only site 1 has q05/q95 stock scenarios. mu and sigma are set so the
     # model reproduces each (turnover, model_A) pair, inverting
@@ -118,6 +126,16 @@ def test_collect_bulk_and_layer_predictions(tmp_path, monkeypatch, with_layers):
             duration = sites.Duration_labeling.iloc[int(row.site_index)]
             predicted = swept.set_index(['alpha', 'site_index']).loc[(row.alpha, row.site_index), 'predicted_fnew']
             assert predicted == pytest.approx(model.cdfA(duration))
+    # Permuted-fm null: sorted by (replicate, site_index); each prediction is the
+    # model's cdfA at its own site's labeling duration.
+    for fname, model_class, param_names in [('power_law', 'PowerLawDisKin', ['t_min', 't_max']),
+                                            ('lognormal', 'LognormalDisKin', ['mu', 'sigma'])]:
+        result = pd.read_csv(predictions/f'{fname}_model_predictions_permuted.csv')
+        assert result[['replicate', 'site_index']].values.tolist() == [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]]
+        expected = result[['replicate', 'site_index']].merge(permuted, on=['replicate', 'site_index'])
+        for (_, row), predicted in zip(expected.iterrows(), result.predicted_fnew):
+            model = namespace[model_class](*row[param_names])
+            assert predicted == pytest.approx(model.cdfA(sites.Duration_labeling.iloc[int(row.site_index)]))
     # Missing calibration/duration rows remain aligned instead of being dropped.
     # A non-contiguous index checks alignment by label, not position. Only the first
     # row is predictable: the others have a missing duration, a negative duration,

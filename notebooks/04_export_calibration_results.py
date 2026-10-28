@@ -12,6 +12,11 @@ age and is negative where fm_obs > 1 (post-bomb carbon).
 source_row is the 0-based row of results/processed_balesdent_2018.csv. Rows are
 site-level means, so it does not map back to a single row of the raw workbook.
 
+Each model is also exported for the permuted-fm null (02b_permute_fm.py) as
+{model}_calibration_results_permuted.csv, with the same columns plus a leading
+replicate column and fm_obs_original. There fm_obs, and so A_r, is the permuted
+value the model was calibrated to.
+
 Run from the project root directory:
     python notebooks/04_export_calibration_results.py
 """
@@ -46,18 +51,28 @@ def apparent_radiocarbon_age(fm):
 
 
 def export_model(sites, calibration_path, columns):
-    """Combine site identifiers with one model's calibration results."""
+    """Combine site identifiers with one model's calibration results.
+
+    Long-format calibrations (permuted-fm replicates) give each row's site in
+    site_index; otherwise rows follow the processed sites in order.
+    """
     calibration = pd.read_csv(calibration_path)
-    # Calibration scripts preserve the order of the processed sites.
-    if len(calibration) != len(sites):
-        raise ValueError(f'{calibration_path} has {len(calibration)} rows; '
-                         f'{SITES_PATH} has {len(sites)}')
+    if 'site_index' in calibration:
+        rows = calibration['site_index'].to_numpy()
+    else:
+        # Calibration scripts preserve the order of the processed sites.
+        if len(calibration) != len(sites):
+            raise ValueError(f'{calibration_path} has {len(calibration)} rows; '
+                             f'{SITES_PATH} has {len(sites)}')
+        rows = sites.index.to_numpy()
     for name, source in [('Latitude', 'latitude'), ('Longitude', 'longitude')]:
-        if name in calibration and not np.allclose(calibration[name], sites[name], equal_nan=True):
+        if name in calibration and not np.allclose(calibration[name], sites.loc[rows, name], equal_nan=True):
             raise ValueError(f'{calibration_path} {name} does not match {SITES_PATH} row order')
-    out = pd.DataFrame({'source_row': sites.index,
-                        'latitude': sites.Latitude, 'longitude': sites.Longitude})
-    for name in OBSERVATIONS:
+    out = pd.DataFrame({'source_row': rows, 'latitude': sites.loc[rows, 'Latitude'].to_numpy(),
+                        'longitude': sites.loc[rows, 'Longitude'].to_numpy()})
+    if 'replicate' in calibration:
+        out.insert(0, 'replicate', calibration['replicate'])
+    for name in OBSERVATIONS + (['fm_obs_original'] if 'fm_obs_original' in calibration else []):
         out[name] = calibration[name]
     out['A_r'] = apparent_radiocarbon_age(out.fm_obs)
     for name, source in columns.items():
@@ -70,10 +85,12 @@ def main(sites_path=SITES_PATH, calibration_dir=CALIBRATION_DIR, out_dir=OUT_DIR
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     for model, (filename, columns) in MODELS.items():
-        out = export_model(sites, Path(calibration_dir)/filename, columns)
-        path = out_dir/f'{model}_calibration_results.csv'
-        out.to_csv(path, index=False)
-        print(f'Wrote {path} ({len(out)} rows)')
+        for suffix in ['', '_permuted']:
+            calibration_path = Path(calibration_dir)/filename.replace('.csv', f'{suffix}.csv')
+            out = export_model(sites, calibration_path, columns)
+            path = out_dir/f'{model}_calibration_results{suffix}.csv'
+            out.to_csv(path, index=False)
+            print(f'Wrote {path} ({len(out)} rows)')
 
 
 if __name__ == '__main__':

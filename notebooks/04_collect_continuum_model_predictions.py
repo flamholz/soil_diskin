@@ -55,17 +55,17 @@ def generate_predictions(model_class, params_df, param_names, site_data=None):
             result.loc[i, 'predicted_fnew'+suffix] = model.cdfA(durations.loc[i])
     return result
 
-def generate_sweep_predictions(model_class, sweep_df, site_data):
-    """Predict f_new for a long-format alpha sweep (one row per alpha and site).
+def generate_sweep_predictions(model_class, sweep_df, param_names, site_data, by='alpha'):
+    """Predict f_new for long-format calibrations, one row per (by, site).
 
-    site_index in sweep_df aligns with site_data rows. Returns one row per
-    (alpha, site) with leading alpha and site_index columns.
+    For example an alpha sweep (by='alpha') or permuted-fm replicates
+    (by='replicate'). site_index in sweep_df aligns with site_data rows.
+    Returns one row per (by, site) with leading by and site_index columns.
     """
     results = []
-    for alpha, alpha_params in sweep_df.groupby('alpha'):
-        result = generate_predictions(model_class, alpha_params.set_index('site_index'),
-                                      ['t_min', 't_max', 'alpha'], site_data)
-        result.insert(0, 'alpha', alpha)
+    for value, params in sweep_df.groupby(by):
+        result = generate_predictions(model_class, params.set_index('site_index'), param_names, site_data)
+        result.insert(0, by, value)
         results.append(result.rename_axis('site_index').reset_index())
     return pd.concat(results, ignore_index=True)
 
@@ -104,16 +104,28 @@ def main():
 
     fname = 'general_powerlaw_model_alpha_sweep.csv'
     general_power_law_sweep = pd.read_csv(f'results/03_calibrate_models/{fname}')
-    result = generate_sweep_predictions(GeneralPowerLawDisKin, general_power_law_sweep, site_data)
+    result = generate_sweep_predictions(GeneralPowerLawDisKin, general_power_law_sweep,
+                                        ['t_min', 't_max', 'alpha'], site_data)
     result.to_csv('results/04_model_predictions/general_power_law_model_predictions_alpha_sweep.csv', index=False)
 
     #%% Soft-cutoff power-law model, swept over fixed alpha values
 
     fname = 'soft_cutoff_powerlaw_model_alpha_sweep.csv'
     soft_cutoff_params = pd.read_csv(f'results/03_calibrate_models/{fname}')
-    result = generate_sweep_predictions(SoftCutoffPowerLawDisKin, soft_cutoff_params, site_data)
+    result = generate_sweep_predictions(SoftCutoffPowerLawDisKin, soft_cutoff_params,
+                                        ['t_min', 't_max', 'alpha'], site_data)
     result.to_csv('results/04_model_predictions/soft_cutoff_power_law_model_predictions_alpha_sweep.csv', index=False)
 
+
+    #%% Permuted-fm null: power law and lognormal fit to fm shuffled across sites
+
+    # One row per (replicate, site); see 02b_permute_fm.py.
+    for model_class, param_names, model_name, prediction_name in [
+            (PowerLawDisKin, ['t_min', 't_max'], 'powerlaw', 'power_law'),
+            (LognormalDisKin, ['mu', 'sigma'], 'lognormal', 'lognormal')]:
+        params = pd.read_csv(f'results/03_calibrate_models/{model_name}_model_optimization_results_permuted.csv')
+        result = generate_sweep_predictions(model_class, params, param_names, site_data, by='replicate')
+        result.to_csv(f'results/04_model_predictions/{prediction_name}_model_predictions_permuted.csv', index=False)
 
     #%% Weibull / hockey-stick model
     fname = 'weibull_model_optimization_results.csv'

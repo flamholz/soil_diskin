@@ -25,6 +25,11 @@ rule all:
         "figures/figS6.png",
         "figures/figS7.png",
         "figures/figS8.png",
+        # Calibration exports, including the permuted-fm null
+        "results/04_calibration_exports/powerlaw_calibration_results.csv",
+        "results/04_calibration_exports/powerlaw_calibration_results_permuted.csv",
+        "results/04_calibration_exports/lognormal_calibration_results.csv",
+        "results/04_calibration_exports/lognormal_calibration_results_permuted.csv",
 
 # Step 00: Download necessary data files using curl.
 # NOTE: wget was hard to install with UV for some reason. Using curl instead.
@@ -151,6 +156,16 @@ rule turnover_14C:
     script:
         "notebooks/02_get_turnover_14C.py"
 
+# Step 02b: Permutation null -- fm_obs shuffled across sites (see config.yaml)
+rule permute_fm:
+    input:
+        "results/all_sites_14C_turnover.csv",
+        "config.yaml",
+    output:
+        "results/all_sites_14C_turnover_permuted.csv"
+    script:
+        "notebooks/02b_permute_fm.py"
+
 # Step 01c: Reported Balesdent layers; missing stocks backfilled from SoilGrids
 rule preprocess_balesdent_layers:
     input:
@@ -179,11 +194,25 @@ rule calibrate_powerlaw:
         "data/14C_atm_annot.csv",
         "soil_diskin/calibration.py",
         "soil_diskin/continuum_models.py",
+        "notebooks/03a_calibrate_powerlaw_model.py",
     threads: workflow.cores
     output:
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv"
-    script:
-        "notebooks/03a_calibrate_powerlaw_model.py"
+    shell:
+        "python notebooks/03a_calibrate_powerlaw_model.py --input {input[0]:q} --output {output:q} --n-jobs {threads}"
+
+rule calibrate_powerlaw_permuted:
+    input:
+        "results/all_sites_14C_turnover_permuted.csv",
+        "data/14C_atm_annot.csv",
+        "soil_diskin/calibration.py",
+        "soil_diskin/continuum_models.py",
+        "notebooks/03a_calibrate_powerlaw_model.py",
+    threads: workflow.cores
+    output:
+        "results/03_calibrate_models/powerlaw_model_optimization_results_permuted.csv"
+    shell:
+        "python notebooks/03a_calibrate_powerlaw_model.py --input {input[0]:q} --output {output:q} --n-jobs {threads}"
 
 
 
@@ -192,13 +221,14 @@ rule calibrate_generalized_powerlaw:
         "results/all_sites_14C_turnover.csv",
         "soil_diskin/calibration.py",
         "soil_diskin/continuum_models.py",
+        "notebooks/03c_calibrate_generalized_powerlaw_model.py",
     threads: workflow.cores
     output:
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv",
         "results/03_calibrate_models/general_powerlaw_model_alpha_sweep.csv"
-    script:
-        "notebooks/03c_calibrate_generalized_powerlaw_model.py"
+    shell:
+        "python notebooks/03c_calibrate_generalized_powerlaw_model.py --input {input[0]:q} --output-dir results/03_calibrate_models --n-jobs {threads}"
 
 
 rule calibrate_soft_cutoff_powerlaw:
@@ -206,11 +236,12 @@ rule calibrate_soft_cutoff_powerlaw:
         "results/all_sites_14C_turnover.csv",
         "soil_diskin/calibration.py",
         "soil_diskin/continuum_models.py",
+        "notebooks/03f_calibrate_soft_cutoff_powerlaw_model.py",
     threads: workflow.cores
     output:
         "results/03_calibrate_models/soft_cutoff_powerlaw_model_alpha_sweep.csv"
-    script:
-        "notebooks/03f_calibrate_soft_cutoff_powerlaw_model.py"
+    shell:
+        "python notebooks/03f_calibrate_soft_cutoff_powerlaw_model.py --input {input[0]:q} --output {output:q} --n-jobs {threads}"
 
 
 # Fit lognormal mu/sigma directly to turnover and radiocarbon.
@@ -245,17 +276,34 @@ rule run_layered_lognormal_calibration_python:
             --output-dir results/03_calibrate_models/depth_resolved --n-jobs {threads}
         """
 
+rule run_lognormal_calibration_permuted:
+    input:
+        sites="results/all_sites_14C_turnover_permuted.csv",
+        atm="data/14C_atm_annot.csv",
+        code=["notebooks/03b_lognormal_calibration.py", "soil_diskin/calibration.py",
+              "soil_diskin/continuum_models.py", "soil_diskin/lognormal.py",
+              "soil_diskin/radiocarbon_utils.py"],
+    output:
+        "results/03_calibrate_models/lognormal_model_optimization_results_permuted.csv",
+    threads: workflow.cores
+    shell:
+        """
+        python notebooks/03b_lognormal_calibration.py --input {input.sites:q} \
+            --output-name lognormal_model_optimization_results_permuted.csv --n-jobs {threads}
+        """
+
 # Step 03d: Calibrate weibull model
 rule calibrate_weibull:
     input:
         "results/all_sites_14C_turnover.csv",
         "soil_diskin/calibration.py",
         "soil_diskin/continuum_models.py",
+        "notebooks/03d_calibrate_weibull_model.py",
     threads: workflow.cores
     output:
         "results/03_calibrate_models/weibull_model_optimization_results.csv"
-    script:
-        "notebooks/03d_calibrate_weibull_model.py"
+    shell:
+        "python notebooks/03d_calibrate_weibull_model.py --input {input[0]:q} --output {output:q} --n-jobs {threads}"
 
 # Step 03e: Calibrate log-uniform rate model
 rule calibrate_loguniform:
@@ -264,11 +312,12 @@ rule calibrate_loguniform:
         "data/14C_atm_annot.csv",
         "soil_diskin/calibration.py",
         "soil_diskin/continuum_models.py",
+        "notebooks/03e_calibrate_loguniform_model.py",
     threads: workflow.cores
     output:
         "results/03_calibrate_models/loguniform_model_optimization_results.csv"
-    script:
-        "notebooks/03e_calibrate_loguniform_model.py"
+    shell:
+        "python notebooks/03e_calibrate_loguniform_model.py --input {input[0]:q} --output {output:q} --n-jobs {threads}"
 
 # Step 04: Generate and collect model predictions for analysis and figures
 # Lognormal predictions (Python-based pipeline used for figures)
@@ -319,7 +368,9 @@ rule continuum_model_predictions:
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv",
         "results/03_calibrate_models/general_powerlaw_model_alpha_sweep.csv",
         "results/03_calibrate_models/soft_cutoff_powerlaw_model_alpha_sweep.csv",
-        "results/03_calibrate_models/weibull_model_optimization_results.csv"
+        "results/03_calibrate_models/weibull_model_optimization_results.csv",
+        "results/03_calibrate_models/powerlaw_model_optimization_results_permuted.csv",
+        "results/03_calibrate_models/lognormal_model_optimization_results_permuted.csv",
     output:
         "results/04_model_predictions/weibull_model_predictions.csv",
         "results/04_model_predictions/power_law_model_predictions.csv",
@@ -329,8 +380,27 @@ rule continuum_model_predictions:
         "results/04_model_predictions/general_power_law_model_predictions_alpha_half.csv",
         "results/04_model_predictions/general_power_law_model_predictions_alpha_sweep.csv",
         "results/04_model_predictions/soft_cutoff_power_law_model_predictions_alpha_sweep.csv",
+        "results/04_model_predictions/power_law_model_predictions_permuted.csv",
+        "results/04_model_predictions/lognormal_model_predictions_permuted.csv",
     script:
         "notebooks/04_collect_continuum_model_predictions.py"
+
+# Export calibrated parameters with site identifiers, for the real and permuted fm
+rule export_calibration_results:
+    input:
+        "results/processed_balesdent_2018.csv",
+        "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/powerlaw_model_optimization_results_permuted.csv",
+        "results/03_calibrate_models/lognormal_model_optimization_results.csv",
+        "results/03_calibrate_models/lognormal_model_optimization_results_permuted.csv",
+        "notebooks/04_export_calibration_results.py",
+    output:
+        "results/04_calibration_exports/powerlaw_calibration_results.csv",
+        "results/04_calibration_exports/powerlaw_calibration_results_permuted.csv",
+        "results/04_calibration_exports/lognormal_calibration_results.csv",
+        "results/04_calibration_exports/lognormal_calibration_results_permuted.csv",
+    shell:
+        "python notebooks/04_export_calibration_results.py"
 
 # Run CLM4.5
 rule CLM45_model_predictions:

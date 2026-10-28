@@ -32,3 +32,10 @@ wcs:
   soc_scale: 0.1   # convert dg/kg to g/kg
   bdod_scale: 0.01 # convert cg/cm3 to g/cm3
   ocs_scale: 1 # convert cg/cm3 to g/cm3
+
+# Permutation null for the calibrations (notebooks/02b_permute_fm.py): fm_obs is
+# shuffled across sites. Replicate r uses the seed pair [seed, r], so adding
+# replicates never changes existing ones.
+permutation:
+  replicates: 1
+  seed: 20261028

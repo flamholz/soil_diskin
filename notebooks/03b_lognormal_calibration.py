@@ -31,7 +31,8 @@ OUT_DIR = Path('results/03_calibrate_models')
 OUTPUT_NAME = 'lognormal_model_optimization_results.csv'
 
 
-def main(n_jobs: int = -1, sites_path: Path = SITES_PATH, out_dir: Path | None = None) -> None:
+def main(n_jobs: int = -1, sites_path: Path = SITES_PATH, out_dir: Path | None = None,
+         output_name: str = OUTPUT_NAME) -> None:
     """Calibrate each usable observation and stock scenario, preserving input rows."""
     sites = pd.read_csv(sites_path, dtype={'profile_id': str})
     sites = sites.rename(columns={'implied_turnover_years': 'turnover'})
@@ -44,7 +45,7 @@ def main(n_jobs: int = -1, sites_path: Path = SITES_PATH, out_dir: Path | None =
     for suffix in ['', '_05', '_95']:
         print(suffix or 'central', fits['calibration_status'+suffix].value_counts().to_dict(), flush=True)
     out = sites.join(fits)
-    out_path = out_dir/OUTPUT_NAME
+    out_path = out_dir/output_name
     out.to_csv(out_path, index=False)
     print(f'Wrote {out_path} ({len(out)} rows)')
 
@@ -53,7 +54,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-i', '--input', type=Path, default=SITES_PATH, help='Bulk or depth-resolved turnover CSV from script 02.')
     parser.add_argument('--output-dir', type=Path, help='Defaults to results/03_calibrate_models (depth_resolved subfolder for layers).')
+    parser.add_argument('--output-name', default=OUTPUT_NAME,
+                        help='Output file name, e.g. for the permuted-fm null.')
     parser.add_argument('--n-jobs', type=int, default=int(os.environ.get('N_JOBS', -1)),
                         help='Number of parallel jobs for joblib (-1 uses all cores).')
     args = parser.parse_args()
-    main(n_jobs=args.n_jobs, sites_path=args.input, out_dir=args.output_dir)
+    main(n_jobs=args.n_jobs, sites_path=args.input, out_dir=args.output_dir, output_name=args.output_name)

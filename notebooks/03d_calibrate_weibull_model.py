@@ -18,6 +18,7 @@ The steady-state relationships (derived in weibull_hockey_stick_pipeline.md) are
 so alpha controls the shape of the age distribution (Feng's stabilization
 coefficient beta = A/T) and k sets the overall timescale.
 """
+import argparse
 from os import path
 
 import pandas as pd
@@ -27,19 +28,21 @@ from soil_diskin.calibration import calibrate, weibull_spec
 DATA_PATH = 'results/all_sites_14C_turnover.csv'
 OUTPUT_PATH = path.join('results/03_calibrate_models', 'weibull_model_optimization_results.csv')
 
-# Snakemake's thread allowance when run by Snakemake, otherwise all cores.
-N_JOBS = snakemake.threads if 'snakemake' in globals() else -1  # noqa: F821
 
-
-def main():
-    site_data = pd.read_csv(DATA_PATH)
-    fits = calibrate(weibull_spec(), site_data, n_jobs=N_JOBS)
+def main(input_path=DATA_PATH, output_path=OUTPUT_PATH, n_jobs=-1):
+    site_data = pd.read_csv(input_path)
+    fits = calibrate(weibull_spec(), site_data, n_jobs=n_jobs)
     for suffix in ['', '_05', '_95']:
         print(suffix or 'central', fits['calibration_status'+suffix].value_counts().to_dict())
     print(f'maximum objective {fits.objective.max():.3e}')
-    fits.join(site_data[['fm_obs', 'turnover']]).to_csv(OUTPUT_PATH, index=False)
-    print(f'wrote {OUTPUT_PATH}')
+    fits.join(site_data[['fm_obs', 'turnover']]).to_csv(output_path, index=False)
+    print(f'wrote {output_path}')
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--input', default=DATA_PATH, help='Turnover and fm table from script 02 (or 02b).')
+    parser.add_argument('--output', default=OUTPUT_PATH, help='Calibration results CSV.')
+    parser.add_argument('--n-jobs', type=int, default=-1, help='Parallel jobs over sites (-1 uses all cores).')
+    args = parser.parse_args()
+    main(args.input, args.output, args.n_jobs)
