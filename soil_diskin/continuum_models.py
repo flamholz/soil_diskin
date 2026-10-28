@@ -3,10 +3,9 @@ import numpy as np
 from scipy.integrate import quad
 from scipy.special import exp1, gamma, gammaincc, log_ndtr, gammainc, kve
 from scipy.stats import lognorm, norm
-from soil_diskin import constants
 from soil_diskin.constants import LAMBDA_14C, GAMMA
 from soil_diskin.lognormal import lognormal_radiocarbon, inner_integral, C14_MEAN_LIFE, diskin_C_of_t
-from soil_diskin.radiocarbon_utils import AtmC14
+from soil_diskin.radiocarbon_utils import AtmC14, default_atmosphere
 from functools import lru_cache
 from tqdm import tqdm
 
@@ -42,15 +41,30 @@ class AbstractDiskinModel:
     A and T.
     """
 
-    def __init__(self, interp_r_14c=None):
-        """Initialize the model."""
-        self.interp_14c = interp_r_14c
-        if interp_r_14c is None:
-            self.interp_14c = constants.INTERP_R_14C
-    
+    def __init__(self, atm=None):
+        """Initialize the model.
+
+        Args:
+            atm: AtmC14, optional
+                The atmospheric 14C record. If None, the project's default
+                record is loaded on first use, so construction reads no files.
+        """
+        self.atm = atm
+
         # These should be calculated by subclasses
         self.T = None  # mean transit time at steady-state
         self.A = None  # mean age at steady-state
+
+    @property
+    def atm(self):
+        """The atmospheric 14C record used for radiocarbon calculations."""
+        if self._atm is None:
+            self._atm = default_atmosphere()
+        return self._atm
+
+    @atm.setter
+    def atm(self, atm):
+        self._atm = atm
 
     def params_valid(self):
         """Returns True if the parameters are valid, False otherwise."""
@@ -169,8 +183,8 @@ class AbstractDiskinModel:
     def radiocarbon_age_integrand(self, a):
         """The integrand for calculating the radiocarbon age numerically.
         
-        Default implementation uses pA from the subclass and the 
-        interpolated radiocarbon concentration provided at initialization.
+        Default implementation uses pA from the subclass and the
+        atmospheric record provided at initialization.
 
         Args:
             a: float
@@ -180,9 +194,9 @@ class AbstractDiskinModel:
             float
                 The value of the integrand at age a.
         """
-        # Interpolation was done with x as years before present,
+        # The atmospheric record is indexed by years before present,
         # so a is the correct input here
-        initial_r = self.interp_14c(a) 
+        initial_r = self.atm.R(a)
         radiocarbon_decay = np.exp(-LAMBDA_14C*a)
         return initial_r * self.pA(a) * radiocarbon_decay
 
@@ -202,7 +216,7 @@ class GammaDisKin(AbstractDiskinModel):
     DEPRECATED: not used by the Snakemake pipeline; slated for deletion along
     with notebooks/03d_calibrate_gamma_model.py.
     """
-    def __init__(self, a, b, interp_r_14c=None, I=None):
+    def __init__(self, a, b, atm=None, I=None):
         """
         Args:
         a: float
@@ -210,14 +224,12 @@ class GammaDisKin(AbstractDiskinModel):
         b: float
             The scale parameter of the gamma distribution
             The long time scale
-        interp_r_14c: callable
-            An interpolator for the estimated historical radiocarbon concentration.
-            Takes a single argument, the number of years before a reference time (e.g. 2000).
-            If None uses the default interpolator from constants.
+        atm: AtmC14, optional
+            The atmospheric 14C record. If None, uses the project default.
         I: np.ndarray, optional
             An array of inputs to the model, representing the carbon input to the system.
         """
-        super().__init__(interp_r_14c=interp_r_14c)
+        super().__init__(atm=atm)
 
         self.a = a  # shape parameter
         self.b = b  # scale parameter -- should not be zero
@@ -255,7 +267,7 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
     expint to handle n >= 1, e.g. via E_{n+1}(x) = (exp(-x) - x E_n(x))/n.
     Meanwhile, alpha = 1 is available as PowerLawDisKin.
     """
-    def __init__(self, t_min, t_max, alpha = np.exp(-GAMMA), interp_r_14c=None, I=None):
+    def __init__(self, t_min, t_max, alpha = np.exp(-GAMMA), atm=None, I=None):
         """
         Args:
         t_min: float
@@ -267,14 +279,12 @@ class GeneralPowerLawDisKin(AbstractDiskinModel):
             the upper limit comes from the expint helper, not the model (see
             the class docstring). The alpha = 1 case is PowerLawDisKin.
             Unrelated to the Weibull shape parameter of WeibullDisKin.alpha.
-        interp_r_14c: callable
-            An interpolator for the estimated historical radiocarbon concentration.
-            Takes a single argument, the number of years before a reference time (e.g. 2000).
-            If None uses the default interpolator from constants.
+        atm: AtmC14, optional
+            The atmospheric 14C record. If None, uses the project default.
         I: np.ndarray, optional
             An array of inputs to the model, representing the carbon input to the system.
         """
-        super().__init__(interp_r_14c=interp_r_14c)
+        super().__init__(atm=atm)
 
         # alpha <= 0 is not a decaying model; alpha >= 1 gives NaN T, A and cdfA from expint.
         if not 0 < alpha < 1:
@@ -371,7 +381,7 @@ class SoftCutoffPowerLawDisKin(AbstractDiskinModel):
     evaluated with the exponentially scaled kve for numerical stability at
     large arguments.
     """
-    def __init__(self, t_min, t_max, alpha=np.exp(-GAMMA), interp_r_14c=None, I=None):
+    def __init__(self, t_min, t_max, alpha=np.exp(-GAMMA), atm=None, I=None):
         """
         Args:
         t_min: float
@@ -381,14 +391,12 @@ class SoftCutoffPowerLawDisKin(AbstractDiskinModel):
         alpha: float
             The exponent of the power law in rate space. Must be non-negative;
             the GIG and its moments are finite for any real alpha.
-        interp_r_14c: callable
-            An interpolator for the estimated historical radiocarbon concentration.
-            Takes a single argument, the number of years before a reference time (e.g. 2000).
-            If None uses the default interpolator from constants.
+        atm: AtmC14, optional
+            The atmospheric 14C record. If None, uses the project default.
         I: np.ndarray, optional
             An array of inputs to the model, representing the carbon input to the system.
         """
-        super().__init__(interp_r_14c=interp_r_14c)
+        super().__init__(atm=atm)
 
         if alpha < 0:
             raise ValueError("Alpha parameter must be non-negative.")
@@ -454,29 +462,23 @@ class PowerLawDisKin(AbstractDiskinModel):
     We call these bounding timescales t_min and t_max.
     """
 
-    def __init__(self, t_min, t_max, interp_r_14c=None, I=None):
+    def __init__(self, t_min, t_max, atm=None, I=None):
         """
         Args:
         t_min: float
             The short time scale
         t_max: float
             The long time scale
-        interp_r_14c: callable
-            An interpolator for the estimated historical radiocarbon concentration.
-            Takes a single argument, the number of years before a reference time (e.g. 2000).
-            If None uses the default interpolator from constants.
+        atm: AtmC14, optional
+            The atmospheric 14C record. If None, uses the project default.
         I: np.ndarray, optional
             An array of inputs to the model, representing the carbon input to the system.
         """
-        super().__init__(interp_r_14c=interp_r_14c)
+        super().__init__(atm=atm)
         self.t_min = t_min  # short time scale
         self.t_max = t_max  # long time scale
         
         self.I = I
-
-        self.interp_14c = interp_r_14c
-        if interp_r_14c is None:
-            self.interp_14c = constants.INTERP_R_14C
 
         # steady-state transit time
         tratio = t_min / t_max
@@ -542,9 +544,9 @@ class PowerLawDisKin(AbstractDiskinModel):
             tau: float
                 The age at which to evaluate the integrand.
         """
-        # Interpolation was done with x as years before present,
-        # so a is the correct input here
-        initial_r = self.interp_14c(tau) 
+        # The atmospheric record is indexed by years before present,
+        # so tau is the correct input here
+        initial_r = self.atm.R(tau)
         radiocarbon_decay = np.exp(-LAMBDA_14C*tau)
         age_dist_term = (
             np.power((self.e1_term * (self.t_min + tau)), -1) *
@@ -595,8 +597,8 @@ class LogUniformDisKin(AbstractDiskinModel):
     tractable. All rates are in inverse years.
     """
 
-    def __init__(self, k_min, log_width, interp_r_14c=None, I=None):
-        super().__init__(interp_r_14c=interp_r_14c)
+    def __init__(self, k_min, log_width, atm=None, I=None):
+        super().__init__(atm=atm)
         self.k_min = float(k_min)
         self.log_width = float(log_width)
         self.I = I
@@ -659,7 +661,7 @@ class LogUniformDisKin(AbstractDiskinModel):
 class LognormalDisKin(AbstractDiskinModel):
     """A model where the rate distribution is lognormal."""
 
-    def __init__(self, mu, sigma, k_min=None, k_max=None, interp_r_14c=None, N=1000, ppf_lim=1e-5):
+    def __init__(self, mu, sigma, k_min=None, k_max=None, atm=None, N=1000, ppf_lim=1e-5):
         """
         Args:
         mu: float
@@ -670,16 +672,14 @@ class LognormalDisKin(AbstractDiskinModel):
             The minimum value of k to use in the integrals. UNITS?
         k_max: float
             The maximum value of k to use in the integrals. UNITS? 
-        interp_r_14c: callable
-            An interpolator for the estimated historical radiocarbon concentration.
-            Takes a single argument, the number of years before a reference time (e.g. 2000).
-            If None uses the default interpolator from constants.
+        atm: AtmC14, optional
+            The atmospheric 14C record. If None, uses the project default.
         N: int
             The number of elements to discretize p(k) into.
         ppf_lim: float
             The percent point function limit for the lognormal distribution.
         """
-        super().__init__(interp_r_14c=interp_r_14c)
+        super().__init__(atm=atm)
 
         self.mu = mu
         self.k_star = np.exp(mu)
@@ -839,13 +839,11 @@ class LognormalDisKinFast(AbstractDiskinModel):
     """Fast lognormal model with explicit atmospheric 14C input.
 
     This class requires an ``AtmC14`` object on construction and uses it
-    directly for steady-state radiocarbon calculations. The interpolator path
-    from ``AbstractDiskinModel`` is intentionally ignored.
+    directly for steady-state radiocarbon calculations.
     Optional ``fm_evaluator(mu, sigma)`` supplies a cache built for that atmosphere.
 
-    NOTE: this class violates the contract of the base class, e.g., by not using the
-    interpolator for radiocarbon calculations and by not implementing the CDF via
-    numerical integration.
+    NOTE: this class violates the contract of the base class, e.g., by skipping
+    the base initializer, having no params_valid(), and an array-only s(t).
     
     TODO: For the moment this class is only used for illustrative plotting. But we should 
     make a contract that allows for this implementation. 
@@ -857,12 +855,10 @@ class LognormalDisKinFast(AbstractDiskinModel):
         atm: AtmC14,
         k_min=None,
         k_max=None,
-        interp_r_14c=None,
         ppf_lim=1e-5,
         fast_rtol=1e-4,
         fm_evaluator=None,
     ):
-        # This class uses the supplied atmosphere; skip loading the unused interpolator.
         # Copy essential lognormal parameter setup from LognormalDisKin
         self.mu = mu
         self.k_star = np.exp(mu)
@@ -875,10 +871,6 @@ class LognormalDisKinFast(AbstractDiskinModel):
         self.atm = atm
         self.fast_rtol = fast_rtol
         self.fm_evaluator = fm_evaluator
-
-        # We intentionally do not use interpolator-based radiocarbon
-        # calculations in this class.
-        self.interp_14c = None
 
         # keep k bounds available; numeric routines may reference `k_min`/`k_max`
         # but we don't build discrete ks/I arrays in the fast implementation.
@@ -1006,7 +998,7 @@ class WeibullDisKin(AbstractDiskinModel):
     (scipy.special.gammainc).
     """
 
-    def __init__(self, k, alpha, interp_r_14c=None, I=None):
+    def __init__(self, k, alpha, atm=None, I=None):
         """
         Args:
         k: float
@@ -1014,15 +1006,12 @@ class WeibullDisKin(AbstractDiskinModel):
         alpha: float
             Shape parameter (dimensionless). Must be positive. alpha < 1
             gives the hockey-stick shape; alpha = 1 is first-order kinetics.
-        interp_r_14c: callable
-            An interpolator for the estimated historical radiocarbon
-            concentration. Takes a single argument, the number of years
-            before a reference time (e.g. 2000). If None uses the default
-            interpolator from constants.
+        atm: AtmC14, optional
+            The atmospheric 14C record. If None, uses the project default.
         I: np.ndarray, optional
             An array of inputs to the model.
         """
-        super().__init__(interp_r_14c=interp_r_14c)
+        super().__init__(atm=atm)
 
         self.k = float(k)
         self.alpha = float(alpha)

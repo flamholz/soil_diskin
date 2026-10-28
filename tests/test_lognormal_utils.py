@@ -15,7 +15,7 @@ def _constant_atm(value: float = 1.0) -> AtmC14:
     """Build a small synthetic atmospheric lookup with constant fm over age."""
     ages = np.array([0.0, 10.0, 25.0, 80.0], dtype=np.float64)
     fm = np.full_like(ages, value)
-    return AtmC14(ages, fm, mean_R=value)
+    return AtmC14(ages, fm, tail_fm=value)
 
 
 def _impulse_atm(impulse_age: float, width: float) -> AtmC14:
@@ -30,7 +30,7 @@ def _impulse_atm(impulse_age: float, width: float) -> AtmC14:
     # Piecewise-constant segments: 0 on [0, lo), 1/width on [lo, hi), and 0 afterward.
     ages = np.array([0.0, lo, hi, hi + max(1.0, width)], dtype=np.float64)
     fm = np.array([0.0, 1.0 / width, 0.0, 0.0], dtype=np.float64)
-    return AtmC14(ages, fm, mean_R=0.0)
+    return AtmC14(ages, fm, tail_fm=0.0)
 
 
 def test_inner_integral_constant_atm_matches_closed_form():

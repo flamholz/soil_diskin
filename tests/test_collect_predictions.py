@@ -22,8 +22,6 @@ import pytest
 from scipy.integrate import quad
 from scipy.stats import norm
 
-from soil_diskin import constants
-
 SCRIPT = Path(__file__).resolve().parents[1]/'notebooks/04_collect_continuum_model_predictions.py'
 
 
@@ -35,9 +33,6 @@ def test_collect_bulk_and_layer_predictions(tmp_path, monkeypatch, with_layers):
     the script must skip the layer predictions (and not create their folder);
     with one, the layers must go through the same prediction path as bulk sites.
     """
-    # f_new does not depend on radiocarbon; a constant atmosphere keeps model
-    # construction independent of the real 14C record.
-    monkeypatch.setattr(constants, 'INTERP_R_14C', lambda t: 1.)
     monkeypatch.chdir(tmp_path)
     calibration = tmp_path/'results/03_calibrate_models'
     predictions = tmp_path/'results/04_model_predictions'

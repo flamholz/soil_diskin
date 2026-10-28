@@ -569,14 +569,9 @@ class TestLognormalDisKinFast(unittest.TestCase):
         with self.assertRaises(TypeError):
             LognormalDisKinFast(mu=0.0, sigma=0.5)
 
-    def test_ignores_interp_from_base(self):
-        model = LognormalDisKinFast(
-            mu=-1.0,
-            sigma=0.8,
-            atm=self.atm,
-            interp_r_14c=lambda _x: 999.0,
-        )
-        self.assertIsNone(model.interp_14c)
+    def test_uses_supplied_atmosphere(self):
+        model = LognormalDisKinFast(mu=-1.0, sigma=0.8, atm=self.atm)
+        self.assertIs(model.atm, self.atm)
 
     def test_calc_radiocarbon_ratio_ss_returns_tuple(self):
         model = LognormalDisKinFast(mu=-1.0, sigma=0.8, atm=self.atm)

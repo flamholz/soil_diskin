@@ -27,15 +27,8 @@ _INV_SQRT_2PI = 1.0 / np.sqrt(2.0 * np.pi)
 
 
 def inner_integral(atm: AtmC14, alpha: float) -> float:
-    """Closed-form for I(alpha) = ∫_0^∞ atm14C(a) exp(-alpha a) da.
-
-    Vectorized in NumPy; returns a scalar.
-    """
-    ages = atm.ages
-    fm = atm.fm
-    e = np.exp(-alpha * ages)
-    body = fm[:-1] * (e[:-1] - e[1:])
-    return (body.sum() + atm.mean_R * e[-1]) / alpha
+    """Closed-form for I(alpha) = ∫_0^∞ atm14C(a) exp(-alpha a) da; see AtmC14.laplace."""
+    return atm.laplace(alpha)
 
 
 def cached_radiocarbon(atm: AtmC14):
@@ -44,7 +37,7 @@ def cached_radiocarbon(atm: AtmC14):
     if (ages.ndim != 1 or not len(ages) or fm.shape != ages.shape
             or not np.isfinite(ages).all() or not np.isfinite(fm).all()
             or ages[0] != 0 or np.any(np.diff(ages) <= 0) or np.any(fm < 0)
-            or not np.isfinite(atm.mean_R) or atm.mean_R < 0):
+            or not np.isfinite(atm.tail_fm) or atm.tail_fm < 0):
         raise ValueError('atmosphere needs increasing ages from zero and finite nonnegative fm')
     # Step 0.005; covers mu [-15, 10], sigma [0.01, 5], plus 12-sigma tails.
     u = np.linspace(-100., 70., 34001)
