@@ -1,4 +1,4 @@
-"""Multi-model supplementary and presentation figures (formerly part of Fig. 4)."""
+"""Figure S3: observed vs. predicted F_new for every model, with bootstrap KGE distributions."""
 #%% 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,53 +37,13 @@ continuum_model_colors = [pal['dark_blue'], pal['blue'], pal['light_blue']]
 continuum_models = [lognormal_predictions, powerlaw_predictions, gen_powerlaw_preds_alpha]
 continuum_model_titles = ['lognormal model', 'power law model ($\\alpha = 1$)', 'power law model ($\\alpha = e^{-\\gamma}$)']
 
-ESM_model_colors = [pal['dark_purple'], pal['purple']]
 ESM_models = [CLM45_predictions, JSBACH_predictions]
 ESM_model_titles = ['CLM4.5', 'JSBACH']
 
 RCM_colors = [pal['dark_green'], pal['green'], pal['light_green']]
 
 
-# %% Define function to plot model predictions
-def plot_model_predictions(ax, predictions, model_name, color, pred_err=None):
-    ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
-            label='y=x', zorder=-10, lw=1)
-    if pred_err is not None:
-        ax.errorbar(all_sites['total_fnew'],
-                    predictions,
-                    yerr=pred_err,
-                    fmt='o', label=model_name, color=color,
-                    ecolor='k', elinewidth=0.5, capsize=2,
-                    mec='k', mew=0.5,
-                    markersize=5, alpha=0.9)
-    else:
-        ax.scatter(all_sites['total_fnew'],
-               predictions, label=model_name, color=color,
-               edgecolor='k', lw=0.5, s=20, alpha=0.9)
-
-    # calculate metrics
-    true_vals = all_sites['total_fnew'].values
-    predictions = predictions.values
-    mask = ~pd.isna(true_vals) & ~pd.isna(predictions)
-    evaluator = RegressionMetric(y_true=true_vals[mask],
-                                 y_pred=predictions[mask])
-    rmse = root_mean_squared_error(true_vals[mask], predictions[mask])
-    kge = evaluator.kling_gupta_efficiency()
-
-    # Make a single box reporting KGE and RMSE. Black border and grey background
-    props = dict(boxstyle='round', facecolor=pal['light_yellow'],
-                 edgecolor=pal['dark_grey'], alpha=0.8)
-    box_text = f'KGE = {kge:.2f}\nRMSE = {rmse:.2f}'
-    ax.text(0.05, 0.95, box_text,
-            transform=ax.transAxes, fontsize=6,
-            verticalalignment='top', bbox=props)
-    ax.set_title(model_name)
-    ax.set_xticks(np.arange(0, 1.1, 0.5))
-    ax.set_yticks(np.arange(0, 1.1, 0.5))
-    ax.legend().remove()
-
-
-# Alternate version with colormap and color normalization
+# Observed vs. predicted F_new, colored by clabel with the given colormap and normalization
 def plot_model_predictions_cmap(ax, predictions, model_name, clabel, cmap, norm):
     ax.plot([0, 1], [0, 1], color='grey', linestyle='--',
             label='y=x', zorder=-10, lw=1)
@@ -121,22 +81,6 @@ def plot_model_predictions_cmap(ax, predictions, model_name, clabel, cmap, norm)
             verticalalignment='top', bbox=props)
     ax.set_title(model_name)
     return sc
-
-#%% 
-# Plot the generalized power law model predictions to check
-# TODO: can we delete this code? 
-fig, axs = plt.subplots(1, 3, figsize=(7.24, 2), dpi=300, constrained_layout=True)
-
-powerlaw_err = powerlaw_predictions[['predicted_fnew_05','predicted_fnew_95']].sub(powerlaw_predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T
-plot_model_predictions(axs[0], powerlaw_predictions['predicted_fnew'], 'power law model', pal['dark_blue'], powerlaw_err)
-
-gen_powerlaw_err = gen_powerlaw_preds_alpha[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_alpha['predicted_fnew'], axis=0).abs().fillna(0).values.T
-plot_model_predictions(axs[1], gen_powerlaw_preds_alpha['predicted_fnew'], 'generalized power law model', pal['blue'], gen_powerlaw_err)
-
-gen_powerlaw_err_half = gen_powerlaw_preds_alpha_half[['predicted_fnew_05','predicted_fnew_95']].sub(gen_powerlaw_preds_alpha_half['predicted_fnew'], axis=0).abs().fillna(0).values.T
-plot_model_predictions(axs[2], gen_powerlaw_preds_alpha_half['predicted_fnew'], 'generalized power law model ($\\alpha/2$)', pal['light_blue'], gen_powerlaw_err_half)
-
-plt.savefig('figures/gen_powerlaw.png', dpi=300, bbox_inches='tight')
 
 # %% make a supplementary version of the above plot where the points are colored by the
 # timing of the land use change event. Using a log color scale. Also, we now include the 
@@ -233,52 +177,5 @@ axs['K'].tick_params(axis='y', which='major', labelsize=5)
 axs['K'].set_yticks(np.arange(-1, 1.1, 1.0))
 
 plt.savefig('figures/figS3.png', dpi=300, bbox_inches='tight')
-
-# %% make a presentation version with no subpanel labels
-# show only the continuum models and ESMs
-fig, axs = plt.subplots(nrows=1, ncols=5, figsize=(7.24, 1.75),
-                        dpi=300, constrained_layout=True,
-                        sharex=False, sharey=True)
-
-# for presentation, want lognormal, weibull, powerlaw, in that order
-continuum_model_colors = [pal['dark_blue'], pal['blue'], pal['light_blue']]
-continuum_models = [lognormal_predictions, weibull_predictions, powerlaw_predictions]
-continuum_model_titles = ['lognormal model', 'hockey-stick model', 'power law model']
-for ax, predictions, title, color in zip(axs[:3], continuum_models,
-                                         continuum_model_titles, continuum_model_colors):
-    err = predictions[['predicted_fnew_05','predicted_fnew_95']].sub(predictions['predicted_fnew'], axis=0).abs().fillna(0).values.T
-    plot_model_predictions(ax, predictions['predicted_fnew'], title, color, err) 
-
-for ax, predictions, title, color in zip(axs[3:5], ESM_models,
-                                         ESM_model_titles, ESM_model_colors):
-    plot_model_predictions(ax, predictions['prediction'], title, color)
-
-# Set axes labels on the outer plots
-for ax in axs:
-    ax.set_xlabel('observed F$_{new}$')
-axs[0].set_ylabel('predicted F$_{new}$')
-
-# %% Save the presentation figure
-plt.savefig('figures/fig4_presentation.png', dpi=300, bbox_inches='tight')
-
-# Make a version of the presentation figure where the points are colored by the
-# timing of the land use change event.
-fig, axs = plt.subplots(nrows=1, ncols=5, figsize=(7.24, 1.75),
-                        dpi=300, constrained_layout=True,
-                        sharex=False, sharey=True)
-
-for ax, predictions, title, color in zip(axs[:3], continuum_models,
-                                         continuum_model_titles, continuum_model_colors):
-    sc = plot_model_predictions_cmap(ax, predictions['predicted_fnew'], title,
-                                     clabel='Duration_labeling', cmap=cmap, norm=norm)
-
-for ax, predictions, title, color in zip(axs[3:5], ESM_models,
-                                         ESM_model_titles, ESM_model_colors):
-    sc = plot_model_predictions_cmap(ax, predictions['prediction'], title,
-                                     clabel='Duration_labeling', cmap=cmap, norm=norm)
-colorbar_label = 'time since transition (yrs)'
-cbar = plt.colorbar(sc, ax=axs, orientation='vertical', label=colorbar_label, pad=0.01)
-
-plt.savefig('figures/fig4_presentation_colored_by_labeling_duration.png', dpi=300, bbox_inches='tight')
 
 # %%
