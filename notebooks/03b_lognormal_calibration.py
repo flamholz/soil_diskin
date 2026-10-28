@@ -1,12 +1,14 @@
 """Fit lognormal mu/sigma directly to turnover and radiocarbon, for bulk or layers.
 
-Fits from three starting points within this script, with 1e-13 optimizer
-stopping tolerances and the higher-sigma solution when several fits are exact.
-Stock uncertainty scenarios are fitted separately. Missing inputs retain their
-rows; converged compromises are flagged as approximate_fit.
+Uses the shared calibration in soil_diskin.calibration with lognormal_spec():
+three starting points, 1e-13 optimizer stopping tolerances, and the
+higher-sigma solution when several fits are exact. Stock uncertainty scenarios
+are fitted separately. Missing inputs retain their rows; converged compromises
+are flagged as approximate_fit.
 
-Exports mu/sigma and fitted mean ages (pred / pred_05 / pred_95). The existing
-output filename is retained so downstream scripts keep finding the table.
+Writes the input table with mu/sigma, model_T/model_A/model_fm and fit
+diagnostics for each scenario (suffixes '', '_05', '_95') to
+lognormal_model_optimization_results.csv.
 """
 from __future__ import annotations
 
@@ -15,69 +17,18 @@ import os
 from pathlib import Path
 import sys
 
-import numpy as np
 import pandas as pd
-from joblib import Parallel, delayed
-from scipy.optimize import least_squares
 
 # Allow running this file directly from the checkout.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from soil_diskin.continuum_models import LognormalDisKin
+from soil_diskin.calibration import calibrate, lognormal_spec
 from soil_diskin.radiocarbon_utils import load_atm14c
 
 SITES_PATH = Path('results/all_sites_14C_turnover.csv')
 ATM_PATH = Path('data/14C_atm_annot.csv')
 OUT_DIR = Path('results/03_calibrate_models')
-
-
-def fit_observation(atm, turnover, fm):
-    """Minimize squared relative turnover/Fm errors; prefer higher-sigma exact fits."""
-    if not np.isfinite([turnover, fm]).all() or min(turnover, fm) <= 0:
-        raise ValueError('positive finite turnover and fm required')
-    # Within these bounds the atmosphere's log-rate grid resolves the distribution.
-    lower, upper = [-15., .01], [10., 5.]
-
-    def residual(parameters):
-        model = LognormalDisKin(*parameters, atm=atm)
-        fm_pred, _ = model.calc_radiocarbon_ratio_ss()
-        # Relative turnover error equals relative stock error at the observed input.
-        return (np.array([model.T, fm_pred])-[turnover, fm])/np.array([turnover, fm])
-
-    best = dict.fromkeys(
-        ['mu', 'sigma', 'model_A', 'model_T', 'model_fm',
-         'turnover_relative_residual', 'fm_residual', 'relative_fm_error'], np.nan)
-    best.update(objective=np.inf, calibration_status='fit_failed')
-    best_key = (1, np.inf)
-    for sigma0 in [2.5, 1., 4.]:
-        sigma0 = np.clip(sigma0, lower[1], upper[1])
-        start = np.clip([sigma0**2/2-np.log(turnover), sigma0], lower, upper)
-        try:
-            fit = least_squares(residual, start, bounds=(lower, upper), x_scale='jac',
-                                max_nfev=2000, ftol=1e-13, xtol=1e-13, gtol=1e-13)
-            mu, sigma = fit.x
-            model = LognormalDisKin(mu, sigma, atm=atm)
-            fm_pred, _ = model.calc_radiocarbon_ratio_ss()
-        except (ValueError, FloatingPointError, np.linalg.LinAlgError):
-            continue
-        relative_error, fm_error = model.T/turnover-1, fm_pred-fm
-        exact = fit.success and abs(relative_error) < 1e-10 and abs(fm_error) < 1e-10
-        objective = float(fit.fun@fit.fun)
-        key = (0, -sigma) if exact else (1, objective)
-        if key >= best_key:
-            continue
-        best_key = key
-        best = {'mu': mu if fit.success else np.nan,
-                'sigma': sigma if fit.success else np.nan,
-                'model_A': model.A if fit.success else np.nan,
-                'model_T': model.T, 
-                'model_fm': fm_pred,
-                'fm_residual': fm_error,
-                'relative_fm_error': fm_error/fm,
-                'turnover_relative_residual': relative_error, 
-                'objective': objective,
-                'calibration_status': ('calibrated' if exact else 'approximate_fit') if fit.success else 'fit_failed'}
-    return best
+OUTPUT_NAME = 'lognormal_model_optimization_results.csv'
 
 
 def main(n_jobs: int = -1, sites_path: Path = SITES_PATH, out_dir: Path | None = None) -> None:
@@ -88,28 +39,12 @@ def main(n_jobs: int = -1, sites_path: Path = SITES_PATH, out_dir: Path | None =
     sites[numeric] = sites[numeric].apply(pd.to_numeric, errors='coerce').astype(float)
     out_dir = Path(out_dir) if out_dir is not None else OUT_DIR/('depth_resolved' if 'z_top_cm' in sites else '')
     out_dir.mkdir(parents=True, exist_ok=True)
-    print(f'Preparing atmospheric quadrature; {len(sites)} observations', flush=True)
-    atm = load_atm14c(str(ATM_PATH))
-    atm.log_rate_response()  # Tabulate once here rather than in every worker.
-    out = sites.copy()
-    for column, suffix in [('turnover', ''), ('turnover_q05', '_05'), ('turnover_q95', '_95')]:
-        for name in ['mu', 'sigma', 'model_A', 'model_T', 'model_fm',
-                     'turnover_relative_residual', 'fm_residual', 'relative_fm_error', 'objective']:
-            out[name+suffix] = np.nan
-        out['calibration_status'+suffix] = 'invalid_input'
-        if column not in sites:
-            continue
-        valid = np.isfinite(sites[[column, 'fm_obs']]).all(axis=1) & sites[column].gt(0) & sites.fm_obs.gt(0)
-        observations = sites.loc[valid, [column, 'fm_obs']]
-        print(f'Fitting {column}: {len(observations)} rows', flush=True)
-        if observations.empty:
-            continue
-        fits = Parallel(n_jobs=n_jobs)(delayed(fit_observation)(atm, tau, fm)
-                                      for tau, fm in observations.itertuples(index=False, name=None))
-        fitted = pd.DataFrame(fits, index=observations.index).add_suffix(suffix)
-        out.loc[valid, fitted.columns] = fitted
-        print(fitted['calibration_status'+suffix].value_counts().to_dict(), flush=True)
-    out_path = out_dir/'03b_lognormal_predictions_calcurve_python.csv'
+    print(f'Fitting {len(sites)} observations', flush=True)
+    fits = calibrate(lognormal_spec(), sites, atm=load_atm14c(str(ATM_PATH)), n_jobs=n_jobs)
+    for suffix in ['', '_05', '_95']:
+        print(suffix or 'central', fits['calibration_status'+suffix].value_counts().to_dict(), flush=True)
+    out = sites.join(fits)
+    out_path = out_dir/OUTPUT_NAME
     out.to_csv(out_path, index=False)
     print(f'Wrote {out_path} ({len(out)} rows)')
 

@@ -37,7 +37,7 @@ WORLDCLIM_LABELS = {
 powerlaw_params = pd.read_csv('results/03_calibrate_models/powerlaw_model_optimization_results.csv')
 gen_powerlaw_params = pd.read_csv('results/03_calibrate_models/general_powerlaw_model_optimization_results.csv')
 gen_powerlaw_params_alpha_half = pd.read_csv('results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv')
-lognormal_raw = pd.read_csv('results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv')
+lognormal_raw = pd.read_csv('results/03_calibrate_models/lognormal_model_optimization_results.csv')
 
 # %%
 def scatter(ax, x, y, color, xlabel, ylabel, xlog=False, ylog=False):

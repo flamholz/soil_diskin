@@ -34,7 +34,7 @@ WORLDCLIM_VARS = {
 # Model parameter definitions: (label, csv_path_or_df, [param_cols])
 MODELS = [
     ('lognormal',
-     'results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv',
+     'results/03_calibrate_models/lognormal_model_optimization_results.csv',
      ['mu', 'sigma']),
     ('powerlaw_alpha1',
      'results/03_calibrate_models/powerlaw_model_optimization_results.csv',

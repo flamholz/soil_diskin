@@ -130,7 +130,7 @@ def main():
 
     # Bulk and layers use the fitted mu/sigma from 03b and the same prediction function.
     for folder in ['', 'depth_resolved']:
-        source = Path('results/03_calibrate_models')/folder/'03b_lognormal_predictions_calcurve_python.csv'
+        source = Path('results/03_calibrate_models')/folder/'lognormal_model_optimization_results.csv'
         if folder and not source.exists():
             continue  # Layer calibration is optional in the bulk pipeline.
         params = pd.read_csv(source, dtype={'profile_id': str})

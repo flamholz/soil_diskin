@@ -12,16 +12,15 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from joblib import Parallel, delayed
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from notebooks.fig4 import ROOT, plot_panel
 from notebooks.viz import color_palette
+from soil_diskin.calibration import calibrate, lognormal_spec
 from soil_diskin.continuum_models import LognormalDisKin
 from soil_diskin.radiocarbon_utils import load_atm14c
 
-fit_observation = import_module('notebooks.03b_lognormal_calibration').fit_observation
 generate_predictions = import_module('notebooks.04_collect_continuum_model_predictions').generate_predictions
 InputAllocation = import_module('notebooks.02_get_turnover_14C').InputAllocation
 INPUT = ROOT/'results/04_model_predictions/depth_resolved/lognormal_model_predictions.csv'
@@ -60,16 +59,12 @@ def layer_inputs(sites, scheme, fraction):
 
 def refit(sites, inputs, atmosphere, n_jobs):
     """Refit mean/q05/q95 stocks independently; observed f_new never enters fitting."""
-    params = sites[['fnew_obs', 'stock_source', 'Duration_labeling']].copy()
-    for stock_suffix, suffix in [('', ''), ('_q05', '_05'), ('_q95', '_95')]:
-        columns = ['mu'+suffix, 'sigma'+suffix]
-        params[columns] = np.nan
-        turnover = sites.get('stock_kg_m2'+stock_suffix, np.nan)/inputs
-        valid = np.isfinite(turnover) & turnover.gt(0) & np.isfinite(sites.fm_obs) & sites.fm_obs.gt(0)
-        if valid.any():
-            fits = Parallel(n_jobs=n_jobs)(delayed(fit_observation)(atmosphere, tau, fm)
-                                          for tau, fm in zip(turnover[valid], sites.fm_obs[valid]))
-            params.loc[valid, columns] = pd.DataFrame(fits)[['mu', 'sigma']].to_numpy()
+    observations = sites[['fm_obs']].copy()
+    for stock_suffix in ['', '_q05', '_q95']:
+        observations['turnover'+stock_suffix] = sites.get('stock_kg_m2'+stock_suffix, np.nan)/inputs
+    fits = calibrate(lognormal_spec(), observations, atm=atmosphere, n_jobs=n_jobs)
+    params = sites[['fnew_obs', 'stock_source', 'Duration_labeling']].join(
+        fits[[name+suffix for suffix in ['', '_05', '_95'] for name in ['mu', 'sigma']]])
     return generate_predictions(LognormalDisKin, params, ['mu', 'sigma'], params)
 
 
@@ -105,7 +100,6 @@ def main(input=INPUT, output=OUTPUT, n_jobs=4, exclude_layered_soilgrids=False):
     sites = pd.read_csv(input, dtype={'profile_id': str}).sort_values(['profile_id', 'layer']).reset_index(drop=True)
     np.testing.assert_allclose(sites.input_kg_m2_yr, layer_inputs(sites, BASELINE_SCHEME, 1.), equal_nan=True)
     atmosphere = load_atm14c(ROOT/'data/14C_atm_annot.csv')
-    atmosphere.log_rate_response()  # Tabulate once here rather than in every worker.
     tables = {(1., BASELINE_SCHEME): sites}
     for fraction in [1., .5]:
         for scheme in SCHEMES:

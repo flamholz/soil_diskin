@@ -71,7 +71,7 @@ def test_collect_bulk_and_layer_predictions(tmp_path, monkeypatch, with_layers):
     # A compromise has fitted turnover different from observed stock/input.
     # Predictions must use fitted parameters, never reconstruct them from that input.
     params.loc[1, ['mu', 'sigma']] = [-4., .01]
-    filename = '03b_lognormal_predictions_calcurve_python.csv'
+    filename = 'lognormal_model_optimization_results.csv'
     params.to_csv(calibration/filename, index=False)
     # The layer calibration reuses the same parameters, with layer metadata. The
     # zero-padded profile_id checks that string IDs survive the round trip.

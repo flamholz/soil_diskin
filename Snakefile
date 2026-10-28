@@ -209,10 +209,11 @@ rule run_lognormal_calibration_python:
     input:
         sites="results/all_sites_14C_turnover.csv",
         atm="data/14C_atm_annot.csv",
-        code=["notebooks/03b_lognormal_calibration.py", "soil_diskin/continuum_models.py",
-              "soil_diskin/lognormal.py", "soil_diskin/radiocarbon_utils.py"],
+        code=["notebooks/03b_lognormal_calibration.py", "soil_diskin/calibration.py",
+              "soil_diskin/continuum_models.py", "soil_diskin/lognormal.py",
+              "soil_diskin/radiocarbon_utils.py"],
     output:
-        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+        "results/03_calibrate_models/lognormal_model_optimization_results.csv",
     threads: 4
     shell:
         """
@@ -223,10 +224,11 @@ rule run_layered_lognormal_calibration_python:
     input:
         sites="results/all_sites_14C_turnover_depth_resolved.csv",
         atm="data/14C_atm_annot.csv",
-        code=["notebooks/03b_lognormal_calibration.py", "soil_diskin/continuum_models.py",
-              "soil_diskin/lognormal.py", "soil_diskin/radiocarbon_utils.py"],
+        code=["notebooks/03b_lognormal_calibration.py", "soil_diskin/calibration.py",
+              "soil_diskin/continuum_models.py", "soil_diskin/lognormal.py",
+              "soil_diskin/radiocarbon_utils.py"],
     output:
-        "results/03_calibrate_models/depth_resolved/03b_lognormal_predictions_calcurve_python.csv",
+        "results/03_calibrate_models/depth_resolved/lognormal_model_optimization_results.csv",
     threads: 4
     shell:
         """
@@ -257,7 +259,7 @@ rule calibrate_loguniform:
 # Lognormal predictions (Python-based pipeline used for figures)
 rule lognormal_predictions_python:
     input:
-        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+        "results/03_calibrate_models/lognormal_model_optimization_results.csv",
     output:
         "results/04_model_predictions/04b_lognormal_cdfs_python.csv",
         "results/04_model_predictions/04b_lognormal_cdfs_05_python.csv",
@@ -296,8 +298,8 @@ rule continuum_model_predictions:
         "results/processed_balesdent_2018.csv",
         "results/all_sites_14C_turnover.csv",
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
-        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
-        "results/03_calibrate_models/depth_resolved/03b_lognormal_predictions_calcurve_python.csv",
+        "results/03_calibrate_models/lognormal_model_optimization_results.csv",
+        "results/03_calibrate_models/depth_resolved/lognormal_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv",
         "results/03_calibrate_models/general_powerlaw_model_alpha_sweep.csv",
@@ -387,7 +389,7 @@ rule turnover_sensitivity_analysis_lognormal:
 rule steady_state_sensitivity_analysis_lognormal:
     input:
         "data/balesdent_2018/balesdent_2018_raw.xlsx",
-        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+        "results/03_calibrate_models/lognormal_model_optimization_results.csv",
     output:
         "results/06_sensitivity_analysis/lognormal_input_data.csv",
         "results/06_sensitivity_analysis/lognormal_mu_data.csv",
@@ -491,7 +493,7 @@ rule figS2_calcs:
     input:
         "results/all_sites_14C_turnover.csv",
         "data/worldclim",
-        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+        "results/03_calibrate_models/lognormal_model_optimization_results.csv",
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv",
@@ -509,7 +511,7 @@ rule plot_figS2:
         "results/03_calibrate_models/powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/general_powerlaw_model_optimization_results_alpha_half.csv",
-        "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+        "results/03_calibrate_models/lognormal_model_optimization_results.csv",
         "results/figS2_calcs.csv",
         "results/figS2_calcs_lognormal_correlations.csv",
         "results/figS2_calcs_powerlaw_alpha1_correlations.csv",

@@ -31,7 +31,7 @@ DEFAULTS = {
     "python_q05": REPO / "results/04_model_predictions/04b_lognormal_cdfs_05_python.csv",
     "julia_q95": REPO / "results/04_model_predictions/04b_lognormal_cdfs_95.csv",
     "python_q95": REPO / "results/04_model_predictions/04b_lognormal_cdfs_95_python.csv",
-    "calcurve": REPO / "results/03_calibrate_models/03b_lognormal_predictions_calcurve_python.csv",
+    "calcurve": REPO / "results/03_calibrate_models/lognormal_model_optimization_results.csv",
     "out": REPO / "results/04_model_predictions/compare_lognormal_cdfs_report.json",
 }
 

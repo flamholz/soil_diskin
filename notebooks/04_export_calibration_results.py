@@ -32,7 +32,7 @@ MODELS = {
     'powerlaw': ('powerlaw_model_optimization_results.csv',
                  {'t_min': 't_min', 't_max': 't_max',
                   'model_T': 'model_T', 'model_A': 'model_A'}),
-    'lognormal': ('03b_lognormal_predictions_calcurve_python.csv',
+    'lognormal': ('lognormal_model_optimization_results.csv',
                   {'mu': 'mu', 'sigma': 'sigma',
                    'model_T': 'model_T', 'model_A': 'model_A'}),
 }
