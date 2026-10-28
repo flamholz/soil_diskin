@@ -119,4 +119,4 @@ if __name__ == "__main__":
             -0.3, 1.1, label, transform=axs[label].transAxes,
             fontsize=7, va='top', ha='left')
 
-    plt.savefig('figures/fig1_new.png', dpi=300)
+    plt.savefig('figures/fig1.png', dpi=300)

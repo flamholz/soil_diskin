@@ -8,7 +8,8 @@ from tqdm import tqdm
 import viz
 
 """
-Makes figure 1: Schematic of model structure and age distribution calculation.
+Makes figure SX (formerly Fig. 1; supplementary number to be assigned):
+schematic of model structure and age distribution calculation.
 
 Intended to be run from the project root directory. 
 """
@@ -23,9 +24,9 @@ np.random.shuffle(color_name_order)
 color_order = [colors[n] for n in color_name_order]
 
 # %%
-# Load precomputed simulation results from fig1_calcs.py
-# (Computation moved to notebook/fig1_calcs.py for faster iteration)
-data = np.load('results/fig1_calcs.npz')
+# Load precomputed simulation results from figSX_calcs.py
+# (Computation moved to notebooks/figSX_calcs.py for faster iteration)
+data = np.load('results/figSX_calcs.npz')
 n_inputs = int(data['n_inputs'])
 J_t = data['J_t']
 ts = data['ts']
@@ -274,13 +275,13 @@ if __name__ == "__main__":
     panel_a_width = x_max - x_min
     panel_a_height = y_max - y_min
 
-    plt.savefig('figures/fig1_tmp.png', dpi=600)
+    plt.savefig('figures/figSX_tmp.png', dpi=600)
 
     # Create final figure by hand
     from PIL import Image
 
     # Now paste the diagram into the exact panel A location
-    base_fig = Image.open('figures/fig1_tmp.png')
+    base_fig = Image.open('figures/figSX_tmp.png')
     panel_a_img = Image.open('graphics/parallel_continuum_model.png')
 
     # Scale the image so its width matches the panel, preserving aspect ratio
@@ -296,5 +297,5 @@ if __name__ == "__main__":
     base_fig.paste(panel_a_resized, (my_x_min, my_y_min))
 
     # Save final figure
-    base_fig.save('figures/fig1.png')
-    print("Saved to figures/fig1.png")
+    base_fig.save('figures/figSX.png')
+    print("Saved to figures/figSX.png")

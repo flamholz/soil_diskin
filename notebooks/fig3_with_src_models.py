@@ -1,4 +1,6 @@
 #%%
+# TODO: defunct -- reads outputs the pipeline no longer produces (e.g. gamma model
+# predictions). Delete this script.
 """
 fig3_with_src_models.py
 

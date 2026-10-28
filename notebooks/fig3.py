@@ -1,4 +1,4 @@
-"""Figure 4: observed vs. predicted F_new for the lognormal model.
+"""Figure 3: observed vs. predicted F_new for the lognormal model.
 
 Panel A: bulk-soil lognormal model.  Panel B: depth-resolved lognormal model.
 Points are sites (A) or layers (B); the dashed line is 1:1. Error bars appear
@@ -10,10 +10,10 @@ Inputs (from 03b_lognormal_calibration.py, then
     results/04_model_predictions/lognormal_model_predictions.csv
     results/04_model_predictions/depth_resolved/lognormal_model_predictions.csv
 
-Outputs: figures/fig4[_no_layered_soilgrids].png and a .csv of
+Outputs: figures/fig3[_no_layered_soilgrids].png and a .csv of
 per-panel metrics (N, RMSE, KGE, SoilGrids counts, input SHA-256).
 
-Usage: python -m notebooks.fig4 [--exclude-layered-soilgrids]
+Usage: python -m notebooks.fig3 [--exclude-layered-soilgrids]
 """
 import argparse
 from pathlib import Path
@@ -87,8 +87,8 @@ def plot_panel(ax, data, observed_column, source_column, title, color, fontsize=
     return metrics
 
 
-def main(exclude_layered_soilgrids=False, output_stem='fig4'):
-    """Build Figure 4 and write the image files and the metrics CSV to figures/.
+def main(exclude_layered_soilgrids=False, output_stem='fig3'):
+    """Build Figure 3 and write the image files and the metrics CSV to figures/.
 
     Args:
         exclude_layered_soilgrids: drop SoilGrids-backfilled layers from
@@ -112,7 +112,7 @@ def main(exclude_layered_soilgrids=False, output_stem='fig4'):
         metrics.append({'panel': setting[2], 'source': str(source.relative_to(ROOT)),
                         'source_sha256': file_digest(source), **plot_panel(ax, table, *setting, fontsize=5)})
     axes[0].set_ylabel(r'predicted F$_{new}$')
-    # Panel letters (7 pt, as in fig1_new). A clears the y label; B has no tick labels.
+    # Panel letters (7 pt, as in fig1). A clears the y label; B has no tick labels.
     axes[0].text(-.21, 1.04, 'A', transform=axes[0].transAxes, fontsize=7)
     axes[1].text(-.12, 1.04, 'B', transform=axes[1].transAxes, fontsize=7)
     #fig.subplots_adjust(left=.1, right=.99, bottom=.14, top=.92, wspace=.12)

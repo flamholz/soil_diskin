@@ -24,7 +24,7 @@ colors = viz.color_palette()
 plt.style.use('notebooks/style.mpl')
 
 # %% Load the results of the mu, sigma scan.
-data = np.load('results/fig2_calcs.npz')
+data = np.load('results/fig2_old_calcs.npz')
 mu_values = data['mu_values']
 sigma_values = data['sigma_values']
 T_matrix = data['T_matrix']
@@ -65,7 +65,7 @@ print('(T, R_14C, hex_color)')
 for T, R, color in zip(calibrated_Ts, calibrated_R_14Cs, calibrated_colors):
     print(f'  ({T:.1g}, {R:.1g}, {color!r})')
 
-# %% Plot figure 2, which diagrams the calibration procedure.
+# %% Plot the former figure 2 (not in the paper), which diagrams the calibration procedure.
 mosaic = 'ABC\nDEF'
 fig, axs = plt.subplot_mosaic(mosaic, layout='constrained', figsize=(7.24, 4))
 
@@ -159,4 +159,4 @@ plt.title('calibrated age distributions')
 axs['A'].axis('off')
 axs['D'].axis('off')
 
-plt.savefig('figures/fig2.png', dpi=300, bbox_inches='tight')
+plt.savefig('figures/fig2_old.png', dpi=300, bbox_inches='tight')

@@ -16,7 +16,7 @@ from soil_diskin.radiocarbon_utils import load_atm14c
 import multiprocessing
 from tqdm import tqdm
 
-# %% calculations needed to make figure 2 (lognormal version)
+# %% calculations needed to make fig2_old.py (lognormal version)
 # Scan over mu and sigma and calculate T and R_14C.
 mu_values = np.linspace(-2.5, 0.0, 100)
 sigma_values = np.linspace(0.1, 2.0, 100)
@@ -56,7 +56,7 @@ if __name__ == "__main__":
         pbar.close()
     # %% Save grids and outputs to an npz file.
     np.savez(
-        'results/fig2_calcs.npz',
+        'results/fig2_old_calcs.npz',
         mu_values=mu_values,
         sigma_values=sigma_values,
         MU=MU,

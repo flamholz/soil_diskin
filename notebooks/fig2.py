@@ -137,5 +137,5 @@ if __name__ == "__main__":
            xlim=(-0.03, 1.03), ylim=(-0.03, 1.03), aspect='equal',
            xticks=[0, 0.5, 1], yticks=[0, 0.5, 1])
 
-    plt.savefig('figures/fig2_new.svg', dpi=300, bbox_inches='tight')
-    plt.savefig('figures/fig2_new.png', dpi=300, bbox_inches='tight')
+    plt.savefig('figures/fig2.svg', dpi=300, bbox_inches='tight')
+    plt.savefig('figures/fig2.png', dpi=300, bbox_inches='tight')

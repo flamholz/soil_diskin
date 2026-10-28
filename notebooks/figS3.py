@@ -129,7 +129,7 @@ for c in 'AF':
     axs[c].set_ylabel('predicted F$_{new}$')
 
 # Load the bootstrapping calculation to plot KGE distribution in panel K as a boxplot
-metric_dists = pd.read_csv('results/fig4_calcs.csv')
+metric_dists = pd.read_csv('results/05_model_evaluation/bootstrap_metrics.csv')
 kge_data = metric_dists[metric_dists['metric'] == 'KGE']
 # Order -- continuum, then ESM, then reduced complexity
 order = ['Lognormal', 'Hockey-stick', 'Power-law',

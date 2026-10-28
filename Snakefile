@@ -16,7 +16,9 @@ rule all:
         # "figures/model_predictions.png",
         "figures/fig1.png",
         "figures/fig2.png",
-        "figures/fig4.png",
+        "figures/fig3.png",
+        "figures/fig2_old.png",
+        "figures/figSX.png",
         "figures/figS1.png",
         "figures/figS2.png",
         "figures/figS3.png",
@@ -494,39 +496,63 @@ rule vegetation_effects_sensitivity_analysis:
         "notebooks/06c_veg_effects_sensitivity.py"
 # Step 05: Plot results
 
-rule fig1_calcs:
-    input:
-    output:
-        "results/fig1_calcs.npz",
-    script:
-        "notebooks/fig1_calcs.py"
-
+# Figure 1: continuum model structure and age distributions
 rule plot_fig1:
     input:
-        "results/fig1_calcs.npz",
-        "graphics/century_model_diagram.png",
+        "graphics/parallel_continuum_model.png",
+        "soil_diskin/continuum_models.py",
+        "soil_diskin/lognormal.py",
     output:
         "figures/fig1.png",
     script:
         "notebooks/fig1.py"
 
-rule fig2_calcs:
-    input:
-        "data/14C_atm_annot.csv"
-    output:
-        "results/fig2_calcs.npz",
-    script:
-        "notebooks/fig2_calcs.py"
-
+# Figure 2
 rule plot_fig2:
     input:
-        "results/fig2_calcs.npz",
+        "soil_diskin/lognormal.py",
     output:
-        "figures/fig2.png"
+        "figures/fig2.png",
+        "figures/fig2.svg",
     script:
         "notebooks/fig2.py"
 
-rule fig4_calcs:
+# Former Figure 1, now supplementary (number to be assigned)
+rule figSX_calcs:
+    input:
+    output:
+        "results/figSX_calcs.npz",
+    script:
+        "notebooks/figSX_calcs.py"
+
+rule plot_figSX:
+    input:
+        "results/figSX_calcs.npz",
+        "graphics/parallel_continuum_model.png",
+    output:
+        "figures/figSX.png",
+    script:
+        "notebooks/figSX.py"
+
+# Former Figure 2, not currently in the paper
+rule fig2_old_calcs:
+    input:
+        "data/14C_atm_annot.csv"
+    output:
+        "results/fig2_old_calcs.npz",
+    script:
+        "notebooks/fig2_old_calcs.py"
+
+rule plot_fig2_old:
+    input:
+        "results/fig2_old_calcs.npz",
+    output:
+        "figures/fig2_old.png"
+    script:
+        "notebooks/fig2_old.py"
+
+# Step 05: bootstrap RMSE and KGE of every model's f_new predictions
+rule evaluate_model_predictions:
     input:
         "results/04_model_predictions/weibull_model_predictions.csv",
         "results/04_model_predictions/power_law_model_predictions.csv",
@@ -538,9 +564,9 @@ rule fig4_calcs:
         'results/04_model_predictions/RCM.csv',
         'results/processed_balesdent_2018.csv',
     output:
-        "results/fig4_calcs.csv",
+        "results/05_model_evaluation/bootstrap_metrics.csv",
     script:
-        "notebooks/fig4_calcs.py"
+        "notebooks/05_evaluate_model_predictions.py"
 
 
 rule plot_figS3:
@@ -554,25 +580,25 @@ rule plot_figS3:
         'results/04_model_predictions/JSBACH_fnew.csv',
         'results/04_model_predictions/RCM.csv',
         'results/processed_balesdent_2018.csv',
-        'results/fig4_calcs.csv',
+        'results/05_model_evaluation/bootstrap_metrics.csv',
     output:
         "figures/figS3.png"
     script:
         "notebooks/figS3.py"
 
-rule plot_fig4:
+rule plot_fig3:
     input:
         "results/04_model_predictions/lognormal_model_predictions.csv",
         "results/04_model_predictions/depth_resolved/lognormal_model_predictions.csv",
-        "notebooks/fig4.py",
+        "notebooks/fig3.py",
         "notebooks/style.mpl",
         "notebooks/viz.py",
         "soil_diskin/utils.py",
     output:
-        "figures/fig4.png",
-        "figures/fig4.csv",
+        "figures/fig3.png",
+        "figures/fig3.csv",
     shell:
-        "python -m notebooks.fig4"
+        "python -m notebooks.fig3"
 
 rule figS2_calcs:
     input:
@@ -656,7 +682,7 @@ rule plot_figS7:
         "results/04_model_predictions/depth_resolved/lognormal_model_predictions.csv",
         "data/14C_atm_annot.csv",
         "notebooks/figS7.py",
-        "notebooks/fig4.py",
+        "notebooks/fig3.py",
         "notebooks/02_get_turnover_14C.py",
         "notebooks/03b_lognormal_calibration.py",
         "notebooks/04_collect_continuum_model_predictions.py",

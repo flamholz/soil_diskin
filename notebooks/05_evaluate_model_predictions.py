@@ -1,4 +1,17 @@
-#%% 
+"""
+Script should be run from the project root directory.
+
+Evaluates the f_new predictions of the continuum, Earth-system (CLM4.5, JSBACH)
+and reduced-complexity models against the observed f_new: RMSE and KGE over
+N_ITERATIONS bootstrap subsamples of 90% of the sites, drawn with replacement.
+Every model is scored on the same subsamples, drawn with a fixed seed.
+
+Writes results/05_model_evaluation/bootstrap_metrics.csv in long format, one
+row per (model, metric, subsample): columns model, metric, value.
+"""
+#%%
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -19,6 +32,9 @@ CLM45_predictions = pd.read_csv('results/04_model_predictions/CLM45_fnew.csv', h
 JSBACH_predictions = pd.read_csv('results/04_model_predictions/JSBACH_fnew.csv', header=None, names=['prediction'])
 RCM_predictions = pd.read_csv('results/04_model_predictions/RCM.csv')
 
+OUTPUT_PATH = Path('results/05_model_evaluation/bootstrap_metrics.csv')
+SEED = 42
+
 # Subsample 90% of the sites 10^4 times to estimate the RMSE and KGE distributions.
 n_iterations = 10000
 n_sites = int(0.9 * len(all_sites))
@@ -35,7 +51,7 @@ for i, col in enumerate(RCM_predictions.columns):
     results[col] = {'RMSE': [], 'KGE': []}
 
 # Sample n_site random sites for n_iterations
-sample_indices = np.random.choice(all_sites.index, size=(n_sites, n_iterations), replace=True)
+sample_indices = np.random.default_rng(SEED).choice(all_sites.index, size=(n_sites, n_iterations), replace=True)
 true_values = all_sites['total_fnew'].values[sample_indices]
 
 
@@ -85,4 +101,6 @@ for model_name, metrics in results.items():
             results_df.append({'model': model_name, 'metric': metric_name, 'value': value})
 
 results_df = pd.DataFrame(results_df)
-results_df.to_csv('results/fig4_calcs.csv', index=False)
+OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+results_df.to_csv(OUTPUT_PATH, index=False)
+print(f'Saved {OUTPUT_PATH}')
