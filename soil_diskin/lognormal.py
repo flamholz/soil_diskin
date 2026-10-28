@@ -1,8 +1,8 @@
 """Lognormal model-related utility functions.
 
-Provides `inner_integral`, `lognormal_radiocarbon`, `scan_ages`, and
-closed-form fixed-input concentration helpers.
-These are used by the calibration and recovery scripts.
+Provides `lognormal_radiocarbon`, `scan_ages`, and closed-form fixed-input
+concentration helpers, used by the sensitivity analyses and figures. Model
+calibration uses LognormalDisKin and soil_diskin.calibration instead.
 """
 from __future__ import annotations
 
@@ -13,9 +13,7 @@ from scipy.integrate import quad
 from .radiocarbon_utils import AtmC14
 
 __all__ = [
-    "inner_integral",
     "lognormal_radiocarbon",
-    "cached_radiocarbon",
     "scan_ages",
     "diskin_C_of_t",
     "run_diskin_fast",
@@ -24,34 +22,6 @@ __all__ = [
 
 C14_MEAN_LIFE = 8267.0  # years
 _INV_SQRT_2PI = 1.0 / np.sqrt(2.0 * np.pi)
-
-
-def inner_integral(atm: AtmC14, alpha: float) -> float:
-    """Closed-form for I(alpha) = ∫_0^∞ atm14C(a) exp(-alpha a) da; see AtmC14.laplace."""
-    return atm.laplace(alpha)
-
-
-def cached_radiocarbon(atm: AtmC14):
-    """Build an Fm(mu, sigma) evaluator once per atmosphere for 03b's bounds."""
-    ages, fm = atm.ages, atm.fm
-    if (ages.ndim != 1 or not len(ages) or fm.shape != ages.shape
-            or not np.isfinite(ages).all() or not np.isfinite(fm).all()
-            or ages[0] != 0 or np.any(np.diff(ages) <= 0) or np.any(fm < 0)
-            or not np.isfinite(atm.tail_fm) or atm.tail_fm < 0):
-        raise ValueError('atmosphere needs increasing ages from zero and finite nonnegative fm')
-    # Step 0.005; covers mu [-15, 10], sigma [0.01, 5], plus 12-sigma tails.
-    u = np.linspace(-100., 70., 34001)
-    response = np.array([k*inner_integral(atm, k+1/C14_MEAN_LIFE) for k in np.exp(u)])
-
-    def predict_fm(mu, sigma):
-        if not (-15 <= mu <= 10 and .01 <= sigma <= 5):
-            raise ValueError('parameters outside the cached fitting bounds')
-        z = (u-(mu-sigma**2))/sigma
-        weights = np.exp(-.5*z*z)*(u[1]-u[0])/(sigma*np.sqrt(2*np.pi))
-        weights[[0, -1]] *= .5
-        return float(np.sum(weights*response))
-
-    return predict_fm
 
 
 def lognormal_radiocarbon(
@@ -64,7 +34,7 @@ def lognormal_radiocarbon(
 
     Computed as a normalized double integral:
     fm = exp(mu - 0.5*sigma^2) * integral_u[ phi(u; mu, sigma) * I(lambda + exp(u)) du ],
-    with inner term I(alpha) = integral_a[ atm14C(a) * exp(-alpha*a) da ].
+    with inner term I(alpha) = integral_a[ atm14C(a) * exp(-alpha*a) da ] (AtmC14.laplace).
     Here u = ln(k), k = exp(u), and lambda = 1 / C14_MEAN_LIFE.
 
     Parameters
@@ -88,7 +58,7 @@ def lognormal_radiocarbon(
     def integrand(u):
         z = (u - mu) * inv_sigma
         phi = _INV_SQRT_2PI * np.exp(-0.5 * z * z) * inv_sigma
-        return phi * inner_integral(atm, 1.0 / C14_MEAN_LIFE + np.exp(u))
+        return phi * atm.laplace(1.0 / C14_MEAN_LIFE + np.exp(u))
 
     val, _ = quad(integrand, u_lo, u_hi, epsrel=rtol, limit=200)
     # Normalize by bulk C_ss via 1 / E[1/k] for lognormal k, i.e. exp(mu - 0.5*sigma^2).

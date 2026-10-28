@@ -17,13 +17,12 @@ from scipy.integrate import cumulative_trapezoid, trapezoid
 from soil_diskin import constants
 from soil_diskin.constants import GAMMA
 from soil_diskin.continuum_models import (
-    GammaDisKin, GeneralPowerLawDisKin, LogUniformDisKin, LognormalDisKin,
+    GeneralPowerLawDisKin, LogUniformDisKin, LognormalDisKin,
     PowerLawDisKin, SoftCutoffPowerLawDisKin, WeibullDisKin)
 
 # Representative soil-like parameters: turnover times of years to millennia.
 # The broad lognormal (sigma ~ 2.6) is the site-0 fit, the hardest case numerically.
 CASES = {
-    'gamma': lambda: GammaDisKin(3., .1),
     'powerlaw': lambda: PowerLawDisKin(1., 1e4),
     'general_powerlaw-e^-gamma': lambda: GeneralPowerLawDisKin(1., 1e4, np.exp(-GAMMA)),
     'general_powerlaw-0.4': lambda: GeneralPowerLawDisKin(.01, 2000., .4),

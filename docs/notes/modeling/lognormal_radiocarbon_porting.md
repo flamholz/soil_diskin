@@ -173,7 +173,7 @@ more reliable because the hard direction was eliminated, not approximated.
 - [`soil_diskin/lognormal.py`](../../../soil_diskin/lognormal.py) — the math:
   - `AtmC14`: same role as the Julia struct.
   - `load_atm14c(path)`: same loading behavior.
-  - `inner_integral(atm, α)`: vectorized in NumPy
+  - `inner_integral(atm, α)` (now `AtmC14.laplace` in `radiocarbon_utils.py`): vectorized in NumPy
     (`np.exp(-α * ages)`, then a single `(fm[:-1] * (e[:-1] - e[1:])).sum()`).
     Goes via compiled NumPy code for the 55 000-element loop.
   - `lognormal_radiocarbon(atm, τ, ā, rtol)`: outer 1-D quadrature in log-$k$

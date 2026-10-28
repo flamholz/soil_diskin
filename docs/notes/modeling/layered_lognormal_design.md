@@ -80,8 +80,10 @@ coordinates, depth bounds, land use, vegetation, and site NPP columns. It return
 layer input rates; `InputAllocation` supplies the existing exponential distribution.
 Local fitting and the numerical solver are unchanged.
 
-The existing `LognormalDisKinFast` owns the numerical evaluator and updates
-mu/sigma in place. Its optional cached quadrature integrates the resident
+(Superseded: `LognormalDisKinFast` has since been merged into `LognormalDisKin`,
+and calibration now lives in `soil_diskin/calibration.py`; see
+[calibration.md](calibration.md).) The existing `LognormalDisKinFast` owns the
+numerical evaluator and updates mu/sigma in place. Its optional cached quadrature integrates the resident
 density across the fitting bounds. Its separate survival discretization uses
 the input density; those weights are intentionally different. `layer_model(atmosphere)`
 is a small factory configuring that existing model for layer fits.

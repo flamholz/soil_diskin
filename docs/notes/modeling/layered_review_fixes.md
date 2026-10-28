@@ -14,7 +14,7 @@ matching documentation; unrelated workspace files are outside its scope.
 | Finding | Resolution |
 | --- | --- |
 | Glossary and design disagree with input scenarios | Updated equations, three supplied allocation settings, parameter counts, validation selection, current and historical cohorts, and links to experiment notes. |
-| Independent model duplicates built-in calculations | Added cached resident-density quadrature and in-place updates to existing `LognormalDisKinFast`; `LayerLognormal` preserves the prior constructor. Analytic turnover is shared by both lognormal models. The input-density survival discretization is intentionally distinct. |
+| Independent model duplicates built-in calculations | (Superseded: now `LognormalDisKin` with rate-space radiocarbon; see [calibration.md](calibration.md).) Added cached resident-density quadrature and in-place updates to existing `LognormalDisKinFast`; `LayerLognormal` preserves the prior constructor. Analytic turnover is shared by both lognormal models. The input-density survival discretization is intentionally distinct. |
 | Duplicate cumulative-stock differencing | Both data adapters use `balesdent_layer_stocks`, preserving gaps and avoiding grouping/imputation in the layered adapter. |
 | Allocation fields travel and validate separately | `InputAllocation` owns validation, soil/NPP fractions, physical layer inputs, and metadata; both experiment drivers use it. |
 | Depth/weight vocabulary varies across files | Documented canonical API names and the historical CLI/CSV aliases, with units and distinct meanings. |

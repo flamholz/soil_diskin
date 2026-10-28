@@ -3,7 +3,6 @@ import numpy as np
 from soil_diskin.lognormal import (
     C14_MEAN_LIFE,
     diskin_C_of_t,
-    inner_integral,
     lognormal_radiocarbon,
     run_diskin_fast,
     scan_ages,
@@ -33,16 +32,16 @@ def _impulse_atm(impulse_age: float, width: float) -> AtmC14:
     return AtmC14(ages, fm, tail_fm=0.0)
 
 
-def test_inner_integral_constant_atm_matches_closed_form():
+def test_laplace_constant_atm_matches_closed_form():
     """Constant atmospheric ratio should integrate to value / alpha."""
     atm = _constant_atm(value=1.7)
     alpha = 0.023
     expected = 1.7 / alpha
-    actual = inner_integral(atm, alpha)
+    actual = atm.laplace(alpha)
     np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=0.0)
 
 
-def test_inner_integral_impulse_atm_matches_exponential_kernel():
+def test_laplace_impulse_atm_matches_exponential_kernel():
     """A narrow impulse should yield the expected exponential-kernel response."""
     impulse_age = 60.0
     width = 0.2
@@ -54,7 +53,7 @@ def test_inner_integral_impulse_atm_matches_exponential_kernel():
     hi = impulse_age + 0.5 * width
     expected = (np.exp(-alpha * lo) - np.exp(-alpha * hi)) / (alpha * width)
 
-    actual = inner_integral(atm, alpha)
+    actual = atm.laplace(alpha)
     np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=0.0)
 
     # Narrow-pulse limit recovers the simple impulse form exp(-alpha * impulse_age).

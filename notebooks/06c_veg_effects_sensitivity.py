@@ -12,7 +12,7 @@ from tqdm import tqdm
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
 from scipy.signal import convolve
-from soil_diskin.continuum_models import PowerLawDisKin, GammaDisKin
+from soil_diskin.continuum_models import PowerLawDisKin
 
 
 # %%
@@ -26,7 +26,7 @@ J_ratio = raw_site_data['Cref_0-100estim'] / raw_site_data['Ctotal_0-100estim']
 # #### Test vegetation effects
 
 # %%
-# load the powerlaw and gamma model parameters and lognormal cdfs
+# load the powerlaw model parameters and lognormal cdfs
 powerlaw_params = pd.read_csv('results/03_calibrate_models/powerlaw_model_optimization_results.csv')
 lognormal_cdfs = pd.read_csv('results/06_sensitivity_analysis/06a_lognormal_cdfs_1.csv')
 lognormal_cdfs.columns = lognormal_cdfs.columns.astype(float)

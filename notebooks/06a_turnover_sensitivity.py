@@ -57,7 +57,7 @@ def generate_predictions(model, initial_guess, data):
     Parameters
     ----------
     model : class
-        The model class to use (e.g., PowerLawDisKin, GammaDisKin).
+        The model class to use (e.g., PowerLawDisKin).
     initial_guess : list
         Initial guess for the model parameters.
     data : pd.DataFrame

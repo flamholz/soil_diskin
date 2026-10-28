@@ -5,13 +5,13 @@ import numpy as np
 from scipy.integrate import quad
 from scipy.stats import geninvgauss
 
-from soil_diskin.continuum_models import PowerLawDisKin, GammaDisKin, LogUniformDisKin
+from soil_diskin.continuum_models import PowerLawDisKin, LogUniformDisKin
 from soil_diskin.continuum_models import GeneralPowerLawDisKin, LognormalDisKin
 from soil_diskin.continuum_models import SoftCutoffPowerLawDisKin
 from soil_diskin.constants import GAMMA
 from soil_diskin.radiocarbon_utils import load_atm14c
 
-model_classes = [PowerLawDisKin, GammaDisKin,
+model_classes = [PowerLawDisKin,
                  GeneralPowerLawDisKin, SoftCutoffPowerLawDisKin, LognormalDisKin, LogUniformDisKin]
 
 
@@ -166,111 +166,6 @@ class TestPowerLawDisKin(unittest.TestCase):
             R_hat_exp = check_vals['R_hat_expected']
             self.assertAlmostEqual(R_hat[0], R_hat_exp, places=2,
                                    msg=f"R_hat = {R_hat[0]}, expected {R_hat_exp}")
-
-
-class TestGammaDisKin(unittest.TestCase):
-
-    A_VALS = [2.5, 5.0, 10.0]  # shape parameter values
-    B_VALS = [0.01, 0.1, 1.0]  # scale parameter values
-
-    def test_basic_properties(self):
-        """Test that basic properties of the model are calculated correctly."""
-        for a, b in itertools.product(self.A_VALS, self.B_VALS):
-            model = GammaDisKin(a, b)
-            
-            # Check that transit time is calculated
-            T = model.T
-            T_expected = 1 / ((a - 1) * b)
-            self.assertAlmostEqual(T, T_expected, places=6,
-                                   msg=f"Transit time mismatch for a={a}, b={b}")
-            
-            # Check that mean age is calculated correctly
-            A_expected = 1 / ((a - 2) * (a - 1) * b**2) / T
-            A_numeric, _ = model.calc_mean_age()
-            A_analytical = model.A
-            
-            self.assertAlmostEqual(
-                A_numeric, A_expected, places=6,
-                msg=f"Numeric mean age mismatch for a={a}, b={b}")
-            self.assertAlmostEqual(
-                A_analytical, A_expected, places=6,
-                msg=f"Analytic mean age mismatch for a={a}, b={b}")
-
-    def test_pdf_properties(self):
-        """Test that the age distribution PDF has valid properties."""
-        for a, b in itertools.product(self.A_VALS, self.B_VALS):
-            model = GammaDisKin(a, b)
-            
-            # PDF should be non-negative
-            test_ages = np.logspace(0, 3, 20)
-            for age in test_ages:
-                pA = model.pA(age)
-                self.assertGreaterEqual(
-                    pA, 0, msg=f"PDF is negative at age={age} for a={a}, b={b}")
-            
-            # s(t) should be decreasing
-            s_vals = [model.s(t) for t in test_ages]
-            for i in range(len(s_vals) - 1):
-                self.assertGreaterEqual(
-                    s_vals[i], s_vals[i+1],
-                    msg=f"s(t) is not decreasing for a={a}, b={b}")
-
-    def test_cdf_properties(self):
-        """Test that the CDF has valid properties."""
-        for a, b in itertools.product(self.A_VALS, self.B_VALS):
-            model = GammaDisKin(a, b)
-            
-            test_ages = np.logspace(0, 3, 20)
-            cdf_vals = [model.cdfA(t) for t in test_ages]
-            
-            # CDF should be non-decreasing
-            for i in range(len(cdf_vals) - 1):
-                self.assertLessEqual(cdf_vals[i], cdf_vals[i+1],
-                                   msg=f"CDF is not increasing for a={a}, b={b}")
-            
-            # CDF should be between 0 and 1
-            for i, cdf in enumerate(cdf_vals):
-                self.assertGreaterEqual(cdf, 0,
-                                      msg=f"CDF < 0 at age={test_ages[i]} for a={a}, b={b}")
-                self.assertLessEqual(cdf, 1.1,  # Allow small numerical error
-                                   msg=f"CDF > 1 at age={test_ages[i]} for a={a}, b={b}")
-
-    def test_params_valid(self):
-        """Test parameter combinations.
-        
-        For the gamma distribution, shape (a) and scale (b) must be positive.
-        """
-        valid_params = [(2.5, 0.1), (5.0, 1.0), (10.0, 0.01)]
-        for a, b in valid_params:
-            model = GammaDisKin(a, b)
-            self.assertTrue(model.params_valid(),
-                           msg=f"Valid parameters a={a}, b={b} marked as invalid.")
-        
-        invalid_params = [(-1.0, 0.1), (5.0, -0.5), (0.0, 1.0), (-0.1, -0.2)]
-        for a, b in invalid_params:
-            model = GammaDisKin(a, b)
-            self.assertFalse(model.params_valid(),
-                            msg=f"Invalid parameters a={a}, b={b} marked as valid.")
-
-    def test_radiocarbon_ratio(self):
-        """Test that the radiocarbon ratio calculation runs without error."""
-        for a, b in itertools.product(self.A_VALS, self.B_VALS):
-            model = GammaDisKin(a, b)
-            rc_ratio = model.calc_radiocarbon_ratio_ss()
-            print(f'Radiocarbon ratio for a={a}, b={b}: {rc_ratio}')
-            
-            # The result should be a tuple (value, error_estimate)
-            self.assertIsInstance(rc_ratio, tuple,
-                                msg=f"calc_radiocarbon_ratio_ss should return a tuple for a={a}, b={b}")
-            self.assertEqual(len(rc_ratio), 2,
-                           msg=f"calc_radiocarbon_ratio_ss should return a 2-tuple for a={a}, b={b}")
-            
-            # The radiocarbon ratio should be between 0 and 1 (approximately)
-            ratio_value = rc_ratio[0]
-            self.assertGreaterEqual(ratio_value, 0,
-                                  msg=f"Radiocarbon ratio < 0 for a={a}, b={b}")
-            self.assertLessEqual(ratio_value, 1.5,  # Allow some wiggle room
-                               msg=f"Radiocarbon ratio > 1.5 for a={a}, b={b}")
 
 
 class TestGeneralPowerLawDisKin(unittest.TestCase):

@@ -66,6 +66,8 @@ complete profiles or usable layers from partial profiles.
 
 For the fitting equations, read `fit_layer` in
 [`layered_lognormal.py`](../../../soil_diskin/layered_lognormal.py).
+(Superseded: layers are now fit by `notebooks/03b_lognormal_calibration.py` with
+`soil_diskin/calibration.py`; see [calibration.md](calibration.md).)
 `layer_model(atmosphere)` configures the existing `LognormalDisKinFast`; its `predict`
 method in [`continuum_models.py`](../../../soil_diskin/continuum_models.py)
 calculates stock, radiocarbon, and new carbon. The

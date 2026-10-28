@@ -33,7 +33,7 @@ class AbstractDiskinModel:
     Note that the name DisKin refers to "disordered kinetics" models
     that desribe decay rate distributions. The power law models are
     somewhat distinct, as they describe variation with age, rather 
-    than static disorder as in the lognormal and gamma models. We have 
+    than static disorder as in the lognormal model. We have 
     kept the name nonetheless. 
     
     Contract for concrete subclasses (checked by tests/test_model_contract.py):
@@ -247,48 +247,6 @@ class AbstractDiskinModel:
             raise ValueError('rate distribution is not resolved on the log-rate grid')
         return float(np.sum(weights * response)) / self.T
 
-
-class GammaDisKin(AbstractDiskinModel):
-    """A model where the rate distribution is gamma.
-
-    DEPRECATED: not used by the Snakemake pipeline; slated for deletion along
-    with notebooks/03d_calibrate_gamma_model.py.
-    """
-    def __init__(self, a, b, atm=None, I=None):
-        """
-        Args:
-        a: float
-            The shape parameter of the gamma distribution
-        b: float
-            The scale parameter of the gamma distribution
-            The long time scale
-        atm: AtmC14, optional
-            The atmospheric 14C record. If None, uses the project default.
-        I: np.ndarray, optional
-            An array of inputs to the model, representing the carbon input to the system.
-        """
-        super().__init__(atm=atm)
-
-        self.a = a  # shape parameter
-        self.b = b  # scale parameter -- should not be zero
-        self.I = I
-
-        self.T = 1 / ((-1 + a) * b)
-        self.A = 1/((-2 + a) * (-1 + a) * b**2) / self.T
-
-    def params_valid(self):
-        """Returns True if the parameters are valid, False otherwise."""
-        return self.a > 0 and self.b > 0
-
-    def s(self, t):
-        """the term for the amount of carbon in the system at age t"""
-        return (1 + self.b * t) ** (-self.a)
-
-    def cdfA(self, t):
-        """Calculate the cumulative distribution function of the age distribution."""
-        # The CDF is the integral of the PDF from 0 to a
-        cdf = (-1 + (1 + self.b * t) ** (1 - self.a)) / (self.b * (1 - self.a)) / self.T
-        return cdf
 
 class GeneralPowerLawDisKin(AbstractDiskinModel):
     """A model where rates of decay are proportional to alpha/t between two bounding timescales.
