@@ -99,7 +99,7 @@ def main(argv=None):
     parser.add_argument('--npp', default=NPP_PATH, help='NPP table from script 02a')
     args = parser.parse_args(argv)
     source, output = Path(args.input), Path(args.output)
-    data = pd.read_csv(source)
+    data = pd.read_csv(source, float_precision='round_trip')
     with xr.open_dataset(args.shi) as shi:
         result = bulk_turnover(data, shi, read_npp(args.npp))
     output.parent.mkdir(parents=True, exist_ok=True)

@@ -43,18 +43,31 @@ def fake_earth_engine(table):
 
 
 def test_fetch_matches_results_to_locations_by_row_id():
-    """Results are matched on the row id each point carries, whatever order they come back in,
-    and a location without a valid pixel (no property) gets NaN."""
+    """Results are matched on the row id each disk carries, whatever order they come back in.
+    A disk without valid pixels (no NPP_mean) gets NaN NPP and 0 valid pixels, and the
+    valid share is the valid pixels over all the disk's pixels."""
     locations = pd.DataFrame({'latitude': [0., 1., 2.], 'longitude': [0., 1., 2.]})
-    returned = pd.DataFrame({'row': [2, 0, 1], 'mean': [30., 10., np.nan]})
+    returned = pd.DataFrame({'row': [2, 0, 1], 'NPP_mean': [30., 10., np.nan], 'NPP_count': [400, 100, np.nan],
+                             'pixel_mean': [1., 1., 1.], 'pixel_count': [400, 400, 400]})
     with fake_earth_engine(returned):
         result = fetch_modis_npp(locations)
     np.testing.assert_array_equal(result.NPP, [10., np.nan, 30.])
+    np.testing.assert_array_equal(result.n_valid_pixels, [100, 0, 400])
+    np.testing.assert_array_equal(result.valid_share, [.25, 0., 1.])
+
+
+def test_fetch_rounds_npp():
+    """NPP is rounded to npp.DECIMALS, removing the ~1e-15 summation-order noise between requests."""
+    locations = pd.DataFrame({'latitude': [0.], 'longitude': [0.]})
+    returned = pd.DataFrame({'row': [0], 'NPP_mean': [500.0000000000003], 'NPP_count': [400], 'pixel_count': [400]})
+    with fake_earth_engine(returned):
+        assert fetch_modis_npp(locations).NPP.iloc[0] == 500.
 
 
 def test_fetch_with_sd_returns_both_statistics():
     locations = pd.DataFrame({'latitude': [0., 1.], 'longitude': [0., 1.]})
-    returned = pd.DataFrame({'row': [1, 0], 'Npp_mean': [20., 10.], 'Npp_stdDev': [2., 1.]})
+    returned = pd.DataFrame({'row': [1, 0], 'NPP_mean': [20., 10.], 'NPP_sd_mean': [2., 1.],
+                             'NPP_count': [4, 4], 'NPP_sd_count': [4, 4], 'pixel_count': [4, 4]})
     with fake_earth_engine(returned):
         result = fetch_modis_npp(locations, sd=True)
     np.testing.assert_array_equal(result.NPP, [10., 20.])
@@ -63,5 +76,5 @@ def test_fetch_with_sd_returns_both_statistics():
 
 def test_fetch_rejects_unexpected_columns():
     locations = pd.DataFrame({'latitude': [0.], 'longitude': [0.]})
-    with fake_earth_engine(pd.DataFrame({'row': [0], 'Npp': [10.]})), pytest.raises(ValueError, match='unexpected'):
+    with fake_earth_engine(pd.DataFrame({'row': [0], 'mean': [10.], 'pixel_count': [4]})), pytest.raises(ValueError, match='unexpected'):
         fetch_modis_npp(locations)

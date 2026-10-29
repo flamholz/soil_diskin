@@ -200,13 +200,15 @@ def location_keys(table):
     return pd.DataFrame(table[COORDS].to_numpy(float).round(KEY_DECIMALS), columns=COORDS)
 
 
-def npp_at(data, npp):
+def npp_at(data, npp, column='NPP'):
     """NPP (g C/m²/yr) for each row of `data`, from the table returned by read_npp.
+
+    `column` selects another column of the table, e.g. NPP_sd.
 
     Rows with invalid coordinates get NaN. Raises if a row with valid coordinates
     has no location in the table, which means the table is out of date.
     """
-    table = location_keys(npp).assign(NPP=npp.NPP.to_numpy())
+    table = location_keys(npp).assign(NPP=npp[column].to_numpy())
     matched = location_keys(data).merge(table, on=COORDS, how='left', validate='many_to_one', indicator=True)
     valid = valid_coordinates(data)
     unknown = valid & matched._merge.ne('both').to_numpy()
@@ -232,5 +234,5 @@ def npp_provenance(path):
     """The NPP table's path and checksum, with the query settings from its JSON (see 02a_fetch_npp.py)."""
     meta_path = Path(path).with_suffix('.json')
     meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
-    keep = ['product', 'band', 'years', 'image_ids', 'mask_fill', 'footprint_m', 'statistic', 'units', 'retrieved_utc']
+    keep = ['product', 'band', 'years', 'image_ids', 'mask_fill', 'radius_m', 'decimals', 'statistic', 'units', 'retrieved_utc']
     return {**source_entry(path), **{key: meta[key] for key in keep if key in meta}}

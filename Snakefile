@@ -168,7 +168,7 @@ rule fetch_npp:
         csv="results/02_npp/site_npp.csv",
         meta="results/02_npp/site_npp.json",
     shell:
-        "python notebooks/02a_fetch_npp.py --sites {input.sites:q} --layers {input.layers:q} -o {output.csv:q}"
+        "python notebooks/02a_fetch_npp.py --locations {input.sites:q} {input.layers:q} -o {output.csv:q}"
 
 # Step 02: Bulk 0-100 cm radiocarbon and turnover for the Balesdent sites
 rule turnover_14C:
