@@ -3,7 +3,7 @@
 Shared by the bulk (notebooks/02_get_turnover_14C.py) and depth-resolved
 (notebooks/02c_get_layer_turnover_14C.py) preparation scripts:
   * sample_radiocarbon and radiocarbon_at: Delta14C profiles from the global map
-    of Shi et al. (2020), checked against its published checksum by verify_shi;
+    of Shi et al. (2020) (its published checksum is verified on download, in the Snakefile);
   * read_npp and npp_at: site NPP from the table written by
     notebooks/02a_fetch_npp.py;
   * InputAllocation: how NPP is distributed over the top 100 cm of soil.
@@ -22,8 +22,6 @@ import xarray as xr
 from soil_diskin.utils import file_digest
 
 COORDS = ['latitude', 'longitude']
-SHI_MD5 = '645aa8d54cbc36cb329c29bcffc4352b'  # Published delta-14C file; metadata says 'year'.
-SHI_URL = 'https://zenodo.org/records/3823612'
 # NPP is matched to sites on coordinates rounded to this many decimals (~0.1 mm),
 # so that last-bit differences between CSV parsers cannot break the match.
 KEY_DECIMALS = 9
@@ -79,14 +77,6 @@ class InputAllocation:
 
 # Baseline: half of NPP in 0–10 cm, half Jackson global (beta = 0.966) over 0–100 cm.
 DEFAULT_ALLOCATION = InputAllocation(-1/np.log(.966), .5)
-
-
-def verify_shi(path):
-    """Raise unless the file at `path` is the published Shi et al. (2020) map; return its MD5."""
-    checksum = file_digest(path, 'md5')
-    if checksum != SHI_MD5:
-        raise ValueError(f'Shi file does not match the published delta-14C checksum at {SHI_URL}')
-    return checksum
 
 
 def valid_coordinates(table):
@@ -182,10 +172,9 @@ def source_entry(path):
     return {'path': str(Path(path).resolve()), 'sha256': file_digest(path)}
 
 
-def shi_provenance(md5):
+def shi_provenance():
     """Provenance fields describing the Shi et al. map and how it is sampled."""
-    return {'shi_published_md5_verified': md5,
-            'shi_metadata_units_override': 'published delta-14C in per mil; file says year',
+    return {'shi_metadata_units_override': 'published delta-14C in per mil; file says year',
             'radiocarbon_spatial_filling': 'rioxarray nearest at each one-cm depth before site selection; matches original 02_get_turnover_14C.py',
             'radiocarbon_reference_year': 2000, 'reference_year_basis': 'inherited model convention; absent from NetCDF metadata'}
 

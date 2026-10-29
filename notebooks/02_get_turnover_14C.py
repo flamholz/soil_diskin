@@ -35,7 +35,7 @@ import pandas as pd
 import xarray as xr
 
 from soil_diskin.site_inputs import (
-    npp_at, npp_provenance, radiocarbon_at, read_npp, shi_provenance, source_entry, verify_shi)
+    npp_at, npp_provenance, radiocarbon_at, read_npp, shi_provenance, source_entry)
 from soil_diskin.utils import file_digest
 
 INPUT_PATH = 'results/processed_balesdent_2018.csv'
@@ -86,13 +86,12 @@ def main(argv=None):
     parser.add_argument('--npp', default=NPP_PATH, help='NPP table from script 02a')
     args = parser.parse_args(argv)
     source, output = Path(args.input), Path(args.output)
-    md5 = verify_shi(args.shi)
     data = pd.read_csv(source)
     with xr.open_dataset(args.shi) as shi:
         result = bulk_turnover(data, shi, read_npp(args.npp))
     output.parent.mkdir(parents=True, exist_ok=True)
     result.to_csv(output, index=False)
-    metadata = {'sources': {'sites': source_entry(source), 'shi': source_entry(args.shi)}, **shi_provenance(md5),
+    metadata = {'sources': {'sites': source_entry(source), 'shi': source_entry(args.shi)}, **shi_provenance(),
                 'radiocarbon_depth_aggregation': '10-cm bin means weighted by the site carbon weights of script 01; bins without a weight skipped',
                 'npp': npp_provenance(args.npp), 'npp_conversion': 'g C/m²/yr divided by 1000 to kg C/m²/yr',
                 'turnover': 'Ctotal_0-100estim (and _q05/_q95) / NPP; all NPP enters 0-100 cm',

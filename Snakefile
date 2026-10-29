@@ -1,6 +1,7 @@
 # Snakefile for soil carbon modeling workflow
 # This workflow processes soil data, calibrates models, and generates results
 
+import hashlib
 import pandas as pd
 import zipfile
 import os
@@ -8,6 +9,16 @@ import requests
 from os import path
 
 HE_2016_URL = "https://git.bgc-jena.mpg.de/csierra/Persistence/-/archive/master/Persistence-master.zip"
+SHI_URL = "https://zenodo.org/records/3823612/files/global_delta_14C.nc"
+SHI_MD5 = "645aa8d54cbc36cb329c29bcffc4352b"  # published on the Zenodo record
+
+
+def verify_md5(path, expected):
+    """Raise if the MD5 of a downloaded file differs from its published value."""
+    with open(path, "rb") as stream:
+        digest = hashlib.file_digest(stream, "md5").hexdigest()
+    if digest != expected:
+        raise ValueError(f"{path}: MD5 {digest} does not match the published {expected}")
 
 # Define the final target files
 rule all:
@@ -76,11 +87,9 @@ rule download_CLM45_conf:
 rule download_shi_data:
     output:
         "data/shi_2020/global_delta_14C.nc"
-    shell:
-        """
-        mkdir -p data/shi_2020/
-        curl -L -o {output} https://zenodo.org/records/3823612/files/global_delta_14C.nc
-        """
+    run:
+        shell("mkdir -p data/shi_2020/ && curl -L -o {output} {SHI_URL}")
+        verify_md5(output[0], SHI_MD5)
 
 # NPP data
 rule download_kang_data:

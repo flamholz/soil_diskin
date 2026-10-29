@@ -36,7 +36,7 @@ import xarray as xr
 
 from soil_diskin.site_inputs import (
     DEFAULT_ALLOCATION, InputAllocation, npp_at, npp_provenance, radiocarbon_at, read_npp,
-    shi_provenance, source_entry, verify_shi)
+    shi_provenance, source_entry)
 from soil_diskin.utils import file_digest
 
 INPUT_PATH = 'results/processed_balesdent_2018_sampled_soilgrids.csv'
@@ -97,7 +97,6 @@ def main(argv=None):
     source, output = Path(args.input), Path(args.output)
     if output.exists() or output.with_suffix('.json').exists():
         raise FileExistsError(f'use a new output path: {output}')
-    md5 = verify_shi(args.shi)
     allocation = InputAllocation(args.input_depth, args.surface_fraction, args.soil_npp_fraction)
     data = pd.read_csv(source, dtype={'profile_id': str}, float_precision='round_trip')
     with xr.open_dataset(args.shi) as shi:
@@ -105,7 +104,7 @@ def main(argv=None):
     output.parent.mkdir(parents=True, exist_ok=True)
     result.to_csv(output, index=False)
     metadata = {'sources': {'processed_layers': source_entry(source), 'shi': source_entry(args.shi)},
-                **shi_provenance(md5),
+                **shi_provenance(),
                 'radiocarbon_depth_aggregation': 'thickness-weighted mean over reported bounds; one-cm bins [level, level+1); no depth extrapolation',
                 'npp': npp_provenance(args.npp), 'npp_conversion': 'g C/m²/yr divided by 1000 to kg C/m²/yr',
                 'npp_imputed': False, 'input_allocation': asdict(allocation),
