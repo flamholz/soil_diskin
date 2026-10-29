@@ -13,8 +13,9 @@ Steps:
      with stocks above --max-stock are dropped with a warning; e.g. Finstad_2020
      reports lyr_soc ~100x what its C % implies, likely Mg C/ha.
   3. Warn about profiles within --overlap-km of a Balesdent et al. 2018 site.
-  4. Fetch NPP from MODIS MOD17A3HGF via Earth Engine at 10 km, as in script 02,
-     plus its uncertainty: the SD across annual images. Results are cached.
+  4. Fetch NPP from MODIS MOD17A3HGF via Earth Engine at 10 km (soil_diskin.npp, as
+     script 02a does, but with fill values masked), plus the SD across annual
+     images, used as its uncertainty. Results are cached.
   5. Turnover = stock / NPP; turnover_q05/q95 use NPP +/- 1.645 SD.
   6. Fit mu, sigma with soil_diskin.calibration.fit_observation and
      lognormal_spec(), as script 03b does, with the atmosphere referenced to
@@ -40,7 +41,6 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-import ssl
 import sys
 
 from matplotlib.colors import LogNorm
@@ -56,6 +56,7 @@ sys.path.insert(0, str(ROOT))  # Support direct execution.
 
 from soil_diskin.calibration import fit_observation, lognormal_spec
 from soil_diskin.constants import LAMBDA_14C
+from soil_diskin.npp import fetch_modis_npp, initialize
 from soil_diskin.radiocarbon_utils import AtmC14
 
 ISRAD = ROOT/'data/ISRaD/ISRaD_data_flat_layer_v 2.9.9.2025-08-14.csv'
@@ -137,24 +138,9 @@ def warn_balesdent_overlap(profiles, max_km, path=BALESDENT):
 
 
 def fetch_npp(locations):
-    """MODIS NPP mean and SD across annual images at 10 km, in g C/m²/yr (cf. script 02)."""
-    import ee
-    import geemap
-    import yaml
-    config = yaml.safe_load((ROOT/'config.yaml').read_text())
-    ee.Authenticate()
-    ee.Initialize(project=config['earth_engine']['project'])
-    ssl._create_default_https_context = ssl._create_unverified_context
-    points = ee.FeatureCollection([
-        ee.Feature(ee.Geometry.Point([row.longitude, row.latitude]), {'row': i})
-        for i, row in enumerate(locations.itertuples())])
-    annual = ee.ImageCollection('MODIS/061/MOD17A3HGF').select('Npp')
-    annual = annual.map(lambda image: image.updateMask(image.lt(32700)))  # Drop fill values.
-    stats = annual.reduce(ee.Reducer.mean().combine(ee.Reducer.stdDev(), sharedInputs=True))
-    stats = stats.multiply(0.0001*1e3)  # kg C/m² scale factor -> g C/m²
-    table = geemap.ee_to_df(stats.reduceRegions(collection=points, reducer=ee.Reducer.mean(),
-                                                scale=10_000)).sort_values('row')
-    return locations.assign(NPP=table.Npp_mean.to_numpy(), NPP_sd=table.Npp_stdDev.to_numpy())
+    """MODIS NPP mean and SD across annual images at 10 km, in g C/m²/yr, fill values masked."""
+    initialize()
+    return fetch_modis_npp(locations, mask_fill=True, sd=True)
 
 
 def site_npp(profiles, cache):

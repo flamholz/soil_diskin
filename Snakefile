@@ -148,15 +148,31 @@ rule preprocess_14C_data:
     shell:
         "python notebooks/01_preprocess_14C_history.py -i {input} -o {output}"
 
-# Step 02: Get 14C turnover data for the Balesdent sites
+# Step 02a: NPP for every Balesdent location (bulk and layers) from MODIS via Earth Engine.
+# The only step that needs Earth Engine; both step 02 tables read its output.
+rule fetch_npp:
+    input:
+        sites="results/processed_balesdent_2018.csv",
+        layers="results/processed_balesdent_2018_sampled_soilgrids.csv",
+        code=["notebooks/02a_fetch_npp.py", "soil_diskin/npp.py"],
+    output:
+        csv="results/02_npp/site_npp.csv",
+        meta="results/02_npp/site_npp.json",
+    shell:
+        "python notebooks/02a_fetch_npp.py --sites {input.sites:q} --layers {input.layers:q} -o {output.csv:q}"
+
+# Step 02: Bulk 0-100 cm radiocarbon and turnover for the Balesdent sites
 rule turnover_14C:
     input:
-        "results/processed_balesdent_2018.csv",
-        "data/shi_2020/global_delta_14C.nc",
+        sites="results/processed_balesdent_2018.csv",
+        shi="data/shi_2020/global_delta_14C.nc",
+        npp="results/02_npp/site_npp.csv",
+        code=["notebooks/02_get_turnover_14C.py", "soil_diskin/site_inputs.py"],
     output:
-        "results/all_sites_14C_turnover.csv"
-    script:
-        "notebooks/02_get_turnover_14C.py"
+        csv="results/all_sites_14C_turnover.csv",
+        meta="results/all_sites_14C_turnover.json",
+    shell:
+        "python notebooks/02_get_turnover_14C.py -i {input.sites:q} -o {output.csv:q} --shi {input.shi:q} --npp {input.npp:q}"
 
 # Step 02b: Permutation null -- fm_obs shuffled across sites (see config.yaml)
 rule permute_fm:
@@ -178,16 +194,18 @@ rule preprocess_balesdent_layers:
     shell:
         "python notebooks/01_preprocess_balesdent_data.py -i {input} -o {output.csv} --depth-resolved --backfill"
 
-# Step 02b: Layer radiocarbon and turnover; NPP inputs 50% to 0-10 cm, 50% Jackson global
+# Step 02c: Layer radiocarbon and turnover; NPP inputs 50% to 0-10 cm, 50% Jackson global
 rule turnover_14C_layered:
     input:
         layers="results/processed_balesdent_2018_sampled_soilgrids.csv",
         shi="data/shi_2020/global_delta_14C.nc",
+        npp="results/02_npp/site_npp.csv",
+        code=["notebooks/02c_get_layer_turnover_14C.py", "soil_diskin/site_inputs.py"],
     output:
         csv="results/all_sites_14C_turnover_depth_resolved.csv",
         meta="results/all_sites_14C_turnover_depth_resolved.json",
     shell:
-        "python notebooks/02_get_turnover_14C.py --depth-resolved -i {input.layers} -o {output.csv} --shi {input.shi}"
+        "python notebooks/02c_get_layer_turnover_14C.py -i {input.layers:q} -o {output.csv:q} --shi {input.shi:q} --npp {input.npp:q}"
 
 # Step 03a: Calibrate power law models
 rule calibrate_powerlaw:
@@ -688,7 +706,7 @@ rule plot_figS7:
         "data/14C_atm_annot.csv",
         "notebooks/figS7.py",
         "notebooks/fig3.py",
-        "notebooks/02_get_turnover_14C.py",
+        "soil_diskin/site_inputs.py",
         "notebooks/03b_lognormal_calibration.py",
         "notebooks/04_collect_continuum_model_predictions.py",
         "notebooks/style.mpl",
@@ -743,7 +761,7 @@ rule clean_results:
 rule clean_light:
     shell:
         """
-        find results -type f -name '*.csv' -not -path 'results/experimental/*' ! -name 'CLM45*.csv' ! -name 'JSBACH*.csv' ! -name 'processed_balesdent_2018.csv' ! -name 'all_sites_14C_turnover.csv' ! -name 'processed_balesdent_2018_sampled_soilgrids.csv' ! -name 'all_sites_14C_turnover_depth_resolved.csv' -delete || true
+        find results -type f -name '*.csv' -not -path 'results/experimental/*' ! -name 'CLM45*.csv' ! -name 'JSBACH*.csv' ! -name 'processed_balesdent_2018.csv' ! -name 'all_sites_14C_turnover.csv' ! -name 'processed_balesdent_2018_sampled_soilgrids.csv' ! -name 'all_sites_14C_turnover_depth_resolved.csv' ! -path 'results/02_npp/*' -delete || true
         find results -type f -name '*.npz' -not -path 'results/experimental/*' ! -name 'CLM45*.npz' ! -name 'JSBACH*.npz' -delete || true
         rm -rf figures/*
         """

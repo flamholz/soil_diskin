@@ -84,6 +84,10 @@ uv run python -c "import ee; ee.Authenticate()"
 uv run python -c "import ee; ee.Initialize()"
 ```
 
+Only step 02a (`notebooks/02a_fetch_npp.py`) uses Earth Engine, with the project
+set under `earth_engine.project` in `config.yaml`. It writes the site NPP table
+`results/02_npp/site_npp.csv`, which the rest of the pipeline reads.
+
 ### 6. Install Fortran compiler
 
 **Linux:**
@@ -143,7 +147,9 @@ three source files and the equations.
 
 ```sh
 uv run python notebooks/01_preprocess_balesdent_data.py --depth-resolved
-uv run python notebooks/02_get_turnover_14C.py --depth-resolved
+uv run python notebooks/02a_fetch_npp.py  # needs Earth Engine; skip if results/02_npp/site_npp.csv exists
+uv run python notebooks/02c_get_layer_turnover_14C.py -i results/processed_balesdent_2018_sampled.csv \
+  -o results/all_sites_14C_turnover_sampled.csv
 uv run python -m soil_diskin.layered_workflow \
   --output-dir results/layered_no_transport
 ```
@@ -166,7 +172,7 @@ for the protocol, results, and calibration trade-off.
 To include usable layers from profiles with missing depth observations at h = 10 cm:
 
 ```sh
-uv run python notebooks/02_get_turnover_14C.py --depth-resolved --input-depth 10 \
+uv run python notebooks/02c_get_layer_turnover_14C.py -i results/processed_balesdent_2018_sampled.csv --input-depth 10 \
   --output results/all_sites_14C_turnover_depth_h10.csv
 uv run python -m soil_diskin.layered_workflow \
   --input-table results/all_sites_14C_turnover_depth_h10.csv --allow-partial \

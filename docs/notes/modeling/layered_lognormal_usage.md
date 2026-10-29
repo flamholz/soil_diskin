@@ -9,7 +9,7 @@ linearly interpolate adjacent one-cm Shi depths after the existing spatial filli
 
 ```sh
 uv run python notebooks/01_preprocess_balesdent_data.py --sampled-layers
-uv run python notebooks/02_get_turnover_14C.py --depth-resolved \
+uv run python notebooks/02c_get_layer_turnover_14C.py \
   --input results/processed_balesdent_2018_sampled.csv \
   --output results/all_sites_14C_turnover_sampled.csv --input-depth 10
 uv run python -m soil_diskin.layered_workflow --allow-partial --max-nfev 1000 \
@@ -33,7 +33,7 @@ To include the 11 profiles lacking stocks, add `--backfill` to preprocessing:
 
 ```sh
 uv run python notebooks/01_preprocess_balesdent_data.py --sampled-layers --backfill
-uv run python notebooks/02_get_turnover_14C.py --depth-resolved \
+uv run python notebooks/02c_get_layer_turnover_14C.py \
   --input results/processed_balesdent_2018_sampled_soilgrids.csv \
   --output results/all_sites_14C_turnover_sampled_soilgrids.csv --input-depth 10
 uv run python -m soil_diskin.layered_workflow --allow-partial --max-nfev 1000 \
@@ -54,14 +54,15 @@ The pipeline now has three separate steps:
 
 1. `01_preprocess_balesdent_data.py --depth-resolved` creates one row per original
    profile and 10 cm layer, including stock, `f_new`, coordinates, land use, and vegetation.
-2. `02_get_turnover_14C.py --depth-resolved` attaches cached site NPP and layer
+2. `02c_get_layer_turnover_14C.py` attaches site NPP (from script 02a) and layer
    radiocarbon, allocates NPP, and saves stock/input turnover in a reusable CSV.
 3. [`run_profiles`](../../../soil_diskin/layered_workflow.py) fits those prepared
    inputs, predicts `f_new`, checks numerical accuracy, and saves/evaluates results.
 
-Without `--depth-resolved`, both original preparation scripts retain their bulk
-calculations. Depth mode uses the existing site NPP cache and requires no Earth
-Engine connection. It retains missing observations; the CSV reader selects either
+Without `--depth-resolved`, script 01 keeps its bulk calculation, and
+`02_get_turnover_14C.py` is the bulk counterpart of 02c. Both read NPP from the
+table written by `02a_fetch_npp.py` (`results/02_npp/site_npp.csv`), so only 02a
+needs an Earth Engine connection. It retains missing observations; the CSV reader selects either
 complete profiles or usable layers from partial profiles.
 
 For the fitting equations, read `fit_layer` in
@@ -79,18 +80,19 @@ From the repository root (use new output paths if these already exist):
 
 ```sh
 uv run python notebooks/01_preprocess_balesdent_data.py --depth-resolved
-uv run python notebooks/02_get_turnover_14C.py --depth-resolved
+uv run python notebooks/02c_get_layer_turnover_14C.py -i results/processed_balesdent_2018_sampled.csv \
+  -o results/all_sites_14C_turnover_sampled.csv
 uv run python -m soil_diskin.layered_workflow --allow-partial --max-nfev 1000 \
   --output-dir results/my_layered_run
 ```
 
 The default prepared file is `results/all_sites_14C_turnover_depth.csv`, with
 `h=30 cm`, no direct surface input, and all NPP entering soil. Set `--input-depth`,
-`--surface-fraction`, and `--soil-npp-fraction` on **script 02**, not the fitter.
+`--surface-fraction`, and `--soil-npp-fraction` on **script 02c**, not the fitter.
 For example:
 
 ```sh
-uv run python notebooks/02_get_turnover_14C.py --depth-resolved --input-depth 10 \
+uv run python notebooks/02c_get_layer_turnover_14C.py -i results/processed_balesdent_2018_sampled.csv --input-depth 10 \
   --output results/my_turnover_h10.csv
 uv run python -m soil_diskin.layered_workflow --input-table results/my_turnover_h10.csv \
   --allow-partial --output-dir results/my_fit_h10

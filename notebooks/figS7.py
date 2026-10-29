@@ -20,9 +20,9 @@ from notebooks.viz import color_palette
 from soil_diskin.calibration import calibrate, lognormal_spec
 from soil_diskin.continuum_models import LognormalDisKin
 from soil_diskin.radiocarbon_utils import load_atm14c
+from soil_diskin.site_inputs import InputAllocation
 
 generate_predictions = import_module('notebooks.04_collect_continuum_model_predictions').generate_predictions
-InputAllocation = import_module('notebooks.02_get_turnover_14C').InputAllocation
 INPUT = ROOT/'results/04_model_predictions/depth_resolved/lognormal_model_predictions.csv'
 OUTPUT = ROOT/'figures/figS7.png'
 BASELINE_SCHEME = 'jackson_global_surface'
