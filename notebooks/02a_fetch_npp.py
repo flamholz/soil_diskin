@@ -6,10 +6,9 @@ both step 02 scripts read. This keeps the Earth Engine query in one place,
 gives both tables identical NPP, and lets the rest of the pipeline rerun
 without Earth Engine access.
 
-NPP is the mean of the annual MOD17A3HGF images (all of them, or --years
-FIRST LAST), averaged over 10 km around each location, in g C/m²/yr (see
-soil_diskin.npp.fetch_modis_npp). By default fill codes are not masked, as in
-the original script 02; --mask-fill masks them.
+NPP is the mean of the annual MOD17A3HGF images of --years FIRST LAST (default
+soil_diskin.npp.YEARS, 2001-2025), read at 10 km scale around each location, in
+g C/m²/yr, with fill codes masked (see soil_diskin.npp.fetch_modis_npp).
 
 Outputs:
   --output (default results/02_npp/site_npp.csv): latitude, longitude, NPP.
@@ -17,7 +16,7 @@ Outputs:
   retrieval time and the input checksums.
 
 Run from the project root directory:
-    python notebooks/02a_fetch_npp.py [--years 2001 2023] [--mask-fill]
+    python notebooks/02a_fetch_npp.py [--years 2001 2025]
 """
 import argparse
 from datetime import datetime, timezone
@@ -46,17 +45,17 @@ def locations(sites_path, layers_path):
     return union[valid_coordinates(union)].reset_index(drop=True)
 
 
-def main(sites_path=SITES_PATH, layers_path=LAYERS_PATH, output=OUTPUT_PATH, years=None, mask_fill=False):
+def main(sites_path=SITES_PATH, layers_path=LAYERS_PATH, output=OUTPUT_PATH, years=modis.YEARS):
     output = Path(output)
     sites = locations(sites_path, layers_path)
     modis.initialize()
-    table = modis.fetch_modis_npp(sites, years=years, mask_fill=mask_fill)
+    table = modis.fetch_modis_npp(sites, years=years)
     output.parent.mkdir(parents=True, exist_ok=True)
     table.to_csv(output, index=False)
     metadata = {
         'product': modis.PRODUCT, 'band': modis.BAND,
         'years': list(years) if years else 'all', 'image_ids': modis.image_ids(years),
-        'mask_fill': mask_fill, 'footprint_m': modis.FOOTPRINT_M,
+        'mask_fill': True, 'footprint_m': modis.FOOTPRINT_M,
         'statistic': 'temporal mean of the annual images, then spatial mean over the footprint',
         'units': 'g C/m²/yr', 'retrieved_utc': datetime.now(timezone.utc).isoformat(),
         'sources': {name: {'path': str(Path(path).resolve()), 'sha256': file_digest(path)}
@@ -72,8 +71,7 @@ if __name__ == '__main__':
     parser.add_argument('--sites', default=SITES_PATH, help='bulk site table from script 01')
     parser.add_argument('--layers', default=LAYERS_PATH, help='depth-resolved layer table from script 01')
     parser.add_argument('-o', '--output', default=OUTPUT_PATH, help='output NPP table')
-    parser.add_argument('--years', type=int, nargs=2, metavar=('FIRST', 'LAST'),
-                        help='average only these calendar years (default: all images)')
-    parser.add_argument('--mask-fill', action='store_true', help='mask MODIS fill codes before averaging')
+    parser.add_argument('--years', type=int, nargs=2, metavar=('FIRST', 'LAST'), default=modis.YEARS,
+                        help=f'calendar years to average (default: {modis.YEARS[0]} {modis.YEARS[1]})')
     args = parser.parse_args()
-    main(args.sites, args.layers, args.output, args.years, args.mask_fill)
+    main(args.sites, args.layers, args.output, tuple(args.years))

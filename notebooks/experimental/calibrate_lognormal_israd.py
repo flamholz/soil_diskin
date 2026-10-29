@@ -14,8 +14,8 @@ Steps:
      reports lyr_soc ~100x what its C % implies, likely Mg C/ha.
   3. Warn about profiles within --overlap-km of a Balesdent et al. 2018 site.
   4. Fetch NPP from MODIS MOD17A3HGF via Earth Engine at 10 km (soil_diskin.npp, as
-     script 02a does, but with fill values masked), plus the SD across annual
-     images, used as its uncertainty. Results are cached.
+     script 02a does), plus the SD across annual images, used as its uncertainty.
+     Results are cached.
   5. Turnover = stock / NPP; turnover_q05/q95 use NPP +/- 1.645 SD.
   6. Fit mu, sigma with soil_diskin.calibration.fit_observation and
      lognormal_spec(), as script 03b does, with the atmosphere referenced to
@@ -140,7 +140,7 @@ def warn_balesdent_overlap(profiles, max_km, path=BALESDENT):
 def fetch_npp(locations):
     """MODIS NPP mean and SD across annual images at 10 km, in g C/m²/yr, fill values masked."""
     initialize()
-    return fetch_modis_npp(locations, mask_fill=True, sd=True)
+    return fetch_modis_npp(locations, sd=True)
 
 
 def site_npp(profiles, cache):
