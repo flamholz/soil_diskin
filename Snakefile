@@ -11,14 +11,20 @@ from os import path
 HE_2016_URL = "https://git.bgc-jena.mpg.de/csierra/Persistence/-/archive/master/Persistence-master.zip"
 SHI_URL = "https://zenodo.org/records/3823612/files/global_delta_14C.nc"
 SHI_MD5 = "645aa8d54cbc36cb329c29bcffc4352b"  # published on the Zenodo record
+# ISRaD v2.9.9 (2025-08-14), pinned to the commit of its database zip. ISRaD publishes
+# no checksum; this SHA-256 is of the zip as downloaded on 2026-10-29. To update,
+# change the commit, then the checksum (and the file names in the ISRaD scripts).
+ISRAD_COMMIT = "2cf05252bd12b7afd1bcf5d9ab15213fcd0d851b"
+ISRAD_URL = f"https://github.com/International-Soil-Radiocarbon-Database/ISRaD/raw/{ISRAD_COMMIT}/ISRaD_data_files/database/ISRaD_database_files.zip"
+ISRAD_SHA256 = "d37558b9aeded060619a80763cc9a29c7f15717a2aba20b434ffcca4d0a45df1"
 
 
-def verify_md5(path, expected):
-    """Raise if the MD5 of a downloaded file differs from its published value."""
+def verify_checksum(path, expected, algorithm="md5"):
+    """Raise if the checksum of a downloaded file differs from its expected value."""
     with open(path, "rb") as stream:
-        digest = hashlib.file_digest(stream, "md5").hexdigest()
+        digest = hashlib.file_digest(stream, algorithm).hexdigest()
     if digest != expected:
-        raise ValueError(f"{path}: MD5 {digest} does not match the published {expected}")
+        raise ValueError(f"{path}: {algorithm} {digest} does not match the expected {expected}")
 
 # Define the final target files
 rule all:
@@ -89,7 +95,7 @@ rule download_shi_data:
         "data/shi_2020/global_delta_14C.nc"
     run:
         shell("mkdir -p data/shi_2020/ && curl -L -o {output} {SHI_URL}")
-        verify_md5(output[0], SHI_MD5)
+        verify_checksum(output[0], SHI_MD5, "md5")
 
 # NPP data
 rule download_kang_data:
@@ -107,16 +113,10 @@ rule download_kang_data:
 rule download_israd_data:
     output:
         "data/ISRaD/.israd_download_complete"
-    params:
-        url="https://github.com/International-Soil-Radiocarbon-Database/ISRaD/raw/main/ISRaD_data_files/database/ISRaD_database_files.zip"
-    shell:
-        """
-        mkdir -p data/ISRaD
-        curl -L -o israd_database_files.zip {params.url}
-        unzip -o israd_database_files.zip -d data/ISRaD
-        rm -f israd_database_files.zip
-        touch {output}
-        """
+    run:
+        shell("mkdir -p data/ISRaD && curl -L -o israd_database_files.zip {ISRAD_URL}")
+        verify_checksum("israd_database_files.zip", ISRAD_SHA256, "sha256")
+        shell("unzip -o israd_database_files.zip -d data/ISRaD && rm -f israd_database_files.zip && touch {output}")
 
 # Whittaker biome boundaries
 rule download_worldclim:
