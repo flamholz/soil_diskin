@@ -75,3 +75,53 @@ def test_R_matches_zero_order_interpolation_of_the_data():
     interpolator = interp1d(data.years_before_2000, data.R_14C, kind="zero", fill_value="extrapolate")
     ages = np.concatenate([np.linspace(0.0, 60_000.0, 600_001), [1e5, 1e7]])
     np.testing.assert_array_equal(rc.load_atm14c().R(ages), interpolator(ages))
+
+
+def _constant_atm(value: float = 1.0) -> rc.AtmC14:
+    """Build a small synthetic atmospheric lookup with constant fm over age."""
+    ages = np.array([0.0, 10.0, 25.0, 80.0], dtype=np.float64)
+    fm = np.full_like(ages, value)
+    return rc.AtmC14(ages, fm, tail_fm=value)
+
+
+def _impulse_atm(impulse_age: float, width: float) -> rc.AtmC14:
+    """Approximate a unit-area delta impulse as a narrow rectangular pulse."""
+    if impulse_age <= 0.0:
+        raise ValueError("impulse_age must be positive")
+    if width <= 0.0 or width >= 2.0 * impulse_age:
+        raise ValueError("width must be positive and less than 2 * impulse_age")
+
+    lo = impulse_age - 0.5 * width
+    hi = impulse_age + 0.5 * width
+    # Piecewise-constant segments: 0 on [0, lo), 1/width on [lo, hi), and 0 afterward.
+    ages = np.array([0.0, lo, hi, hi + max(1.0, width)], dtype=np.float64)
+    fm = np.array([0.0, 1.0 / width, 0.0, 0.0], dtype=np.float64)
+    return rc.AtmC14(ages, fm, tail_fm=0.0)
+
+
+def test_laplace_constant_atm_matches_closed_form():
+    """Constant atmospheric ratio should integrate to value / alpha."""
+    atm = _constant_atm(value=1.7)
+    alpha = 0.023
+    expected = 1.7 / alpha
+    actual = atm.laplace(alpha)
+    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=0.0)
+
+
+def test_laplace_impulse_atm_matches_exponential_kernel():
+    """A narrow impulse should yield the expected exponential-kernel response."""
+    impulse_age = 60.0
+    width = 0.2
+    alpha = 0.037
+    atm = _impulse_atm(impulse_age=impulse_age, width=width)
+
+    # Exact response for a unit-area box pulse on [lo, hi].
+    lo = impulse_age - 0.5 * width
+    hi = impulse_age + 0.5 * width
+    expected = (np.exp(-alpha * lo) - np.exp(-alpha * hi)) / (alpha * width)
+
+    actual = atm.laplace(alpha)
+    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=0.0)
+
+    # Narrow-pulse limit recovers the simple impulse form exp(-alpha * impulse_age).
+    np.testing.assert_allclose(actual, np.exp(-alpha * impulse_age), rtol=1e-5, atol=0.0)

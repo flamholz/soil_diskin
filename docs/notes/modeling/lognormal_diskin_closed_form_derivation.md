@@ -1,7 +1,7 @@
 # Closed-form derivation for the lognormal Diskin model (fixed input)
 
-Companion to [soil_diskin/lognormal.py](../../soil_diskin/lognormal.py), especially
-[`LognormalDisKin.stock_younger_than`](../../../soil_diskin/continuum_models.py) (formerly `diskin_C_of_t` in `soil_diskin/lognormal.py`).
+Companion to [`LognormalDisKin.stock_younger_than`](../../../soil_diskin/continuum_models.py)
+(formerly `diskin_C_of_t` in the since-removed `soil_diskin/lognormal.py`).
 
 ## 1. Model
 

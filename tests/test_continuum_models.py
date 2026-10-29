@@ -8,7 +8,7 @@ from scipy.stats import geninvgauss
 from soil_diskin.continuum_models import PowerLawDisKin, LogUniformDisKin
 from soil_diskin.continuum_models import GeneralPowerLawDisKin, LognormalDisKin
 from soil_diskin.continuum_models import SoftCutoffPowerLawDisKin
-from soil_diskin.constants import GAMMA
+from soil_diskin.constants import GAMMA, LAMBDA_14C
 from soil_diskin.radiocarbon_utils import load_atm14c
 
 model_classes = [PowerLawDisKin,
@@ -476,3 +476,48 @@ class TestLognormalDisKinRadiocarbon(unittest.TestCase):
         """Parameters whose tails leave the log-rate grid must not return a value."""
         with self.assertRaises(ValueError):
             LognormalDisKin(mu=-15.0, sigma=8.0, atm=self.atm).calc_radiocarbon_ratio_ss()
+
+
+def test_lognormal_narrow_sigma_radiocarbon_matches_single_rate_limit():
+    """As sigma -> 0 under a constant atmosphere, fm -> k0 / (lambda + k0) with k0 = exp(mu)."""
+    atm = load_atm14c()
+    constant = type(atm)(np.array([0.0, 10.0, 25.0, 80.0]), np.ones(4), tail_fm=1.0)
+    k0 = 1e-4
+    # sigma = 0.01 is the narrowest the model's log-rate grid resolves.
+    model = LognormalDisKin(np.log(k0), 0.01, atm=constant)
+    fm, _ = model.calc_radiocarbon_ratio_ss()
+    np.testing.assert_allclose(fm, k0 / (LAMBDA_14C + k0), rtol=1e-3)
+
+
+def test_stock_younger_than_is_zero_at_zero_and_increasing():
+    """The stock of a pool started empty starts at zero and grows monotonically."""
+    ts = np.array([0.0, 0.1, 1.0, 10.0, 100.0], dtype=np.float64)
+    C = LognormalDisKin(0.25, 0.5).stock_younger_than(ts)
+
+    np.testing.assert_allclose(C[0], 0.0, atol=1e-14)
+    assert np.all(C >= 0.0)
+    assert np.all(np.diff(C) >= 0.0)
+
+
+def test_stock_younger_than_approaches_steady_state():
+    """At long times the stock (per unit input) approaches the turnover time T."""
+    model = LognormalDisKin(0.1, 0.45)
+    ts = np.array([0.5, 5.0, 50.0, 1000.0], dtype=np.float64)
+
+    C = model.stock_younger_than(ts)
+
+    assert C[-1] > C[-2]
+    np.testing.assert_allclose(C[-1], model.T, rtol=2e-3, atol=0.0)
+
+
+def test_stock_younger_than_accepts_scalars_and_arrays_and_gives_cdfA():
+    """Scalar and array calls agree, and the age CDF is the stock over T."""
+    model = LognormalDisKin.from_age_and_transit_time(30.0, 8.0)
+    ts = np.logspace(-1, np.log10(200.0), 32)
+
+    C = model.stock_younger_than(ts)
+
+    assert C.shape == ts.shape
+    np.testing.assert_array_equal(C, [model.stock_younger_than(t) for t in ts])
+    np.testing.assert_allclose(model.cdfA(ts), C / model.T, rtol=1e-15)
+    assert isinstance(model.cdfA(5.0), float)

@@ -252,8 +252,7 @@ rule run_lognormal_calibration_python:
         sites="results/all_sites_14C_turnover.csv",
         atm="data/14C_atm_annot.csv",
         code=["notebooks/03b_lognormal_calibration.py", "soil_diskin/calibration.py",
-              "soil_diskin/continuum_models.py", "soil_diskin/lognormal.py",
-              "soil_diskin/radiocarbon_utils.py"],
+              "soil_diskin/continuum_models.py", "soil_diskin/radiocarbon_utils.py"],
     output:
         "results/03_calibrate_models/lognormal_model_optimization_results.csv",
     threads: workflow.cores
@@ -267,8 +266,7 @@ rule run_layered_lognormal_calibration_python:
         sites="results/all_sites_14C_turnover_depth_resolved.csv",
         atm="data/14C_atm_annot.csv",
         code=["notebooks/03b_lognormal_calibration.py", "soil_diskin/calibration.py",
-              "soil_diskin/continuum_models.py", "soil_diskin/lognormal.py",
-              "soil_diskin/radiocarbon_utils.py"],
+              "soil_diskin/continuum_models.py", "soil_diskin/radiocarbon_utils.py"],
     output:
         "results/03_calibrate_models/depth_resolved/lognormal_model_optimization_results.csv",
     threads: workflow.cores
@@ -283,8 +281,7 @@ rule run_lognormal_calibration_permuted:
         sites="results/all_sites_14C_turnover_permuted.csv",
         atm="data/14C_atm_annot.csv",
         code=["notebooks/03b_lognormal_calibration.py", "soil_diskin/calibration.py",
-              "soil_diskin/continuum_models.py", "soil_diskin/lognormal.py",
-              "soil_diskin/radiocarbon_utils.py"],
+              "soil_diskin/continuum_models.py", "soil_diskin/radiocarbon_utils.py"],
     output:
         "results/03_calibrate_models/lognormal_model_optimization_results_permuted.csv",
     threads: workflow.cores
@@ -456,9 +453,11 @@ rule turnover_sensitivity_analysis_powerlaw_gamma:
 
 rule turnover_sensitivity_analysis_lognormal:
     input:
-        'data/14C_atm_annot.csv',
-        "results/processed_balesdent_2018.csv",
-        'results/all_sites_14C_turnover.csv',
+        turnover='results/all_sites_14C_turnover.csv',
+        sites="results/processed_balesdent_2018.csv",
+        atm='data/14C_atm_annot.csv',
+        code=["notebooks/06a_lognormal_turnover_sensitivity.py", "soil_diskin/calibration.py"],
+    threads: workflow.cores
     output:
         "results/06_sensitivity_analysis/lognormal_age_predictions.csv",
         "results/06_sensitivity_analysis/06a_lognormal_cdfs_0.50.csv",
@@ -469,8 +468,12 @@ rule turnover_sensitivity_analysis_lognormal:
         "results/06_sensitivity_analysis/06a_lognormal_fnew.csv",
         "results/06_sensitivity_analysis/06a_lognormal_fnew_q05.csv",
         "results/06_sensitivity_analysis/06a_lognormal_fnew_q95.csv",
-    script:
-        "notebooks/06a_lognormal_turnover_sensitivity.py"
+    shell:
+        """
+        python notebooks/06a_lognormal_turnover_sensitivity.py --input {input.turnover:q} \
+            --sites {input.sites:q} --atm {input.atm:q} \
+            --output-dir results/06_sensitivity_analysis --n-jobs {threads}
+        """
 
 # Step 06b: Steady-state sensitivity analysis
 rule steady_state_sensitivity_analysis_lognormal:
@@ -501,7 +504,6 @@ rule plot_fig1:
     input:
         "graphics/parallel_continuum_model.png",
         "soil_diskin/continuum_models.py",
-        "soil_diskin/lognormal.py",
     output:
         "figures/fig1.png",
     script:
@@ -510,7 +512,7 @@ rule plot_fig1:
 # Figure 2
 rule plot_fig2:
     input:
-        "soil_diskin/lognormal.py",
+        "soil_diskin/continuum_models.py",
     output:
         "figures/fig2.png",
         "figures/fig2.svg",
@@ -689,7 +691,6 @@ rule plot_figS7:
         "notebooks/style.mpl",
         "notebooks/viz.py",
         "soil_diskin/continuum_models.py",
-        "soil_diskin/lognormal.py",
         "soil_diskin/radiocarbon_utils.py",
         "soil_diskin/utils.py",
     output:

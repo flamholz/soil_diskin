@@ -3,8 +3,10 @@
 This test runs a small Mathematica age-scan script (`test_lognormal_age_scan_small.wls`),
 which performs a 5-point lognormal age scan and writes its results to
 `tmp_age_scan.json` in the working directory. The test then loads the same
-atmospheric data via `load_atm14c()` and evaluates `lognormal_radiocarbon` for
-the same ages in Python. It prints a concise summary and a table of values
+atmospheric data via `load_atm14c()` and evaluates the steady-state radiocarbon
+ratio of `LognormalDisKin` for the same turnover and ages in Python. The
+Mathematica script holds the mean of the last 50,000 rows beyond the record,
+while `load_atm14c` holds the last value; the tolerance absorbs the difference. It prints a concise summary and a table of values
 showing `fm` from both implementations, absolute and relative errors, and
 still asserts numerical agreement within a modest tolerance (1e-2).
 
@@ -21,7 +23,7 @@ import subprocess
 import numpy as np
 import pytest
 
-from soil_diskin.lognormal import lognormal_radiocarbon
+from soil_diskin.continuum_models import LognormalDisKin
 from soil_diskin.radiocarbon_utils import load_atm14c
 
 
@@ -65,7 +67,8 @@ def test_wolfram_vs_python_lognormal():
 
     # Load atmospheric data the same way the Python code does and evaluate.
     atm = load_atm14c()
-    fm_python = np.asarray([lognormal_radiocarbon(atm, tau, a, rtol=1e-6) for a in ages], dtype=float)
+    fm_python = np.asarray([LognormalDisKin.from_age_and_transit_time(a, tau, atm=atm).calc_radiocarbon_ratio_ss()[0]
+                            for a in ages], dtype=float)
 
     # Allow small numerical differences between integrations.
     # Compute errors and print a concise summary + table for diagnostics.

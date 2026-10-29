@@ -5,6 +5,14 @@ This document records the port of [`notebooks/03b_lognormal_age_scan.wls`](../..
 algorithmic improvement that the port applies, the implementation choices, the
 validation strategy, and the resulting performance.
 
+> **Superseded.** `soil_diskin/lognormal.py` has since been removed. The bulk
+> radiocarbon ratio is now `LognormalDisKin.calc_radiocarbon_ratio_ss` in
+> `soil_diskin/continuum_models.py`, computed in rate space from
+> `AtmC14.laplace`; C(t) is `LognormalDisKin.stock_younger_than`; and mean ages
+> are fit directly by `soil_diskin/calibration.py` rather than by scanning and
+> inverting a calibration curve. See [calibration.md](calibration.md). The rest of
+> this note records the port as it was.
+
 For the underlying math of the lognormal Diskin model and the closed-form
 solution used here, see also
 [`docs/notes/modeling/lognormal_diskin_closed_form_derivation.md`](lognormal_diskin_closed_form_derivation.md).
