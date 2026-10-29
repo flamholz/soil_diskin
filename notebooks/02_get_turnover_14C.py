@@ -7,7 +7,9 @@ duration), this script combines
     script 02a (MODIS MOD17A3HGF via Earth Engine); and
   * the soil radiocarbon, from the global Delta14C map of Shi et al. (2020)
     (data/shi_2020/global_delta_14C.nc), which has one-cm levels from 0 to 100 cm.
-    Gaps in the map are filled with the nearest value at the same depth.
+    Gaps in the map are filled with the nearest value at the same depth, so a
+    site in an empty cell (e.g. on a small island) takes its profile from another
+    cell, which is recorded.
 
 Delta14C is averaged over 10-cm bins and weighted by the row's share of carbon in
 each bin (weight_0 ... weight_90 from script 01). The turnover time is
@@ -20,7 +22,9 @@ The depth-resolved counterpart, one row per reported layer, is
 
 Outputs:
   --output (default results/all_sites_14C_turnover.csv): Latitude, Longitude,
-  14C, NPP (g C/m²/yr), the stocks (kg C/m²), fm_obs and turnover/_q05/_q95 (yr).
+  14C, NPP (g C/m²/yr), the stocks (kg C/m²), fm_obs, turnover/_q05/_q95 (yr), and
+  the grid cell the radiocarbon comes from (radiocarbon_spatially_filled,
+  radiocarbon_source_latitude/_longitude, radiocarbon_source_km).
   The same path with .json: the sources, their checksums and the NPP query.
 
 Run from the project root directory:
@@ -57,23 +61,32 @@ def bulk_turnover(data, shi, npp):
 
     Returns:
         One row per row of `data` with Latitude, Longitude, 14C, NPP, the stocks,
-        fm_obs and turnover/_q05/_q95. Rows without NPP > 0 get NaN turnover;
-        rows without any radiocarbon data get NaN 14C.
+        fm_obs, turnover/_q05/_q95, and where the radiocarbon comes from:
+        radiocarbon_spatially_filled (from a gap-filled cell, see
+        site_inputs.sample_radiocarbon), radiocarbon_source_latitude/_longitude
+        (the cell) and radiocarbon_source_km (its distance from the site). Rows
+        without NPP > 0 get NaN turnover; rows without any radiocarbon data get
+        NaN 14C.
     """
     result = data.rename(columns=NAMES)
-    delta, _ = radiocarbon_at(result, shi)
+    delta, filled, source = radiocarbon_at(result, shi)
     result['NPP'] = npp_at(result, npp)
     npp_kg_m2_yr = result.NPP/1000
     # Weight the 10-cm bin means of the row's location by the row's own carbon
     # weights. Bins below a profile's deepest measured layer have no weight and are
     # skipped (script 01 normalizes the weights over the rest).
-    weighted = delta.reshape(-1, 10, 10).mean(axis=2)*result.filter(regex=r'^weight_\d+').to_numpy()
+    weights = result.filter(regex=r'^weight_\d+').to_numpy()
+    weighted = delta.reshape(-1, 10, 10).mean(axis=2)*weights
     result['14C'] = np.where(np.isfinite(weighted).any(axis=1), np.nansum(weighted, axis=1), np.nan)
     result['fm_obs'] = result['14C']/1000+1
+    # Gap-filled if any level of a bin with a weight came from another cell.
+    result['radiocarbon_spatially_filled'] = (filled.reshape(-1, 10, 10).any(axis=2) & np.isfinite(weights)).any(axis=1)
+    result = result.join(source)
     stocks = ['Ctotal_0-100estim'+suffix for suffix in SUFFIXES]
     for stock, suffix in zip(stocks, SUFFIXES):
         result['turnover'+suffix] = result[stock]/npp_kg_m2_yr.where(npp_kg_m2_yr.gt(0))
-    columns = list(NAMES.values())+['14C', 'NPP', *stocks, 'fm_obs']+['turnover'+suffix for suffix in SUFFIXES]
+    columns = (list(NAMES.values())+['14C', 'NPP', *stocks, 'fm_obs']+['turnover'+suffix for suffix in SUFFIXES]
+               + ['radiocarbon_spatially_filled', *source.columns])
     return result[columns].rename(columns={v: k for k, v in NAMES.items()})
 
 

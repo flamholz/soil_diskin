@@ -18,7 +18,8 @@ The turnover time is stock / input. Radiocarbon is reported as Delta14C in per m
 Outputs (both refused if they already exist):
   --output (default results/all_sites_14C_turnover_depth_resolved.csv): the layer
   table plus npp_kg_m2_yr, 14C, fm_obs, radiocarbon_spatially_filled, the
-  allocation settings, input_kg_m2_yr and turnover/_q05/_q95 (yr).
+  allocation settings, input_kg_m2_yr, turnover/_q05/_q95 (yr) and the grid cell
+  the radiocarbon comes from (radiocarbon_source_latitude/_longitude/_km).
   The same path with .json: the sources, their checksums, the NPP query and the
   settings, plus script 01's JSON if there is one beside the input.
 
@@ -57,12 +58,14 @@ def layer_turnover(data, shi, npp, allocation=DEFAULT_ALLOCATION):
 
     Returns:
         `data` plus npp_kg_m2_yr, 14C, fm_obs, radiocarbon_spatially_filled, the
-        allocation settings, npp_distribution, input_kg_m2_yr and turnover/_q05/_q95.
+        allocation settings, npp_distribution, input_kg_m2_yr, turnover/_q05/_q95,
+        and radiocarbon_source_latitude/_longitude/_km: the grid cell the
+        radiocarbon comes from and its distance from the site.
         Layers with bounds outside 0-100 cm, or a missing depth inside them, get
         NaN 14C; layers without a positive input get NaN turnover.
     """
     result = data.copy()
-    delta, filled = radiocarbon_at(result, shi)
+    delta, filled, source = radiocarbon_at(result, shi)
     result['npp_kg_m2_yr'] = npp_at(result, npp)/1000
     top, bottom = result[['z_top_cm', 'z_bottom_cm']].to_numpy(float).T
     depth = np.arange(100)  # Level z represents [z, z+1) cm, as in the bulk means.
@@ -78,7 +81,7 @@ def layer_turnover(data, shi, npp, allocation=DEFAULT_ALLOCATION):
     for suffix in ['', '_q05', '_q95']:
         if 'stock_kg_m2'+suffix in result:
             result['turnover'+suffix] = result['stock_kg_m2'+suffix]/result.input_kg_m2_yr.where(result.input_kg_m2_yr.gt(0))
-    return result
+    return result.join(source)
 
 
 def main(argv=None):

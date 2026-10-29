@@ -131,3 +131,34 @@ def test_layer_turnover_is_stock_over_allocated_input():
     assert result.input_kg_m2_yr.iloc[0] == pytest.approx(expected_input)
     assert result.turnover.iloc[0] == pytest.approx(3/expected_input)
     assert result.turnover_q95.iloc[0] == pytest.approx(6/expected_input)
+
+
+def test_source_cell_is_recorded_for_own_and_gap_filled_cells():
+    """A site in an empty cell takes its profile from the nearest non-empty cell, and the
+    tables record that cell and its distance; other sites record their own cell."""
+    from soil_diskin.site_inputs import distance_km
+    shi = synthetic_shi()
+    shi['temp'][:, 1, 1] = np.nan  # empty cell at (0.25, 0.25)
+    data = pd.DataFrame([site_row(.2, .3, [.1]*10), site_row(-.2, -.3, [.1]*10)])
+    result = step02.bulk_turnover(data, shi, npp_table(data))
+    assert result.radiocarbon_spatially_filled.tolist() == [True, False]
+    src = result[['radiocarbon_source_latitude', 'radiocarbon_source_longitude']].to_numpy()
+    assert tuple(src[1]) == (-.25, -.25)  # own cell
+    assert tuple(src[0]) in {(-.25, .25), (.25, -.25)}  # an adjacent non-empty cell
+    np.testing.assert_allclose(result.radiocarbon_source_km,
+                               distance_km(data.Latitude, data.Longitude, src[:, 0], src[:, 1]))
+    np.testing.assert_allclose(result['14C'], expected_delta([.1]*10))  # filled with the same profile
+
+
+def test_profile_from_several_cells_raises():
+    """If a site's gaps would be filled from different cells at different depths, a single
+    source cell cannot describe it, so sampling refuses rather than picking one."""
+    from soil_diskin.site_inputs import sample_radiocarbon
+    level = np.arange(100)
+    temp = np.full((100, 1, 3), np.nan)
+    temp[:50, 0, 0] = -1.  # west cell has data only above 50 cm
+    temp[50:, 0, 2] = -2.  # east cell only below
+    shi = xr.Dataset({'temp': (('level', 'lat', 'lon'), temp)},
+                     coords={'level': level, 'lat': [0.], 'lon': [-.5, 0., .5]})
+    with pytest.raises(ValueError, match='different cells'):
+        sample_radiocarbon(shi, pd.DataFrame({'latitude': [0.], 'longitude': [0.]}))
