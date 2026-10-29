@@ -38,7 +38,8 @@ import pandas as pd
 from joblib import Parallel, delayed
 from scipy.interpolate import interp1d
 
-from soil_diskin.lognormal import run_diskin_fast, scan_ages
+from soil_diskin.continuum_models import LognormalDisKin
+from soil_diskin.lognormal import scan_ages
 from soil_diskin.radiocarbon_utils import load_atm14c
 
 # Age grid of the calibration curve: 101 log-spaced ages from 10^3 to 10^5.5.
@@ -81,8 +82,8 @@ def predict_age(turnover, fm):
 
 
 def predict_cdf(turnover, age):
-    """Evaluate the closed-form Diskin C(t) on the `TS` grid for a unit input."""
-    return run_diskin_fast(turnover, age, 1.0, tmax=TMAX, ts_size=TS_SIZE)[1]
+    """Steady-state carbon younger than each time in `TS`, per unit input."""
+    return LognormalDisKin.from_age_and_transit_time(age, turnover).stock_younger_than(TS)
 
 
 def predict_fnew(turnover, fm, duration):

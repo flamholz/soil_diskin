@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-from soil_diskin.lognormal import run_diskin_fast
+from soil_diskin.continuum_models import LognormalDisKin
 
 DEFAULT_PARAMS_PATH = Path("results/03_calibrate_models/03b_lognormal_predictions_calcurve_julia.csv")
 DEFAULT_OUT_DIR = Path("results/04_model_predictions")
@@ -37,8 +37,8 @@ TS = np.logspace(-1.0, np.log10(TMAX), TS_SIZE)
 
 
 def _run_one(tau: float, age: float) -> np.ndarray:
-    _, C = run_diskin_fast(float(tau), float(age), 1.0, tmax=TMAX, ts_size=TS_SIZE)
-    return C
+    """Steady-state carbon younger than each time in TS, per unit input."""
+    return LognormalDisKin.from_age_and_transit_time(float(age), float(tau)).stock_younger_than(TS)
 
 
 def _scan(taus: np.ndarray, ages: np.ndarray, n_jobs: int = -1) -> np.ndarray:

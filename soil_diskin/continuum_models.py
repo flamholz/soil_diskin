@@ -4,7 +4,6 @@ from scipy.integrate import quad
 from scipy.special import exp1, gamma, gammaincc, log_ndtr, gammainc, kve
 from scipy.stats import norm
 from soil_diskin.constants import LAMBDA_14C, GAMMA
-from soil_diskin.lognormal import diskin_C_of_t
 from soil_diskin.radiocarbon_utils import default_atmosphere
 from functools import lru_cache
 from tqdm import tqdm
@@ -654,11 +653,24 @@ class LogUniformDisKin(AbstractDiskinModel):
         return self._return_scalar_if_scalar(result, t)
 
 
+_INV_SQRT_2PI = 1.0 / np.sqrt(2.0 * np.pi)
+
+
 class LognormalDisKin(AbstractDiskinModel):
     """A model where the rate distribution is lognormal: ln k ~ N(mu, sigma).
 
-    T and A are analytic. s(t) is integrated over ln k, and radiocarbon is
-    computed from the rate distribution (see AbstractDiskinModel).
+    Carbon enters at rate I and each parcel is assigned, once, a first-order
+    decay rate k with ln k ~ N(mu, sigma). Equivalently, the soil is a
+    continuum of independent pools, one per k, each receiving the fraction
+    p(k) dk of the input. A pool with rate k holds I p(k)/k at steady state, so
+    slow pools dominate the stock even when they receive little of the input.
+
+    The turnover time and mean age fix (mu, sigma):
+        T = E[1/k] = exp(-mu + sigma^2/2),  A = T exp(sigma^2),
+    so sigma^2 = ln(A/T) and mu = sigma^2/2 - ln T (from_age_and_transit_time).
+
+    s(t) is integrated over ln k, and radiocarbon is computed from the rate
+    distribution (see AbstractDiskinModel).
     """
 
     def __init__(self, mu, sigma, atm=None, n_nodes=2000):
@@ -745,10 +757,44 @@ class LognormalDisKin(AbstractDiskinModel):
         result = (decay * weights).sum(axis=1).reshape(t_arr.shape)
         return float(result) if t_arr.ndim == 0 else result
 
+    def stock_younger_than(self, t, rtol=1e-10):
+        """Steady-state carbon younger than age t, per unit input (scalar or array).
+
+        This is also the stock C(t) of a pool started empty at t = 0 and fed a
+        constant unit input: the pool with rate k fills toward 1/k as
+        (1 - exp(-k t)) / k, so summing over the continuum of pools,
+            C(t) = integral of p(k) (1 - exp(-k t)) / k dk.
+        All carbon younger than t in the steady-state soil entered within the
+        last t years, exactly as in the pool started empty. C(0) = 0 and
+        C(t) -> T as t -> infinity, so C(t) / T is the age CDF (cdfA).
+
+        The integral is over u = ln k, with -expm1 for accuracy when k t is
+        small. The 1/k weighting centres the stock on mu - sigma^2, so the lower
+        limit is mu - sigma^2 - 10 sigma. Each t is a separate adaptive
+        quadrature at rtol: accurate, but slow for long grids.
+        """
+        t_arr = np.asarray(t, dtype=float)
+        mu, sigma = self.mu, self.sigma
+        u_lo = mu - sigma * sigma - 10.0 * sigma
+        u_hi = mu + 10.0 * sigma
+        inv_sigma = 1.0 / sigma
+
+        def integrand(u, age):
+            # p(u) * (1/k) * (1 - exp(-k age)) with k = e^u.
+            z = (u - mu) * inv_sigma
+            phi = _INV_SQRT_2PI * np.exp(-0.5 * z * z) * inv_sigma
+            return np.exp(-u) * phi * (-np.expm1(-np.exp(u) * age))
+
+        result = np.array([quad(integrand, u_lo, u_hi, args=(age,), epsrel=rtol, limit=200)[0]
+                           for age in t_arr.ravel()]).reshape(t_arr.shape)
+        return float(result) if t_arr.ndim == 0 else result
+
     def cdfA(self, t):
-        """Calculate the cumulative distribution function of the age distribution."""
-        # Use the same stable log-rate quadrature as the 04b prediction script.
-        return diskin_C_of_t([t], self.mu, self.sigma)[0] / self.T
+        """Steady-state age CDF: the fraction of the stock younger than t (scalar or array).
+
+        Its value at a labeling duration is the predicted fraction of new carbon.
+        """
+        return self.stock_younger_than(t) / self.T
 
 
 class WeibullDisKin(AbstractDiskinModel):

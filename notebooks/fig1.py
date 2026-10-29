@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from soil_diskin.continuum_models import LognormalDisKin
-from soil_diskin.lognormal import run_diskin_fast
 from scipy.stats import norm
 
 import viz
@@ -26,11 +25,8 @@ def plot_ss_age_distribution(ax, my_model, max_t, color):
         max_t: the maximum time to plot
         color: the color to use for the plot
     """
-    # C(t) for a pool started empty under constant unit input equals the
-    # steady-state carbon younger than t, so C(t) / C_ss is the age CDF.
-    # C_ss = input * T for unit input.
-    ages, C = run_diskin_fast(my_model.T, my_model.A, tmax=max_t)
-    ax.semilogx(ages, C / my_model.T, color=color, lw=1.5)
+    ages = np.logspace(-1, np.log10(max_t), 1000)
+    ax.semilogx(ages, my_model.cdfA(ages), color=color, lw=1.5)
 
 # %%
 # Plot figure 1

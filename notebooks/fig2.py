@@ -14,8 +14,7 @@ from matplotlib.layout_engine import ConstrainedLayoutEngine
 from scipy.special import expit, logit
 from scipy.stats import norm
 
-from soil_diskin.lognormal import run_diskin_fast
-from soil_diskin.radiocarbon_utils import load_atm14c
+from soil_diskin.continuum_models import LognormalDisKin
 
 import viz
 
@@ -45,9 +44,6 @@ if __name__ == "__main__":
     # typical values based on fig. S2, matching the focal model in fig. 1
     mu = 1
     sigma = 2.5
-    # steady-state transit time and mean age of the lognormal model
-    T = np.exp(-mu + sigma ** 2 / 2)
-    A = T * np.exp(sigma ** 2)
     model_color = colors['dark_grey']
 
     # Panel B -- lognormal distribution of decay rates in the inputs.
@@ -80,12 +76,9 @@ if __name__ == "__main__":
     ax.set_title('calibrated model')
 
     # Panel C -- CDF of the steady-state age distribution for the same model.
-    # C(t) for a pool started empty under constant unit input equals the
-    # steady-state carbon younger than t, so C(t) / C_ss is the age CDF.
-    # C_ss = input * T for unit input.
     ax = axs['C']
-    ages, C = run_diskin_fast(T, A, tmax=1e5)
-    ax.semilogx(ages, C / T, color=model_color, lw=1)
+    ages = np.logspace(-1, 5, 1000)
+    ax.semilogx(ages, LognormalDisKin(mu, sigma).cdfA(ages), color=model_color, lw=1)
     ax.set_xlim(1e-1, 1e5)
     ax.set_ylim(0, 1.05)
     ax.set_yticks([])

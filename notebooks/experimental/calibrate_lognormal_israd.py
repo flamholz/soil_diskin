@@ -23,7 +23,7 @@ Steps:
 
 Radiocarbon is expressed as R = delta14C/1000 + 1, the convention of
 data/14C_atm_annot.csv and script 02. ISRaD fraction modern is decay corrected,
-Fm = R exp((year - 1950)/8267), so R = Fm exp(-(year - 1950)/8267) when only Fm
+Fm = R exp(lambda (year - 1950)), so R = Fm exp(-lambda (year - 1950)) when only Fm
 is reported. The atmospheric record ends in 2013, so later profiles are dropped.
 As elsewhere in the pipeline, one atmospheric curve is used for both hemispheres.
 
@@ -55,7 +55,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))  # Support direct execution.
 
 from soil_diskin.calibration import fit_observation, lognormal_spec
-from soil_diskin.lognormal import C14_MEAN_LIFE
+from soil_diskin.constants import LAMBDA_14C
 from soil_diskin.radiocarbon_utils import AtmC14
 
 ISRAD = ROOT/'data/ISRaD/ISRaD_data_flat_layer_v 2.9.9.2025-08-14.csv'
@@ -77,7 +77,7 @@ def load_layers(path=ISRAD):
     layers[numeric] = layers[numeric].apply(pd.to_numeric, errors='coerce')
     year = layers.lyr_obs_date_y
     layers['R'] = (layers.lyr_14c/1000 + 1).fillna(
-        layers.lyr_fraction_modern*np.exp(-(year - 1950)/C14_MEAN_LIFE))
+        layers.lyr_fraction_modern*np.exp(-(year - 1950)*LAMBDA_14C))
     thickness = layers.lyr_bot - layers.lyr_top
     carbon = layers.lyr_c_org.fillna(layers.lyr_c_tot)
     density = layers.lyr_bd_samp.fillna(layers.lyr_bd_tot)

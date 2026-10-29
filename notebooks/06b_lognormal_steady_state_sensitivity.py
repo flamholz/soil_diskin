@@ -9,7 +9,8 @@ the sites of Balesdent et al. 2018.
 Python port of `06b_lognormal_steady_state_sensitivity.jl`, which is now in
 `notebooks/archive`. The Julia version solved the model by quadrature over an ODE
 solution; here the same model is evaluated with the closed-form C(t) of
-`soil_diskin.lognormal`, which reproduces the Julia output to ~1e-6 in F_new.
+`LognormalDisKin.stock_younger_than`, which reproduces the Julia output to ~1e-6
+in F_new.
 
 Outputs, each a time series per percentile of the change plus a `time` column:
   results/06_sensitivity_analysis/lognormal_input_data.csv   (change in inputs)
@@ -25,10 +26,11 @@ if os.getcwd().endswith('notebooks'):
 import numpy as np
 import pandas as pd
 
-from soil_diskin.lognormal import run_diskin_fast
+from soil_diskin.continuum_models import LognormalDisKin
 
 TMAX = 100_000
 TS_SIZE = 1000
+TS = np.logspace(-1.0, np.log10(TMAX), TS_SIZE)
 
 # %%
 # The change in the steady state is taken from the ratio between the C stock of the
@@ -63,11 +65,12 @@ def f_new(J1, J2, tau1, tau2, age1, age2):
     tuple of np.ndarray
         The time grid and the fraction of new carbon at each time point.
     """
-    ts, labeled = run_diskin_fast(tau2, age2, 1.0, tmax=TMAX, ts_size=TS_SIZE)
+    # Carbon added since the transition: the new system's stock younger than t.
+    labeled = LognormalDisKin.from_age_and_transit_time(age2, tau2).stock_younger_than(TS)
     # The carbon remaining from before the transition is the steady state stock
     # of the old system minus the carbon that has been replaced since.
-    unlabeled = tau1 - run_diskin_fast(tau1, age1, 1.0, tmax=TMAX, ts_size=TS_SIZE)[1]
-    return ts, J2 * labeled / (J2 * labeled + J1 * unlabeled)
+    unlabeled = tau1 - LognormalDisKin.from_age_and_transit_time(age1, tau1).stock_younger_than(TS)
+    return TS, J2 * labeled / (J2 * labeled + J1 * unlabeled)
 
 
 def f_new_mu_sigma(J1, J2, mu1, mu2, sigma1, sigma2):

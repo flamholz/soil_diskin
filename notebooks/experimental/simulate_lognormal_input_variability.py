@@ -37,7 +37,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))  # Support direct execution.
 
 from soil_diskin.continuum_models import LognormalDisKin
-from soil_diskin.lognormal import C14_MEAN_LIFE
+from soil_diskin.constants import LAMBDA_14C
 from soil_diskin.radiocarbon_utils import AtmC14, load_atm14c
 
 # Parameter bounds of the 03b fit (calibration.lognormal_spec); within them
@@ -90,7 +90,7 @@ class LognormalInputSimulator:
         # w u/k, with no time-step error. -expm1(-k) is 1 - exp(-k) without the cancellation
         # that 1 - np.exp(-k) suffers for very slow bins (k ~ 1e-12/yr).
         # The 14C factors are the same with k + lambda: turnover plus radioactive decay.
-        k14 = self.k + 1/C14_MEAN_LIFE
+        k14 = self.k + LAMBDA_14C
         self.decay = np.exp(-self.k)
         self.gain = self.weights*-np.expm1(-self.k)/self.k
         self.decay_14C = np.exp(-k14)
