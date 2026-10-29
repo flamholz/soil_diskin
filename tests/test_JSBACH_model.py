@@ -133,7 +133,7 @@ class TestJSBACHFnewAccuracy(unittest.TestCase):
     X_ss = -M^-1 I_bar internally.
 
     Ground truth is a labeled/unlabeled tracer pair in the style of
-    notebooks/clm_tracer_test.ipynb. Two versions are compared, which
+    notebooks/experimental/clm_tracer_test.ipynb. Two versions are compared, which
     separate the two error sources:
 
       * against a tracer on the same annual-mean operator -> tests the

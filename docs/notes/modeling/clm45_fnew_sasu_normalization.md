@@ -119,7 +119,7 @@ inflated somewhat more than the 0.0165 shift alone suggests.
 ## 4. Validation
 
 Ground truth is a labeled/unlabeled tracer pair in the style of
-[`notebooks/clm_tracer_test.ipynb`](../../../notebooks/clm_tracer_test.ipynb):
+[`notebooks/experimental/clm_tracer_test.ipynb`](../../../notebooks/experimental/clm_tracer_test.ipynb):
 spin up from bare soil, then at $t=0$ make all incoming carbon labeled while
 the standing stock decays unlabeled, and take
 $F_{new} = \text{labeled}/(\text{labeled}+\text{unlabeled})$. Spin-up is run
