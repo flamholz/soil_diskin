@@ -1,4 +1,34 @@
-"""Prepare bulk or sampled-layer radiocarbon, NPP inputs, and stock/input turnover."""
+"""Step 02: soil radiocarbon, carbon inputs and turnover times for the Balesdent sites.
+
+For each site, this script combines
+  * the soil carbon stock, from script 01;
+  * the carbon input, taken to be the site's NPP from MODIS (MOD17A3HGF, the mean
+    of all annual images, averaged over 10 km around the site), fetched from
+    Earth Engine on every run with the project named in config.yaml; and
+  * the soil radiocarbon, from the global Delta14C map of Shi et al. (2020)
+    (data/shi_2020/global_delta_14C.nc), which has one-cm levels from 0 to 100 cm.
+    Gaps in the map are filled with the nearest value at the same depth.
+
+The turnover time is stock / input. Radiocarbon is reported as Delta14C in per mil
+(column `14C`) and as R = Delta14C/1000 + 1 (column `fm_obs`), the convention of
+data/14C_atm_annot.csv and of the calibration scripts.
+
+There are two modes:
+  * bulk (default): one row per row of results/processed_balesdent_2018.csv,
+    for the 0-100 cm soil column. Delta14C is averaged over 10-cm bins and weighted
+    by the row's share of carbon in each bin (weight_0 ... weight_90 from script
+    01). The turnover time uses the whole NPP and the 0-100 cm stock, with its
+    q05/q95 estimates. Writes results/all_sites_14C_turnover.csv.
+  * depth-resolved (--depth-resolved): one row per reported layer of
+    results/processed_balesdent_2018_sampled.csv. Delta14C is averaged over the
+    layer's depth range, and the layer's input is its share of NPP under an
+    InputAllocation of inputs with depth. Writes
+    results/all_sites_14C_turnover_sampled.csv and a JSON file recording the
+    sources and settings, and refuses to overwrite either.
+
+Run from the project root directory:
+    python notebooks/02_get_turnover_14C.py [--depth-resolved] [-i INPUT] [-o OUTPUT]
+"""
 import argparse
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -20,6 +50,18 @@ SHI_MD5 = '645aa8d54cbc36cb329c29bcffc4352b'  # Published delta-14C file; metada
 
 @dataclass(frozen=True)
 class InputAllocation:
+    """How the carbon input (NPP) is distributed over the top 100 cm of soil.
+
+    A share `surface_fraction` of the input enters uniformly in 0-10 cm, and the
+    rest is distributed exponentially with depth, with e-folding depth
+    `input_depth_cm`, normalized over 0-100 cm. Only `soil_npp_fraction` of NPP
+    enters the soil at all. Used by the depth-resolved mode only.
+
+    Attributes:
+        input_depth_cm: e-folding depth of the exponential part, in cm (> 0).
+        surface_fraction: share of the input that enters in 0-10 cm, in [0, 1).
+        soil_npp_fraction: share of NPP that enters the soil, in (0, 1].
+    """
     input_depth_cm: float = 30.
     surface_fraction: float = 0.
     soil_npp_fraction: float = 1.
@@ -33,9 +75,13 @@ class InputAllocation:
             raise ValueError('soil_npp_fraction must be in (0, 1]')
 
     def layer_input(self, npp, z_top_cm, z_bottom_cm):
-        """Integrate NPP over a layer in cm; return kg C/m²/year (NaN for invalid rows).
+        """Carbon input to the layer [z_top_cm, z_bottom_cm), in the units of `npp`.
 
-        Accept scalars or arrays. Normalize over 0–100 cm, including missing layers.
+        Integrates the input profile over the layer. The profile is normalized over
+        0-100 cm whether or not the other layers of the site were reported, so the
+        inputs to a site's reported layers sum to less than NPP when some depths are
+        missing. Accepts scalars or broadcastable arrays; rows with NPP <= 0 or NaN,
+        or bounds outside 0-100 cm, get NaN.
         """
         npp, top, bottom = np.broadcast_arrays(np.asarray(npp, float),
                                               np.asarray(z_top_cm, float), np.asarray(z_bottom_cm, float))
@@ -55,7 +101,22 @@ DEFAULT_ALLOCATION = InputAllocation(-1/np.log(.966), .5)
 
 
 def sample_radiocarbon(shi, sites):
-    """Sample each one-cm depth after the original nearest-neighbor spatial filling."""
+    """Delta14C (per mil) at each site and one-cm depth level from the Shi et al. map.
+
+    Gaps in the map (NaN cells) are first filled with the nearest value at the same
+    depth, and each site then takes the nearest grid cell. Sites with invalid
+    coordinates get NaN.
+
+    Args:
+        shi: the Shi et al. (2020) dataset, with a `temp` variable (Delta14C,
+            despite the 'year' units in its metadata) on level (0..99 cm), lat, lon.
+        sites: table with `latitude` and `longitude` columns, one row per site.
+
+    Returns:
+        delta: array (n_sites, 100) of Delta14C; column z is the depth [z, z+1) cm.
+        filled_depths: boolean array of the same shape, True where the value came
+            from filling a gap rather than from the site's own grid cell.
+    """
     if set(shi['temp'].dims) != {'level', 'lat', 'lon'}:
         raise ValueError('Shi temp must have level, lat, and lon dimensions')
     if not np.array_equal(np.sort(shi.level.values), np.arange(100)):
@@ -83,7 +144,27 @@ def sample_radiocarbon(shi, sites):
 
 
 def prepare_turnover(data, shi, distribution=DEFAULT_ALLOCATION):
-    """Fetch site NPP and prepare layer turnover; distribution=None selects bulk."""
+    """Add radiocarbon, NPP and turnover times to the processed Balesdent table.
+
+    NPP and the radiocarbon profile are looked up once per location (rows of
+    `data` can share a location, e.g. with different labeling durations), and
+    every row then gets its location's values.
+
+    Args:
+        data: processed Balesdent table from script 01, with Latitude and
+            Longitude. Bulk mode needs weight_0 ... weight_90 and
+            Ctotal_0-100estim (and its _q05/_q95); depth-resolved mode needs
+            z_top_cm, z_bottom_cm and stock_kg_m2 (and its _q05/_q95, if present).
+        shi: the Shi et al. (2020) Delta14C dataset (see sample_radiocarbon).
+        distribution: InputAllocation for depth-resolved mode, or None for bulk.
+
+    Returns:
+        Bulk: one row per row of `data` with Latitude, Longitude, 14C, NPP
+        (g C/m²/yr), the stocks, fm_obs and turnover/_q05/_q95 (years).
+        Depth-resolved: `data` plus 14C, fm_obs, radiocarbon_spatially_filled,
+        npp_kg_m2_yr, the allocation settings, input_kg_m2_yr and
+        turnover/_q05/_q95.
+    """
     coords = ['latitude', 'longitude']
     names = {'Latitude': 'latitude', 'Longitude': 'longitude'}
     data = data.rename(columns=names)
@@ -96,8 +177,13 @@ def prepare_turnover(data, shi, distribution=DEFAULT_ALLOCATION):
     rows = result.pop('site_index').to_numpy(int)
     result['npp_kg_m2_yr'] = pd.to_numeric(result.NPP, errors='coerce')/1000
     if distribution is None:
-        weights = sites.filter(regex=r'^weight_\d+').to_numpy()
-        result['14C'] = np.nansum(delta.reshape(-1, 10, 10).mean(axis=2)*weights, axis=1)[rows]
+        # Weight the 10-cm bin means of each row's location by the row's own carbon
+        # weights: rows at one location share the radiocarbon profile, but their
+        # weights can differ. Bins below a profile's deepest measured layer have no
+        # weight and are skipped (script 01 normalizes the weights over the rest).
+        bins = delta.reshape(-1, 10, 10).mean(axis=2)
+        weights = result.filter(regex=r'^weight_\d+').to_numpy()
+        result['14C'] = np.nansum(bins[rows]*weights, axis=1)
         result['fm_obs'] = result['14C']/1000+1
         suffixes = ['', '_q05', '_q95']
         stocks = ['Ctotal_0-100estim'+suffix for suffix in suffixes]
@@ -124,7 +210,19 @@ def prepare_turnover(data, shi, distribution=DEFAULT_ALLOCATION):
 
 
 def fetch_npp(sites):
-    """Original MODIS mean at 10 km resolution, returned in g C/m²/year."""
+    """NPP at each site in g C/m²/yr, from MODIS via Earth Engine.
+
+    Takes the mean of all annual images of MODIS/061/MOD17A3HGF (band Npp, scaled
+    from 0.0001 kg C/m²/yr to g C/m²/yr) and averages it over 10 km around each
+    site. Authenticates with Earth Engine and uses the project named in
+    config.yaml (read from the working directory).
+
+    Args:
+        sites: table with Latitude and Longitude columns.
+
+    Returns:
+        Array of NPP, in the order of `sites`.
+    """
     config = yaml.safe_load(Path('config.yaml').read_text())
     ee.Authenticate()
     ee.Initialize(project=config['earth_engine']['project'])
@@ -138,14 +236,25 @@ def fetch_npp(sites):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--depth-resolved', action='store_true')
-    parser.add_argument('-i', '--input')
-    parser.add_argument('-o', '--output')
-    parser.add_argument('--shi', default='data/shi_2020/global_delta_14C.nc')
-    parser.add_argument('--input-depth', type=float, default=DEFAULT_ALLOCATION.input_depth_cm)
-    parser.add_argument('--surface-fraction', type=float, default=DEFAULT_ALLOCATION.surface_fraction)
-    parser.add_argument('--soil-npp-fraction', type=float, default=1.)
+    """Read the processed sites, add radiocarbon, NPP and turnover, and write the table.
+
+    In depth-resolved mode, also checks the Shi file against its published
+    checksum and writes a JSON file of sources and settings beside the table.
+    """
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--depth-resolved', action='store_true',
+                        help='one row per reported layer instead of one per site (bulk 0-100 cm)')
+    parser.add_argument('-i', '--input',
+                        help='processed sites from script 01 (default: results/processed_balesdent_2018[_sampled].csv)')
+    parser.add_argument('-o', '--output',
+                        help='output table (default: results/all_sites_14C_turnover[_sampled].csv)')
+    parser.add_argument('--shi', default='data/shi_2020/global_delta_14C.nc', help='Shi et al. (2020) Delta14C map')
+    parser.add_argument('--input-depth', type=float, default=DEFAULT_ALLOCATION.input_depth_cm,
+                        help='depth-resolved: e-folding depth of the input profile (cm)')
+    parser.add_argument('--surface-fraction', type=float, default=DEFAULT_ALLOCATION.surface_fraction,
+                        help='depth-resolved: share of the input entering in 0-10 cm')
+    parser.add_argument('--soil-npp-fraction', type=float, default=1.,
+                        help='depth-resolved: share of NPP entering the soil')
     args = parser.parse_args(argv)
     suffix = '_sampled' if args.depth_resolved else ''
     source = Path(args.input or f'results/processed_balesdent_2018{suffix}.csv')
