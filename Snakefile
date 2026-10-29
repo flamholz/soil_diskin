@@ -17,6 +17,7 @@ SHI_MD5 = "645aa8d54cbc36cb329c29bcffc4352b"  # published on the Zenodo record
 ISRAD_COMMIT = "2cf05252bd12b7afd1bcf5d9ab15213fcd0d851b"
 ISRAD_URL = f"https://github.com/International-Soil-Radiocarbon-Database/ISRaD/raw/{ISRAD_COMMIT}/ISRaD_data_files/database/ISRaD_database_files.zip"
 ISRAD_SHA256 = "d37558b9aeded060619a80763cc9a29c7f15717a2aba20b434ffcca4d0a45df1"
+ISRAD_LAYERS = "data/ISRaD/ISRaD_data_flat_layer_v 2.9.9.2025-08-14.csv"  # in the pinned zip
 
 
 def verify_checksum(path, expected, algorithm="md5"):
@@ -215,6 +216,46 @@ rule turnover_14C_layered:
         meta="results/all_sites_14C_turnover_depth_resolved.json",
     shell:
         "python notebooks/02c_get_layer_turnover_14C.py -i {input.layers:q} -o {output.csv:q} --shi {input.shi:q} --npp {input.npp:q}"
+
+# ISRaD: pseudo-bulk 0-100 cm profiles with radiocarbon, NPP and turnover times, the
+# ISRaD counterpart of steps 01-02. Not part of `all` yet; run `snakemake israd`.
+rule israd:
+    input:
+        "results/israd/israd_turnover.csv"
+
+rule preprocess_israd:
+    input:
+        download="data/ISRaD/.israd_download_complete",
+        balesdent="results/processed_balesdent_2018.csv",
+        code=["notebooks/01_preprocess_israd.py", "soil_diskin/israd.py"],
+    params:
+        layers=ISRAD_LAYERS,
+    output:
+        csv="results/israd/israd_profiles.csv",
+        meta="results/israd/israd_profiles.json",
+    shell:
+        "python notebooks/01_preprocess_israd.py --israd {params.layers:q} --balesdent {input.balesdent:q} -o {output.csv:q}"
+
+rule fetch_npp_israd:
+    input:
+        profiles="results/israd/israd_profiles.csv",
+        code=["notebooks/02a_fetch_npp.py", "soil_diskin/npp.py"],
+    output:
+        csv="results/02_npp/israd_npp.csv",
+        meta="results/02_npp/israd_npp.json",
+    shell:
+        "python notebooks/02a_fetch_npp.py --locations {input.profiles:q} -o {output.csv:q} --sd"
+
+rule israd_turnover:
+    input:
+        profiles="results/israd/israd_profiles.csv",
+        npp="results/02_npp/israd_npp.csv",
+        code=["notebooks/02_get_israd_turnover.py", "soil_diskin/site_inputs.py"],
+    output:
+        csv="results/israd/israd_turnover.csv",
+        meta="results/israd/israd_turnover.json",
+    shell:
+        "python notebooks/02_get_israd_turnover.py -i {input.profiles:q} -o {output.csv:q} --npp {input.npp:q}"
 
 # Step 03a: Calibrate power law models
 rule calibrate_powerlaw:

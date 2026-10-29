@@ -1,7 +1,8 @@
 """Calibrate the lognormal model to pseudo-bulk 0-100 cm ISRaD profiles.
 
 Steps:
-  1. Read ISRaD layers with measured radiocarbon and a carbon stock, either the
+  1. Read ISRaD layers (soil_diskin.israd, as 01_preprocess_israd.py does) with
+     measured radiocarbon and a carbon stock, either the
      reported lyr_soc (g C/cm²) or C % x bulk density x thickness, which is how
      lyr_soc is computed in ISRaD (no coarse-fragment correction). C % is
      lyr_c_org, else lyr_c_tot; bulk density is lyr_bd_samp, else lyr_bd_tot.
@@ -55,7 +56,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))  # Support direct execution.
 
 from soil_diskin.calibration import fit_observation, lognormal_spec
-from soil_diskin.constants import LAMBDA_14C
+from soil_diskin.israd import DEPTH, load_layers, pseudo_bulk
 from soil_diskin.npp import fetch_modis_npp, initialize
 from soil_diskin.radiocarbon_utils import AtmC14
 
@@ -64,56 +65,7 @@ BALESDENT = ROOT/'results/processed_balesdent_2018.csv'
 CALIBRATION = ROOT/'results/03_calibrate_models/lognormal_model_optimization_results.csv'
 ATM = ROOT/'data/14C_atm_annot.csv'
 OUT_DIR = ROOT/'results/experimental'
-DEPTH = 100.  # cm
-PROFILE = ['entry_name', 'site_name', 'pro_name', 'lyr_obs_date_y']
 Z_90 = 1.645  # standard normal 95th percentile
-
-
-def load_layers(path=ISRAD):
-    """Layers with radiocarbon (R) and a carbon stock (kg C/m²), from measured values only."""
-    numeric = ['site_lat', 'site_long', 'lyr_top', 'lyr_bot', 'lyr_obs_date_y', 'lyr_c_org',
-               'lyr_c_tot', 'lyr_soc', 'lyr_bd_samp', 'lyr_bd_tot', 'lyr_14c', 'lyr_fraction_modern']
-    layers = pd.read_csv(path, usecols=PROFILE[:3]+['lyr_name']+numeric,
-                         encoding_errors='replace', low_memory=False)
-    layers[numeric] = layers[numeric].apply(pd.to_numeric, errors='coerce')
-    year = layers.lyr_obs_date_y
-    layers['R'] = (layers.lyr_14c/1000 + 1).fillna(
-        layers.lyr_fraction_modern*np.exp(-(year - 1950)*LAMBDA_14C))
-    thickness = layers.lyr_bot - layers.lyr_top
-    carbon = layers.lyr_c_org.fillna(layers.lyr_c_tot)
-    density = layers.lyr_bd_samp.fillna(layers.lyr_bd_tot)
-    stock_g_cm2 = layers.lyr_soc.fillna(carbon/100*density*thickness)
-    layers['fallback'] = layers.lyr_soc.isna() & (
-        (layers.lyr_c_org.isna() & layers.lyr_c_tot.notna())
-        | (layers.lyr_bd_samp.isna() & layers.lyr_bd_tot.notna()))
-    layers['stock'] = stock_g_cm2*10  # g C/cm² -> kg C/m²
-    valid = layers[['R', 'stock', 'lyr_top', 'lyr_bot', 'lyr_obs_date_y', 'site_lat', 'site_long']].notna().all(axis=1)
-    return layers[valid & (thickness > 0) & (layers.stock >= 0)]
-
-
-def pseudo_bulk(layers, depth=DEPTH):
-    """Stock and stock-weighted R over [0, depth] for completely covered profile-years."""
-    rows = []
-    for key, profile in layers.groupby(PROFILE, dropna=False):
-        top, bottom = profile.lyr_top.clip(lower=0), profile.lyr_bot.clip(upper=depth)
-        inside = bottom > top
-        if not inside.any():
-            continue
-        profile, top, bottom = profile[inside], top[inside], bottom[inside]
-        order = np.argsort(top.to_numpy())
-        top, bottom = top.to_numpy()[order], bottom.to_numpy()[order]
-        # Complete coverage without overlap: layers abut from 0 to depth.
-        if top[0] > 0 or bottom[-1] < depth or np.any(top[1:] != bottom[:-1]):
-            continue
-        share = (bottom - top)/(profile.lyr_bot - profile.lyr_top).to_numpy()[order]
-        stock = profile.stock.to_numpy()[order]*share
-        if stock.sum() <= 0:
-            continue
-        rows.append(dict(zip(PROFILE, key), latitude=profile.site_lat.iloc[0],
-                         longitude=profile.site_long.iloc[0], n_layers=len(profile),
-                         n_fallback_layers=int(profile.fallback.sum()),
-                         stock=stock.sum(), R=(stock*profile.R.to_numpy()[order]).sum()/stock.sum()))
-    return pd.DataFrame(rows)
 
 
 def warn_balesdent_overlap(profiles, max_km, path=BALESDENT):
@@ -266,7 +218,7 @@ def plot(result, reference):
 
 def main(overlap_km=5., max_stock=150., n_jobs=-1, output_dir=OUT_DIR):
     output_dir = Path(output_dir)
-    profiles = pseudo_bulk(load_layers())
+    profiles = pseudo_bulk(load_layers(ISRAD)).rename(columns={'stock_kg_m2': 'stock'})
     implausible = profiles.stock > max_stock
     for entry, n in profiles[implausible].entry_name.value_counts().items():
         print(f'WARNING: dropping {n} {entry} profile-years with stock > {max_stock:g} kg C/m² '
