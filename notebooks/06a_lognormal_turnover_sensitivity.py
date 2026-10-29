@@ -23,11 +23,15 @@ The SoilGrids-backfilled sites are also fit with their scaled q05/q95 turnover
 estimates, which gives their error bars in figS4. Sites whose fit fails get NaN.
 
 Outputs (in --output-dir):
-  lognormal_age_predictions.csv
-  06a_lognormal_cdfs_{ratio}.csv
-  06a_lognormal_fnew.csv
-  06a_lognormal_fnew_q05.csv
-  06a_lognormal_fnew_q95.csv
+  lognormal_age_predictions.csv   (unused)
+  06a_lognormal_cdfs_{ratio}.csv  (unused)
+  06a_lognormal_fnew.csv          (figS4)
+  06a_lognormal_fnew_q05.csv      (figS4)
+  06a_lognormal_fnew_q95.csv      (figS4)
+
+TODO: delete the unused outputs, here and in the Snakefile rule. Nothing reads
+the mean ages or the CDF tables; 06c read the ratio=1 table until it switched to
+computing F_new from the 03b fits.
 
 Run from the project root directory:
     python notebooks/06a_lognormal_turnover_sensitivity.py [--n-jobs -1]
@@ -86,8 +90,8 @@ def main(turnover_path=TURNOVER_PATH, sites_path=SITES_PATH, atm_path=ATM_PATH,
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Calibrate and predict for all sites at each ratio. The CDFs are written out
-    # per ratio in the same layout the Julia script used, because 06c reads the
-    # ratio=1 file.
+    # per ratio in the same layout the Julia script used. TODO: the ages and
+    # CDFs are unused (see the module docstring); delete them.
     ages = {}
     fnew = {suffix: {} for suffix in SCENARIOS}
     for ratio, label in zip(RATIOS, RATIO_LABELS):
