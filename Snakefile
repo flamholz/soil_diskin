@@ -489,14 +489,17 @@ rule steady_state_sensitivity_analysis_lognormal:
 # Step 06c: Vegetation effects sensitivity analysis
 rule vegetation_effects_sensitivity_analysis:
     input:
-        'data/balesdent_2018/balesdent_2018_raw.xlsx',
-        'results/processed_balesdent_2018.csv',
-        'results/03_calibrate_models/powerlaw_model_optimization_results.csv',
-        'results/06_sensitivity_analysis/06a_lognormal_cdfs_1.csv', 
+        sites='results/processed_balesdent_2018.csv',
+        powerlaw='results/03_calibrate_models/powerlaw_model_optimization_results.csv',
+        lognormal='results/03_calibrate_models/lognormal_model_optimization_results.csv',
+        code="notebooks/06c_veg_effects_sensitivity.py",
     output:
         'results/06_sensitivity_analysis/06c_model_predictions_veg_effects.csv',
-    script:
-        "notebooks/06c_veg_effects_sensitivity.py"
+    shell:
+        """
+        python notebooks/06c_veg_effects_sensitivity.py --sites {input.sites:q} \
+            --powerlaw {input.powerlaw:q} --lognormal {input.lognormal:q} --output {output:q}
+        """
 # Step 05: Plot results
 
 # Figure 1: continuum model structure and age distributions
