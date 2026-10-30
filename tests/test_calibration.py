@@ -104,3 +104,48 @@ def test_sweep_over_a_fixed_parameter_keeps_one_column(sites):
     sweep = calibrate_sweep(fixed_sigma_spec, [.8], sites, name='sigma', n_jobs=1)
     assert list(sweep.columns[:3]) == ['sigma', 'site_index', 'mu']
     assert list(sweep.columns).count('sigma') == 1
+
+
+# Sampling years other than 2000 (e.g. ISRaD profiles): calibrate(..., year_column=...).
+
+def test_atmosphere_reference_year_shifts_ages():
+    """Ages count back from the reference year: carbon of age a sampled in 1990 was fixed
+    in 1990 - a, i.e. at age a + 10 counted from 2000. The record ends in 2013."""
+    from soil_diskin import constants
+    from soil_diskin.radiocarbon_utils import load_atm14c
+    base = load_atm14c(constants.C14_DATA_PATH)
+    same = load_atm14c(constants.C14_DATA_PATH, reference_year=2000)
+    np.testing.assert_array_equal(same.ages, base.ages)
+    np.testing.assert_array_equal(same.R(base.ages), base.R(base.ages))
+    ages = np.array([0., 5., 30., 500.])
+    np.testing.assert_allclose(load_atm14c(constants.C14_DATA_PATH, reference_year=1990).R(ages), base.R(ages + 10))
+    with pytest.raises(ValueError, match='ends'):
+        load_atm14c(constants.C14_DATA_PATH, reference_year=2020)
+
+
+def test_year_column_of_2000_matches_the_default(sites):
+    default = calibrate(lognormal_spec(), sites, n_jobs=1)
+    by_year = calibrate(lognormal_spec(), sites.assign(sampling_year=2000), n_jobs=1, year_column='sampling_year')
+    pd.testing.assert_frame_equal(default, by_year)
+
+
+def test_fit_uses_each_rows_sampling_year():
+    """An observation made in 1980 is recovered when fit with its own year's atmosphere, and not
+    with the default (2000) one."""
+    from soil_diskin import constants
+    from soil_diskin.radiocarbon_utils import load_atm14c
+    model = LognormalDisKin(-3., .8, atm=load_atm14c(constants.C14_DATA_PATH, reference_year=1980))
+    row = pd.DataFrame({'turnover': [model.T], 'fm_obs': [model.calc_radiocarbon_ratio_ss()[0]], 'sampling_year': [1980]})
+    by_year = calibrate(lognormal_spec(), row, n_jobs=1, year_column='sampling_year')
+    assert (by_year.mu[0], by_year.sigma[0]) == pytest.approx((-3., .8), abs=1e-6)
+    default = calibrate(lognormal_spec(), row, n_jobs=1)
+    assert abs(default.mu[0] - by_year.mu[0]) > 1e-3
+
+
+def test_sampling_after_the_record_has_no_atmosphere(sites):
+    """Rows sampled after the atmospheric record ends keep their row, with NaN parameters."""
+    fits = calibrate(lognormal_spec(), sites.assign(sampling_year=[2000, 2020, 1990]), n_jobs=1,
+                     year_column='sampling_year')
+    assert fits.calibration_status.tolist()[1] == 'no_atmosphere'
+    assert fits.calibration_status_05.tolist()[1] == 'no_atmosphere'
+    assert np.isnan(fits.mu.iloc[1]) and np.isfinite(fits.mu.iloc[[0, 2]]).all()

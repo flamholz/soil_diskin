@@ -23,7 +23,8 @@ class AtmC14:
     Attributes
     ----------
     ages : np.ndarray
-        Ascending non-negative ages (years before 2000), starting at 0.
+        Ascending non-negative ages, starting at 0: years before 2000, or before
+        the reference year passed to load_atm14c.
     fm : np.ndarray
         Corresponding R_14C (fraction modern) values at the knots.
     tail_fm : float
@@ -69,15 +70,39 @@ class AtmC14:
         return self._log_rate_response
 
 
-def load_atm14c(path: str = "data/14C_atm_annot.csv") -> AtmC14:
-    """Load atmospheric 14C CSV and return an `AtmC14`.
+def load_atm14c(path: str = "data/14C_atm_annot.csv", reference_year: float = 2000) -> AtmC14:
+    """Load atmospheric 14C CSV and return an `AtmC14` with ages counted back from `reference_year`.
 
     Reads columns 4 (`years_before_2000`) and 5 (`R_14C`), sorts by age, keeps
-    ages >= 0 (years after 2000 are never needed), and holds the value at the
-    oldest age constant beyond the data.
+    ages >= 0 (years after the reference year are never needed), and holds the
+    value at the oldest age constant beyond the data.
+
+    Parameters
+    ----------
+    path : str
+        CSV of the atmospheric record, as written by 01_preprocess_14C_history.py
+        (data/14C_atm_annot.csv).
+    reference_year : float
+        Calendar year from which ages are counted: carbon of age a was fixed from
+        the atmosphere in reference_year - a. The default, 2000, is the year of the
+        Shi et al. (2020) radiocarbon map used for the Balesdent sites; samples
+        from other years (e.g. ISRaD profiles) need their sampling year.
+
+    Returns
+    -------
+    AtmC14
+        The record as R_14C against age, in years before `reference_year`.
+
+    Raises
+    ------
+    ValueError
+        If the record ends before `reference_year`, so that the youngest ages
+        are not covered.
     """
     df = pd.read_csv(path)
-    raw_age = df.iloc[:, 3].to_numpy(dtype=np.float64)  # years_before_2000
+    raw_age = df.iloc[:, 3].to_numpy(dtype=np.float64) - (2000 - reference_year)  # years before reference_year
+    if raw_age.min() > 0:
+        raise ValueError(f'the atmospheric record ends {raw_age.min():g} years before {reference_year}')
     raw_fm = df.iloc[:, 4].to_numpy(dtype=np.float64)   # R_14C
     perm = np.argsort(raw_age)
     a = raw_age[perm]

@@ -212,16 +212,43 @@ def _fit_site(specs, turnovers, fm_obs, atm, warm_start_scenarios, initial):
     return records
 
 
-def _fit_sites(specs, sites, atm, n_jobs, warm_start_scenarios, initial):
-    atm = default_atmosphere() if atm is None else atm
+def atmospheres_by_year(years, path=None):
+    """Atmospheres with ages counted back from each year: year -> AtmC14, or None where
+    the record ends before the year (or the year is missing). path defaults to
+    constants.C14_DATA_PATH."""
+    from soil_diskin import constants
+    from soil_diskin.radiocarbon_utils import load_atm14c
+    path = constants.C14_DATA_PATH if path is None else path
+    atmospheres = {}
+    for year in pd.unique(pd.Series(years).dropna()):
+        try:
+            atmospheres[year] = load_atm14c(path, reference_year=year)
+        except ValueError:
+            atmospheres[year] = None
+    return atmospheres
+
+
+def _unfittable(specs, turnovers, status):
+    """_fit_site's records for a site that cannot be fit at all."""
+    return [{suffix: _empty_record(spec, status) for suffix in turnovers} for spec in specs]
+
+
+def _fit_sites(specs, sites, atm, n_jobs, warm_start_scenarios, initial, atms=None):
+    """Fit each site; atms optionally gives each row its own atmosphere (None: unfittable)."""
+    if atms is None:
+        atms = [default_atmosphere() if atm is None else atm]*len(sites)
     if any(spec.model_class.log_rate_density is not None for spec in specs):
-        atm.log_rate_response()  # Tabulate once here rather than in every worker.
+        for each in {id(a): a for a in atms if a is not None}.values():
+            each.log_rate_response()  # Tabulate once here rather than in every worker.
     tasks = []
-    for index, row in sites.iterrows():
+    for (index, row), site_atm in zip(sites.iterrows(), atms):
         turnovers = {suffix: float(row[column]) if column in sites else np.nan
                      for column, suffix in SCENARIOS}
+        if site_atm is None:
+            tasks.append(delayed(_unfittable)(specs, turnovers, 'no_atmosphere'))
+            continue
         warm = None if initial is None or index not in initial.index else initial.loc[index].to_dict()
-        tasks.append(delayed(_fit_site)(specs, turnovers, float(row['fm_obs']), atm,
+        tasks.append(delayed(_fit_site)(specs, turnovers, float(row['fm_obs']), site_atm,
                                         warm_start_scenarios, warm))
     return Parallel(n_jobs=n_jobs)(tasks)
 
@@ -233,18 +260,29 @@ def _to_frame(records, index):
     return pd.concat(frames, axis=1)
 
 
-def calibrate(spec, sites, atm=None, n_jobs=-1, warm_start_scenarios=False, initial=None):
+def calibrate(spec, sites, atm=None, n_jobs=-1, warm_start_scenarios=False, initial=None,
+              year_column=None, atm_path=None):
     """Fit every site's central turnover and stock scenarios.
 
     sites needs fm_obs and turnover; turnover_q05/turnover_q95 are optional.
-    Rows that cannot be fit are kept, with calibration_status 'invalid_input'
-    or 'fit_failed' and NaN values. initial optionally gives per-site free
-    parameters (indexed like sites) to warm-start the central fits.
+    Rows that cannot be fit are kept, with calibration_status 'invalid_input',
+    'fit_failed' or 'no_atmosphere' and NaN values. initial optionally gives
+    per-site free parameters (indexed like sites) to warm-start the central fits.
+
+    By default every site uses `atm` (the project's record if None), with ages
+    counted back from 2000. With year_column, each site instead uses the
+    atmosphere of the year in that column (e.g. its sampling year), from the
+    record at atm_path (constants.C14_DATA_PATH if None); sites sampled after the
+    record ends get 'no_atmosphere'.
 
     Returns a frame indexed like sites with the parameters and FIT_COLUMNS for
     each scenario, suffixed '', '_05' and '_95'. n_jobs = -1 uses all cores.
     """
-    records = _fit_sites([spec], sites, atm, n_jobs, warm_start_scenarios, initial)
+    atms = None
+    if year_column is not None:
+        by_year = atmospheres_by_year(sites[year_column], atm_path)
+        atms = [by_year.get(year) for year in sites[year_column]]
+    records = _fit_sites([spec], sites, atm, n_jobs, warm_start_scenarios, initial, atms)
     return _to_frame([site[0] for site in records], sites.index)
 
 

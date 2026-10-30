@@ -58,7 +58,7 @@ sys.path.insert(0, str(ROOT))  # Support direct execution.
 from soil_diskin.calibration import fit_observation, lognormal_spec
 from soil_diskin.israd import DEPTH, load_layers, pseudo_bulk
 from soil_diskin.npp import fetch_modis_npp, initialize
-from soil_diskin.radiocarbon_utils import AtmC14
+from soil_diskin.radiocarbon_utils import load_atm14c
 
 ISRAD = ROOT/'data/ISRaD/ISRaD_data_flat_layer_v 2.9.9.2025-08-14.csv'
 BALESDENT = ROOT/'results/processed_balesdent_2018.csv'
@@ -110,14 +110,8 @@ def site_npp(profiles, cache):
 
 
 def atmosphere_for_year(year, path=ATM):
-    """Atmospheric R with ages counted back from `year`; mirrors `load_atm14c`."""
-    table = pd.read_csv(path)
-    ages = table.years_before_2000.to_numpy(float) - (2000 - year)
-    if ages.min() > 0:
-        raise ValueError(f'atmospheric record ends before {year}')
-    order = np.argsort(ages)
-    ages, R = ages[order], table.R_14C.to_numpy(float)[order]
-    return AtmC14(ages[ages >= 0], R[ages >= 0])  # Holds the oldest value, as load_atm14c does.
+    """Atmospheric R with ages counted back from `year`."""
+    return load_atm14c(path, reference_year=year)
 
 
 def calibrate(profiles, n_jobs=-1):

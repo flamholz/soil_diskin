@@ -8,7 +8,9 @@ are flagged as approximate_fit.
 
 Writes the input table with mu/sigma, model_T/model_A/model_fm and fit
 diagnostics for each scenario (suffixes '', '_05', '_95') to
-lognormal_model_optimization_results.csv.
+lognormal_model_optimization_results.csv. With --year-column (e.g.
+sampling_year for the ISRaD profiles), each row is fit with the atmosphere of
+its year rather than with ages counted back from 2000.
 """
 from __future__ import annotations
 
@@ -32,7 +34,7 @@ OUTPUT_NAME = 'lognormal_model_optimization_results.csv'
 
 
 def main(n_jobs: int = -1, sites_path: Path = SITES_PATH, out_dir: Path | None = None,
-         output_name: str = OUTPUT_NAME) -> None:
+         output_name: str = OUTPUT_NAME, year_column: str | None = None) -> None:
     """Calibrate each usable observation and stock scenario, preserving input rows."""
     sites = pd.read_csv(sites_path, dtype={'profile_id': str})
     sites = sites.rename(columns={'implied_turnover_years': 'turnover'})
@@ -41,7 +43,10 @@ def main(n_jobs: int = -1, sites_path: Path = SITES_PATH, out_dir: Path | None =
     out_dir = Path(out_dir) if out_dir is not None else OUT_DIR/('depth_resolved' if 'z_top_cm' in sites else '')
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f'Fitting {len(sites)} observations', flush=True)
-    fits = calibrate(lognormal_spec(), sites, atm=load_atm14c(str(ATM_PATH)), n_jobs=n_jobs)
+    if year_column is None:
+        fits = calibrate(lognormal_spec(), sites, atm=load_atm14c(str(ATM_PATH)), n_jobs=n_jobs)
+    else:
+        fits = calibrate(lognormal_spec(), sites, n_jobs=n_jobs, year_column=year_column, atm_path=str(ATM_PATH))
     for suffix in ['', '_05', '_95']:
         print(suffix or 'central', fits['calibration_status'+suffix].value_counts().to_dict(), flush=True)
     out = sites.join(fits)
@@ -58,5 +63,8 @@ if __name__ == '__main__':
                         help='Output file name, e.g. for the permuted-fm null.')
     parser.add_argument('--n-jobs', type=int, default=int(os.environ.get('N_JOBS', -1)),
                         help='Number of parallel jobs for joblib (-1 uses all cores).')
+    parser.add_argument('--year-column', help='fit each row with the atmosphere of the year in this column '
+                                              '(default: ages counted back from 2000 for every row)')
     args = parser.parse_args()
-    main(n_jobs=args.n_jobs, sites_path=args.input, out_dir=args.output_dir, output_name=args.output_name)
+    main(n_jobs=args.n_jobs, sites_path=args.input, out_dir=args.output_dir, output_name=args.output_name,
+         year_column=args.year_column)

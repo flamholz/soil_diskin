@@ -221,7 +221,9 @@ rule turnover_14C_layered:
 # ISRaD counterpart of steps 01-02. Not part of `all` yet; run `snakemake israd`.
 rule israd:
     input:
-        "results/israd/israd_turnover.csv"
+        "results/israd/israd_turnover.csv",
+        "results/03_calibrate_models/israd/powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/israd/lognormal_model_optimization_results.csv",
 
 rule preprocess_israd:
     input:
@@ -256,6 +258,34 @@ rule israd_turnover:
         meta="results/israd/israd_turnover.json",
     shell:
         "python notebooks/02_get_israd_turnover.py -i {input.profiles:q} -o {output.csv:q} --npp {input.npp:q}"
+
+# ISRaD calibrations: each profile is fit with the atmosphere of its sampling year;
+# profiles sampled after the record ends (2013) get calibration_status no_atmosphere.
+rule calibrate_powerlaw_israd:
+    input:
+        sites="results/israd/israd_turnover.csv",
+        atm="data/14C_atm_annot.csv",
+        code=["notebooks/03a_calibrate_powerlaw_model.py", "soil_diskin/calibration.py",
+              "soil_diskin/continuum_models.py", "soil_diskin/radiocarbon_utils.py"],
+    threads: workflow.cores
+    output:
+        "results/03_calibrate_models/israd/powerlaw_model_optimization_results.csv"
+    shell:
+        "python notebooks/03a_calibrate_powerlaw_model.py --input {input.sites:q} --output {output:q} "
+        "--year-column sampling_year --n-jobs {threads}"
+
+rule calibrate_lognormal_israd:
+    input:
+        sites="results/israd/israd_turnover.csv",
+        atm="data/14C_atm_annot.csv",
+        code=["notebooks/03b_lognormal_calibration.py", "soil_diskin/calibration.py",
+              "soil_diskin/continuum_models.py", "soil_diskin/radiocarbon_utils.py"],
+    threads: workflow.cores
+    output:
+        "results/03_calibrate_models/israd/lognormal_model_optimization_results.csv"
+    shell:
+        "python notebooks/03b_lognormal_calibration.py --input {input.sites:q} "
+        "--output-dir results/03_calibrate_models/israd --year-column sampling_year --n-jobs {threads}"
 
 # Step 03a: Calibrate power law models
 rule calibrate_powerlaw:
