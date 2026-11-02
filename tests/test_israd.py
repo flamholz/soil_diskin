@@ -54,9 +54,59 @@ def test_layer_crossing_100_cm_is_prorated_and_organic_horizon_excluded(tmp_path
     [layer('C', 0, 50, soc=.1), layer('C', 40, 100, soc=.1)],  # overlap
     [layer('C', 0, 30, soc=.1), layer('C', 30, 80, soc=.1)],   # stops at 80 cm
     [layer('C', 10, 100, soc=.1)],                             # starts at 10 cm
+    [layer('C', 0, 100, soc=.1), layer('C', 0, 100, soc=.1)],  # duplicate (replicate) layers overlap
+    [layer('C', 0, 50, soc=.1), layer('C', 50, 100, soc=.1, d14c=None)],  # no 14C: dropped, leaves a gap
+    [layer('C', 0, 100, soc=0.)],                              # zero total stock
+    [layer('C', -5, 0, soc=.1), layer('C', 100, 150, soc=.1)],  # no layer within 0-100 cm
 ])
 def test_incomplete_or_overlapping_profiles_are_dropped(tmp_path, layers):
     assert 'C' not in profiles_from(tmp_path, layers).index
+
+
+def test_unordered_layers_weight_radiocarbon_by_prorated_stock(tmp_path):
+    """Layers listed bottom-up are sorted by depth, and a layer crossing 100 cm weights R by its
+    prorated stock: 0-50 cm holds 2 kg C/m² at R = 1.1, and half of 50-150 cm holds 2 kg C/m² at R = 0.5."""
+    p = profiles_from(tmp_path, [layer('F', 50, 150, soc=.4, d14c=-500.), layer('F', 0, 50, soc=.2, d14c=100.)])
+    assert p.loc['F', 'stock_kg_m2'] == pytest.approx(4.)
+    assert p.loc['F', 'R'] == pytest.approx((2*1.1 + 2*.5)/4)
+
+
+def test_layer_straddling_the_surface_is_prorated(tmp_path):
+    """A -5 to 10 cm layer counts the 10 cm below the surface, 2/3 of its stock (3 -> 2 kg C/m²)."""
+    p = profiles_from(tmp_path, [layer('G', -5, 10, soc=.3, d14c=200.), layer('G', 10, 100, soc=.9)])
+    assert p.loc['G', 'stock_kg_m2'] == pytest.approx(2. + 9.)
+    assert p.loc['G', 'R'] == pytest.approx((2*1.2 + 9*1.)/11)
+
+
+def test_only_layers_within_0_to_100_cm_count(tmp_path):
+    """An O horizon and a layer below 100 cm add no stock, radiocarbon or layer count."""
+    p = profiles_from(tmp_path, [layer('H', -5, 0, soc=1., d14c=500.), layer('H', 0, 100, soc=.1),
+                                 layer('H', 100, 150, soc=1., d14c=-900.)])
+    assert p.loc['H', 'stock_kg_m2'] == pytest.approx(1.)
+    assert p.loc['H', 'R'] == pytest.approx(1.)
+    assert p.loc['H', 'n_layers'] == 1
+
+
+def test_each_sampling_year_is_a_profile_and_missing_identifiers_are_kept(tmp_path):
+    """The same profile sampled in two years gives two rows; a profile without pro_name is kept."""
+    rows = [layer('I', 0, 100, soc=.1, d14c=100., year=1990), layer('I', 0, 100, soc=.2, d14c=50., year=2010),
+            {**layer('J', 0, 100, soc=.1), 'pro_name': None}]
+    path = tmp_path/'layers.csv'
+    pd.DataFrame(rows, columns=COLUMNS).to_csv(path, index=False)
+    p = pseudo_bulk(load_layers(path))
+    resampled = p[p.site_name == 'I'].set_index('lyr_obs_date_y')
+    assert resampled.R.to_dict() == pytest.approx({1990: 1.1, 2010: 1.05})
+    assert resampled.stock_kg_m2.to_dict() == pytest.approx({1990: 1., 2010: 2.})
+    assert p[p.site_name == 'J'].pro_name.isna().tolist() == [True]
+
+
+def test_no_complete_profiles_gives_an_empty_table_with_its_columns(tmp_path):
+    path = tmp_path/'layers.csv'
+    pd.DataFrame([layer('K', 0, 50, soc=.1)], columns=COLUMNS).to_csv(path, index=False)
+    p = pseudo_bulk(load_layers(path))
+    assert p.empty
+    assert list(p.columns) == ['entry_name', 'site_name', 'pro_name', 'lyr_obs_date_y', 'latitude', 'longitude',
+                               'n_layers', 'n_fallback_layers', 'stock_kg_m2', 'R']
 
 
 def test_stock_fallbacks_and_fm_conversion(tmp_path):
