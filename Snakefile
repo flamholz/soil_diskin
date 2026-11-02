@@ -46,14 +46,20 @@ rule all:
         "figures/figS7.png",
         "figures/figS8.png",
         # Calibration exports, including the permuted-fm null
-        "results/04_calibration_exports/powerlaw_calibration_results.csv",
-        "results/04_calibration_exports/powerlaw_calibration_results_permuted.csv",
-        "results/04_calibration_exports/lognormal_calibration_results.csv",
-        "results/04_calibration_exports/lognormal_calibration_results_permuted.csv",
-        # ISRaD bulk profiles and their calibrations (also the `israd` target)
+        "results/04_calibration_exports/powerlaw_calibration_results_balesdent.csv",
+        "results/04_calibration_exports/powerlaw_calibration_results_permuted_balesdent.csv",
+        "results/04_calibration_exports/lognormal_calibration_results_balesdent.csv",
+        "results/04_calibration_exports/lognormal_calibration_results_permuted_balesdent.csv",
+        # ISRaD bulk profiles, their calibrations with the permuted-turnover null, and exports (also the `israd` target)
         "results/israd/israd_turnover.csv",
         "results/03_calibrate_models/israd/powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/israd/lognormal_model_optimization_results.csv",
+        "results/03_calibrate_models/israd/powerlaw_model_optimization_results_permuted.csv",
+        "results/03_calibrate_models/israd/lognormal_model_optimization_results_permuted.csv",
+        "results/04_calibration_exports/powerlaw_calibration_results_israd.csv",
+        "results/04_calibration_exports/powerlaw_calibration_results_permuted_israd.csv",
+        "results/04_calibration_exports/lognormal_calibration_results_israd.csv",
+        "results/04_calibration_exports/lognormal_calibration_results_permuted_israd.csv",
 
 # Step 00: Download necessary data files using curl.
 # NOTE: wget was hard to install with UV for some reason. Using curl instead.
@@ -191,12 +197,13 @@ rule turnover_14C:
 # Step 02b: Permutation null -- fm_obs shuffled across sites (see config.yaml)
 rule permute_fm:
     input:
-        "results/all_sites_14C_turnover.csv",
-        "config.yaml",
+        sites="results/all_sites_14C_turnover.csv",
+        config="config.yaml",
+        code="notebooks/02b_permute_fm.py",
     output:
         "results/all_sites_14C_turnover_permuted.csv"
-    script:
-        "notebooks/02b_permute_fm.py"
+    shell:
+        "python notebooks/02b_permute_fm.py --input {input.sites:q} --output {output:q} --config {input.config:q}"
 
 # Step 01c: Reported Balesdent layers; missing stocks backfilled from SoilGrids
 rule preprocess_balesdent_layers:
@@ -222,13 +229,19 @@ rule turnover_14C_layered:
         "python notebooks/02c_get_layer_turnover_14C.py -i {input.layers:q} -o {output.csv:q} --shi {input.shi:q} --npp {input.npp:q}"
 
 # ISRaD: pseudo-bulk 0-100 cm profiles with radiocarbon, NPP and turnover times, the
-# ISRaD counterpart of steps 01-02, and their calibrations. Part of `all`; `snakemake
+# ISRaD counterpart of steps 01-02, their calibrations and exports. Part of `all`; `snakemake
 # israd` runs just these.
 rule israd:
     input:
         "results/israd/israd_turnover.csv",
         "results/03_calibrate_models/israd/powerlaw_model_optimization_results.csv",
         "results/03_calibrate_models/israd/lognormal_model_optimization_results.csv",
+        "results/03_calibrate_models/israd/powerlaw_model_optimization_results_permuted.csv",
+        "results/03_calibrate_models/israd/lognormal_model_optimization_results_permuted.csv",
+        "results/04_calibration_exports/powerlaw_calibration_results_israd.csv",
+        "results/04_calibration_exports/powerlaw_calibration_results_permuted_israd.csv",
+        "results/04_calibration_exports/lognormal_calibration_results_israd.csv",
+        "results/04_calibration_exports/lognormal_calibration_results_permuted_israd.csv",
 
 rule preprocess_israd:
     input:
@@ -291,6 +304,63 @@ rule calibrate_lognormal_israd:
     shell:
         "python notebooks/03b_lognormal_calibration.py --input {input.sites:q} "
         "--output-dir results/03_calibrate_models/israd --year-column sampling_year --n-jobs {threads}"
+
+# ISRaD permutation null: turnover is shuffled across the profiles that can be
+# calibrated, so each keeps its radiocarbon and sampling year (see 02b_permute_fm.py).
+rule permute_turnover_israd:
+    input:
+        sites="results/israd/israd_turnover.csv",
+        atm="data/14C_atm_annot.csv",
+        config="config.yaml",
+        code="notebooks/02b_permute_fm.py",
+    output:
+        "results/israd/israd_turnover_permuted.csv"
+    shell:
+        "python notebooks/02b_permute_fm.py --input {input.sites:q} --output {output:q} --config {input.config:q} "
+        "--column turnover --year-column sampling_year --atm {input.atm:q}"
+
+rule calibrate_powerlaw_israd_permuted:
+    input:
+        sites="results/israd/israd_turnover_permuted.csv",
+        atm="data/14C_atm_annot.csv",
+        code=["notebooks/03a_calibrate_powerlaw_model.py", "soil_diskin/calibration.py",
+              "soil_diskin/continuum_models.py", "soil_diskin/radiocarbon_utils.py"],
+    threads: workflow.cores
+    output:
+        "results/03_calibrate_models/israd/powerlaw_model_optimization_results_permuted.csv"
+    shell:
+        "python notebooks/03a_calibrate_powerlaw_model.py --input {input.sites:q} --output {output:q} "
+        "--year-column sampling_year --n-jobs {threads}"
+
+rule calibrate_lognormal_israd_permuted:
+    input:
+        sites="results/israd/israd_turnover_permuted.csv",
+        atm="data/14C_atm_annot.csv",
+        code=["notebooks/03b_lognormal_calibration.py", "soil_diskin/calibration.py",
+              "soil_diskin/continuum_models.py", "soil_diskin/radiocarbon_utils.py"],
+    threads: workflow.cores
+    output:
+        "results/03_calibrate_models/israd/lognormal_model_optimization_results_permuted.csv"
+    shell:
+        "python notebooks/03b_lognormal_calibration.py --input {input.sites:q} "
+        "--output-dir results/03_calibrate_models/israd "
+        "--output-name lognormal_model_optimization_results_permuted.csv --year-column sampling_year --n-jobs {threads}"
+
+# Export the ISRaD calibrations with their ISRaD identifiers, for the real and permuted turnover
+rule export_calibration_results_israd:
+    input:
+        "results/03_calibrate_models/israd/powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/israd/powerlaw_model_optimization_results_permuted.csv",
+        "results/03_calibrate_models/israd/lognormal_model_optimization_results.csv",
+        "results/03_calibrate_models/israd/lognormal_model_optimization_results_permuted.csv",
+        "notebooks/04_export_calibration_results.py",
+    output:
+        "results/04_calibration_exports/powerlaw_calibration_results_israd.csv",
+        "results/04_calibration_exports/powerlaw_calibration_results_permuted_israd.csv",
+        "results/04_calibration_exports/lognormal_calibration_results_israd.csv",
+        "results/04_calibration_exports/lognormal_calibration_results_permuted_israd.csv",
+    shell:
+        "python notebooks/04_export_calibration_results.py --dataset israd"
 
 # Step 03a: Calibrate power law models
 rule calibrate_powerlaw:
@@ -497,10 +567,10 @@ rule export_calibration_results:
         "results/03_calibrate_models/lognormal_model_optimization_results_permuted.csv",
         "notebooks/04_export_calibration_results.py",
     output:
-        "results/04_calibration_exports/powerlaw_calibration_results.csv",
-        "results/04_calibration_exports/powerlaw_calibration_results_permuted.csv",
-        "results/04_calibration_exports/lognormal_calibration_results.csv",
-        "results/04_calibration_exports/lognormal_calibration_results_permuted.csv",
+        "results/04_calibration_exports/powerlaw_calibration_results_balesdent.csv",
+        "results/04_calibration_exports/powerlaw_calibration_results_permuted_balesdent.csv",
+        "results/04_calibration_exports/lognormal_calibration_results_balesdent.csv",
+        "results/04_calibration_exports/lognormal_calibration_results_permuted_balesdent.csv",
     shell:
         "python notebooks/04_export_calibration_results.py"
 

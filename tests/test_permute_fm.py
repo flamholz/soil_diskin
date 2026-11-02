@@ -38,3 +38,28 @@ def test_replicates_are_reproducible_and_prefix_stable():
     pd.testing.assert_frame_equal(one, three[three.replicate == 0])
     pd.testing.assert_frame_equal(three, permute_fm(sites(), replicates=3, seed=7))
     assert not one.equals(permute_fm(sites(), replicates=1, seed=8))
+
+
+def test_shuffling_turnover_keeps_radiocarbon_and_year_with_each_profile():
+    """For ISRaD, turnover is shuffled: each row keeps its own fm_obs and sampling year (whose
+    atmosphere its radiocarbon refers to) and gets another row's turnover."""
+    original = sites().assign(sampling_year=np.arange(1980, 2010))
+    permuted = permute_fm(original, replicates=2, seed=7, column='turnover')
+    assert list(permuted.columns)[-1] == 'turnover_original'
+    for _, frame in permuted.groupby('replicate'):
+        frame = frame.set_index('site_index')
+        np.testing.assert_array_equal(frame.fm_obs, original.fm_obs)
+        np.testing.assert_array_equal(frame.sampling_year, original.sampling_year)
+        np.testing.assert_array_equal(frame.turnover_original, original.turnover)
+        np.testing.assert_array_equal(np.sort(frame.turnover), np.sort(original.turnover))
+        assert (frame.turnover != original.turnover).sum() > 20
+
+
+def test_only_included_rows_take_part():
+    """Rows outside the atmospheric record are left out; site_index keeps the input row labels."""
+    original = sites().assign(sampling_year=np.arange(1995, 2025))
+    within = runpy.run_path(str(SCRIPT))['within_record'](original.sampling_year, 'data/14C_atm_annot.csv')
+    assert within.sum() == 2013 - 1995 + 1
+    permuted = permute_fm(original, replicates=1, seed=7, column='turnover', include=within)
+    np.testing.assert_array_equal(permuted.site_index, original.index[within])
+    np.testing.assert_array_equal(np.sort(permuted.turnover), np.sort(original.turnover[within]))

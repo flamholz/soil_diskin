@@ -1,4 +1,7 @@
-"""Export calibrated lognormal and power-law results as one tidy CSV per model.
+"""Export calibrated lognormal and power-law results as one tidy CSV per model and dataset.
+
+Files are named {model}_calibration_results[_permuted]_{dataset}.csv, with
+dataset balesdent or israd, all in results/04_calibration_exports.
 
 Each row is a processed Balesdent site. Columns are the site identifiers and
 observations (source_row, latitude, longitude, turnover, fm_obs, A_r), the
@@ -13,12 +16,22 @@ source_row is the 0-based row of results/processed_balesdent_2018.csv. Rows are
 site-level means, so it does not map back to a single row of the raw workbook.
 
 Each model is also exported for the permuted-fm null (02b_permute_fm.py) as
-{model}_calibration_results_permuted.csv, with the same columns plus a leading
+{model}_calibration_results_permuted_balesdent.csv, with the same columns plus a leading
 replicate column and fm_obs_original. There fm_obs, and so A_r, is the permuted
 value the model was calibrated to.
 
+With --dataset israd, the ISRaD calibrations (results/03_calibrate_models/israd)
+are exported the same way, as {model}_calibration_results[_permuted]_israd.csv. Each row is a
+pseudo-bulk profile and sampling year, identified by entry_name, site_name,
+pro_name and sampling_year as in ISRaD; source_row is the 0-based row of
+results/israd/israd_turnover.csv. fm_obs refers to the sampling year, and so does
+A_r, which is therefore not comparable across years. calibration_status is kept:
+profiles sampled after the atmospheric record ends are 'no_atmosphere', with no
+parameters. In the permuted-turnover null turnover is the shuffled value and
+turnover_original the profile's own; fm_obs and A_r are the profile's own.
+
 Run from the project root directory:
-    python notebooks/04_export_calibration_results.py
+    python notebooks/04_export_calibration_results.py [--dataset israd]
 """
 import argparse
 from pathlib import Path
@@ -31,6 +44,8 @@ from soil_diskin.constants import LAMBDA_14C
 SITES_PATH = Path('results/processed_balesdent_2018.csv')
 CALIBRATION_DIR = Path('results/03_calibrate_models')
 OUT_DIR = Path('results/04_calibration_exports')
+ISRAD_CALIBRATION_DIR = CALIBRATION_DIR/'israd'
+ISRAD_IDENTIFIERS = ['entry_name', 'site_name', 'pro_name', 'sampling_year', 'latitude', 'longitude']
 
 # name: (calibration file, {output column: input column})
 MODELS = {
@@ -80,6 +95,40 @@ def export_model(sites, calibration_path, columns):
     return out
 
 
+def export_israd_model(calibration_path, columns):
+    """One model's ISRaD calibration with each profile's ISRaD identifiers.
+
+    The ISRaD calibrations carry every column of their input table, so no join is
+    needed. Permuted-turnover replicates give each row's profile in site_index.
+    """
+    calibration = pd.read_csv(calibration_path)
+    out = pd.DataFrame(index=calibration.index)
+    if 'replicate' in calibration:
+        out['replicate'] = calibration['replicate']
+        out['source_row'] = calibration['site_index']
+    else:
+        out['source_row'] = calibration.index
+    observations = ['turnover'] + (['turnover_original'] if 'turnover_original' in calibration else []) + ['fm_obs']
+    for name in ISRAD_IDENTIFIERS + observations:
+        out[name] = calibration[name]
+    out['A_r'] = apparent_radiocarbon_age(out.fm_obs)
+    for name, source in columns.items():
+        out[name] = calibration[source]
+    out['calibration_status'] = calibration['calibration_status']
+    return out
+
+
+def main_israd(calibration_dir=ISRAD_CALIBRATION_DIR, out_dir=OUT_DIR):
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for model, (filename, columns) in MODELS.items():
+        for suffix in ['', '_permuted']:
+            out = export_israd_model(Path(calibration_dir)/filename.replace('.csv', f'{suffix}.csv'), columns)
+            path = out_dir/f'{model}_calibration_results{suffix}_israd.csv'
+            out.to_csv(path, index=False)
+            print(f'Wrote {path} ({len(out)} rows)')
+
+
 def main(sites_path=SITES_PATH, calibration_dir=CALIBRATION_DIR, out_dir=OUT_DIR):
     sites = pd.read_csv(sites_path)
     out_dir = Path(out_dir)
@@ -88,7 +137,7 @@ def main(sites_path=SITES_PATH, calibration_dir=CALIBRATION_DIR, out_dir=OUT_DIR
         for suffix in ['', '_permuted']:
             calibration_path = Path(calibration_dir)/filename.replace('.csv', f'{suffix}.csv')
             out = export_model(sites, calibration_path, columns)
-            path = out_dir/f'{model}_calibration_results{suffix}.csv'
+            path = out_dir/f'{model}_calibration_results{suffix}_balesdent.csv'
             out.to_csv(path, index=False)
             print(f'Wrote {path} ({len(out)} rows)')
 
@@ -96,8 +145,12 @@ def main(sites_path=SITES_PATH, calibration_dir=CALIBRATION_DIR, out_dir=OUT_DIR
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--sites', type=Path, default=SITES_PATH)
-    parser.add_argument('--calibration-dir', type=Path, default=CALIBRATION_DIR)
+    parser.add_argument('--dataset', choices=['balesdent', 'israd'], default='balesdent')
+    parser.add_argument('--sites', type=Path, default=SITES_PATH, help='Balesdent sites (not used for israd)')
+    parser.add_argument('--calibration-dir', type=Path, help='default: by dataset')
     parser.add_argument('--output-dir', type=Path, default=OUT_DIR)
     args = parser.parse_args()
-    main(args.sites, args.calibration_dir, args.output_dir)
+    if args.dataset == 'israd':
+        main_israd(args.calibration_dir or ISRAD_CALIBRATION_DIR, args.output_dir)
+    else:
+        main(args.sites, args.calibration_dir or CALIBRATION_DIR, args.output_dir)
