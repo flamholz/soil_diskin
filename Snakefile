@@ -493,19 +493,6 @@ rule calibrate_loguniform:
         "python notebooks/03e_calibrate_loguniform_model.py --input {input[0]:q} --output {output:q} --n-jobs {threads}"
 
 # Step 04: Generate and collect model predictions for analysis and figures
-# Lognormal predictions (Python-based pipeline used for figures)
-rule lognormal_predictions_python:
-    input:
-        "results/03_calibrate_models/lognormal_model_optimization_results.csv",
-    output:
-        "results/04_model_predictions/04b_lognormal_cdfs_python.csv",
-        "results/04_model_predictions/04b_lognormal_cdfs_05_python.csv",
-        "results/04_model_predictions/04b_lognormal_cdfs_95_python.csv"
-    shell:
-        """
-        python notebooks/04b_lognormal_predictions_fast.py --params-path {input}
-        """
-
 rule loguniform_model_predictions:
     input:
         "results/processed_balesdent_2018.csv",
