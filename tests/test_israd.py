@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from soil_diskin.constants import LAMBDA_14C
-from soil_diskin.israd import load_layers, pseudo_bulk
+from soil_diskin.israd import load_layers, permafrost_or_peat, pseudo_bulk
 
 step01 = import_module('notebooks.01_preprocess_israd')
 step02 = import_module('notebooks.02_get_israd_turnover')
@@ -118,3 +118,38 @@ def test_permafrost_and_peat_profiles_are_excluded_with_their_evidence(tmp_path)
     assert profiles.site_name.tolist() == ['mineral']
     evidence = {r['site_name']: r['evidence'] for r in summary['excluded_permafrost_or_peat']}
     assert evidence == {'frozen': 'thaw depth 60 cm; soil order Gelisols (permafrost)', 'peat': 'pro_peatland = yes'}
+
+
+def test_permafrost_or_peat_flags_any_layer_and_reports_all_evidence():
+    """Each kind of evidence flags a profile-year, from any of its layers; matching ignores case and
+    stray spaces; 'no' flags, other soil orders and non-numeric thaw depths do not flag."""
+    rows = [
+        {**layer('permafrost', 0, 30), 'pro_permafrost': ' YES '},
+        # Evidence on the second layer only still flags the profile-year.
+        layer('peat', 0, 30), {**layer('peat', 30, 100), 'pro_usda_soil_order': 'Histosols '},
+        # Every kind at once, reported in a fixed order.
+        {**layer('all', 0, 100), 'pro_permafrost': 'yes', 'pro_peatland': 'yes', 'pro_thaw_depth': 45.,
+         'pro_usda_soil_order': 'gelisols'},
+        {**layer('all', 100, 150), 'pro_usda_soil_order': 'Histosols'},
+        # Not flagged.
+        {**layer('negative', 0, 100), 'pro_permafrost': 'no', 'pro_peatland': 'No',
+         'pro_thaw_depth': 'unknown', 'pro_usda_soil_order': 'Mollisols'},
+        layer('unreported', 0, 100),
+        # Profile-years are separate: only the 2010 sampling reports a thaw depth.
+        layer('resampled', 0, 100, year=1990), {**layer('resampled', 0, 100, year=2010), 'pro_thaw_depth': 80.},
+    ]
+    reasons = permafrost_or_peat(pd.DataFrame(rows, columns=COLUMNS))
+    assert reasons == {
+        ('E', 'permafrost', 'permafrost', 2000): 'pro_permafrost = yes',
+        ('E', 'peat', 'peat', 2000): 'soil order Histosols (peat)',
+        ('E', 'all', 'all', 2000): 'pro_permafrost = yes; pro_peatland = yes; thaw depth 45 cm; '
+                                   'soil order Gelisols (permafrost); soil order Histosols (peat)',
+        ('E', 'resampled', 'resampled', 2010): 'thaw depth 80 cm',
+    }
+
+
+def test_permafrost_or_peat_keeps_profiles_with_a_missing_identifier():
+    """A profile-year missing part of its key (e.g. no pro_name) is still checked, not silently skipped."""
+    rows = [{**layer('frozen', 0, 100), 'pro_name': None, 'pro_permafrost': 'yes'}]
+    reasons = permafrost_or_peat(pd.DataFrame(rows, columns=COLUMNS))
+    assert list(reasons.values()) == ['pro_permafrost = yes']
