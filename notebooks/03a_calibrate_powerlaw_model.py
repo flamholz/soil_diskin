@@ -6,12 +6,15 @@ turnover and radiocarbon with the shared calibration
 (soil_diskin.calibration.power_law_spec), fitting the central turnover and the
 q05/q95 stock scenarios. Sites run in parallel.
 
+Writes the input table followed by the fitted parameters and diagnostics for
+each scenario, so the output keeps every input column (site identifiers,
+observations, and for the permuted-fm null its replicate, site_index and
+fm_obs_original), as 03b_lognormal_calibration.py does.
+
 Snakemake also runs this script on the permuted-fm null (--input
-results/all_sites_14C_turnover_permuted.csv, see 02b_permute_fm.py); its
-replicate, site_index and fm_obs_original columns are carried into the output.
-For the ISRaD profiles (--input results/israd/israd_turnover.csv --year-column
-sampling_year), each profile is fit with the atmosphere of its sampling year,
-and the year column is carried into the output.
+results/all_sites_14C_turnover_permuted.csv, see 02b_permute_fm.py) and on the
+ISRaD profiles (--input results/israd/israd_turnover.csv --year-column
+sampling_year), where each profile is fit with the atmosphere of its sampling year.
 """
 import argparse
 from os import path
@@ -30,9 +33,7 @@ def main(input_path=DATA_PATH, output_path=OUTPUT_PATH, n_jobs=-1, year_column=N
     for suffix in ['', '_05', '_95']:
         print(suffix or 'central', fits['calibration_status'+suffix].value_counts().to_dict())
     print(f'maximum objective {fits.objective.max():.3e}')
-    ids = [c for c in ['replicate', 'site_index'] if c in site_data]
-    observations = [c for c in ['fm_obs', 'turnover', 'fm_obs_original', year_column] if c in site_data]
-    site_data[ids].join(fits).join(site_data[observations]).to_csv(output_path, index=False)
+    site_data.join(fits).to_csv(output_path, index=False)
     print(f'wrote {output_path}')
 
 
