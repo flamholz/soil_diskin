@@ -32,6 +32,17 @@ CLM45_predictions = pd.read_csv('results/04_model_predictions/CLM45_fnew.csv', h
 JSBACH_predictions = pd.read_csv('results/04_model_predictions/JSBACH_fnew.csv', header=None, names=['prediction'])
 RCM_predictions = pd.read_csv('results/04_model_predictions/RCM.csv')
 
+# Predictions carry no site identifier (CLM4.5 and JSBACH are bare columns of numbers):
+# prediction i is compared with observed site i. Stop if a table has a different number
+# of rows, or, where it carries the sites' columns, a different site in any row.
+SITE_COLUMNS = ['Latitude', 'Longitude', 'Duration_labeling']
+for table in [powerlaw_predictions, gen_powerlaw_preds_alpha, gen_powerlaw_preds_alpha_half, lognormal_predictions,
+              weibull_predictions, CLM45_predictions, JSBACH_predictions, RCM_predictions]:
+    if len(table) != len(all_sites):
+        raise ValueError(f'a prediction table has {len(table)} rows for {len(all_sites)} sites')
+    if set(SITE_COLUMNS) <= set(table.columns) and not np.allclose(table[SITE_COLUMNS], all_sites[SITE_COLUMNS]):
+        raise ValueError('a prediction table does not follow the sites row for row')
+
 OUTPUT_PATH = Path('results/05_model_evaluation/bootstrap_metrics.csv')
 SEED = 42
 

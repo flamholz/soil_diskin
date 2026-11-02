@@ -145,3 +145,20 @@ def test_collect_bulk_and_layer_predictions(tmp_path, monkeypatch, with_layers):
     result = namespace['generate_predictions'](namespace['LognormalDisKin'], fitted, ['mu', 'sigma'], data)
     assert result.index.equals(data.index)
     assert result.predicted_fnew.notna().tolist() == [True, False, False, False]
+
+
+def test_predictions_refuse_calibrations_that_do_not_match_the_sites():
+    """Calibrations pair with the sites by index label, so a dropped, extra or duplicated
+    row, or (where a calibration carries them) different coordinates, must raise rather
+    than attach predictions to the wrong sites. Reordered rows are fine."""
+    namespace = runpy.run_path(str(SCRIPT))
+    generate, model = namespace['generate_predictions'], namespace['LognormalDisKin']
+    sites = pd.DataFrame({'Latitude': [10., 20., 30.], 'Longitude': [1., 2., 3.], 'Duration_labeling': [20.] * 3})
+    fits = pd.DataFrame({'mu': [-2.] * 3, 'sigma': [1.] * 3, 'Latitude': [10., 20., 30.], 'Longitude': [1., 2., 3.]})
+    assert generate(model, fits.iloc[[2, 0, 1]], ['mu', 'sigma'], sites).predicted_fnew.notna().all()
+    for bad in [fits.iloc[:2],                                   # a site dropped
+                pd.concat([fits, fits.iloc[[0]]]),               # a site duplicated
+                fits.set_axis([0, 1, 5]),                        # a row for an unknown site
+                fits.assign(Latitude=[10., 30., 20.])]:          # coordinates of other sites
+        with pytest.raises(ValueError, match='calibration'):
+            generate(model, bad, ['mu', 'sigma'], sites)

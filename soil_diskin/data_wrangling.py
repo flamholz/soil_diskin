@@ -1,3 +1,7 @@
+# TODO: in process_balesdent_data, np.nansum counts layers without an f measurement as f = 0.
+# Two of the sites without carbon data (which get mean depth weights) have f only to 80 cm,
+# so 80-100 cm (~10% of the weight) counts as no new carbon, a small low bias in total_fnew.
+# Decide whether to keep this or renormalize the weights over the measured depths.
 import pandas as pd
 import numpy as np
 import xarray as xr

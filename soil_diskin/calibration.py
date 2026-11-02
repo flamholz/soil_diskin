@@ -15,6 +15,9 @@ independent, so both run in parallel over sites with n_jobs. A warm start only
 ever passes a site's own earlier fit to its next fit (one chain per site), so
 results do not depend on n_jobs.
 """
+# TODO: fit_observation keeps the lowest-objective start even if least_squares did not
+# converge from it, then reports 'fit_failed', although another start may have converged.
+# Prefer converged fits when choosing. Never happened so far (no 'fit_failed' in any output).
 from __future__ import annotations
 
 import warnings

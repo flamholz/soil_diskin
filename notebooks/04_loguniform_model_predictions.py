@@ -13,6 +13,11 @@ def main():
         'results/03_calibrate_models/loguniform_model_optimization_results.csv'
     )
     result = sites.copy()
+    # The calibration carries no site identifier: its rows follow the processed sites,
+    # and each is paired with the site at the same index label (for its labeling
+    # duration). Stop if rows were dropped, added or duplicated rather than mispair them.
+    if params.index.has_duplicates or set(params.index) != set(sites.index):
+        raise ValueError(f'calibration rows ({len(params)}) do not match the {len(sites)} sites')
 
     for i, row in params.iterrows():
         duration = sites.loc[i, 'Duration_labeling']

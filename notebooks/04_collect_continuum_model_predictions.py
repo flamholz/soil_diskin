@@ -11,6 +11,24 @@ from soil_diskin.continuum_models import SoftCutoffPowerLawDisKin
 Collects the continuum model predictions for all sites and saves them to CSV files.
 """
 
+def check_aligned(params_df, site_data):
+    """Raise unless params_df has one row for each of site_data's index labels.
+
+    Calibrations carry no site identifier: their index is the row of the processed
+    sites they were fit to (or site_index, for long-format tables), and predictions
+    pair them with site_data by that label (e.g. for the labeling duration). A
+    calibration that dropped, added or duplicated rows would silently attach
+    predictions to the wrong sites. Calibrations that carry coordinates (03a, 03b)
+    must also match site_data's at each label.
+    """
+    if params_df.index.has_duplicates or set(params_df.index) != set(site_data.index):
+        raise ValueError(f'calibration rows ({len(params_df)}) do not match the {len(site_data)} sites')
+    for column in ['Latitude', 'Longitude']:
+        if column in params_df and column in site_data and not np.allclose(
+                params_df[column], site_data.loc[params_df.index, column], equal_nan=True):
+            raise ValueError(f'calibration {column} does not match the sites at the same rows')
+
+
 def generate_predictions(model_class, params_df, param_names, site_data=None):
     """Predict f_new for bulk sites or layers at their labeling durations.
 
@@ -37,6 +55,7 @@ def generate_predictions(model_class, params_df, param_names, site_data=None):
     """
     if site_data is None:
         site_data = pd.read_csv('results/processed_balesdent_2018.csv')
+    check_aligned(params_df, site_data)
     result = site_data.copy()
     durations = site_data['Duration_labeling']
     print(f"Generating {model_class.__name__} model predictions...")
