@@ -15,7 +15,7 @@ step02 = import_module('notebooks.02_get_israd_turnover')
 
 COLUMNS = ['entry_name', 'site_name', 'pro_name', 'lyr_name', 'site_lat', 'site_long', 'lyr_top', 'lyr_bot',
            'lyr_obs_date_y', 'lyr_c_org', 'lyr_c_tot', 'lyr_soc', 'lyr_bd_samp', 'lyr_bd_tot', 'lyr_14c',
-           'lyr_fraction_modern']
+           'lyr_fraction_modern', 'pro_permafrost', 'pro_peatland', 'pro_thaw_depth', 'pro_usda_soil_order']
 
 
 def layer(profile, top, bottom, soc=None, d14c=0., fm=None, year=2000, c_org=None, c_tot=None, bd=None, bd_tot=None,
@@ -104,3 +104,17 @@ def test_preprocess_drops_excluded_entries_and_records_why(tmp_path):
     assert profiles.entry_name.tolist() == ['E']
     assert summary['excluded_entries']['Min_2025']['profile_years'] == 1
     assert summary['excluded_entries']['Min_2025']['reason'] == step01.EXCLUDED_ENTRIES['Min_2025']
+
+
+def test_permafrost_and_peat_profiles_are_excluded_with_their_evidence(tmp_path):
+    """Profiles reported as permafrost or peat (flag, thaw depth, or Gelisol/Histosol soil order)
+    are dropped, and the summary records the evidence; other soil orders are kept."""
+    layers = [{**layer('frozen', 0, 100, soc=1.), 'pro_usda_soil_order': 'Gelisols', 'pro_thaw_depth': 60.},
+              {**layer('peat', 0, 100, soc=1.), 'pro_peatland': 'Yes'},
+              {**layer('mineral', 0, 100, soc=1.), 'pro_usda_soil_order': 'Mollisols'}]
+    pd.DataFrame(layers, columns=COLUMNS).to_csv(tmp_path/'layers.csv', index=False)
+    pd.DataFrame({'Latitude': [0.], 'Longitude': [0.]}).to_csv(tmp_path/'balesdent.csv', index=False)
+    profiles, summary = step01.preprocess(tmp_path/'layers.csv', tmp_path/'balesdent.csv')
+    assert profiles.site_name.tolist() == ['mineral']
+    evidence = {r['site_name']: r['evidence'] for r in summary['excluded_permafrost_or_peat']}
+    assert evidence == {'frozen': 'thaw depth 60 cm; soil order Gelisols (permafrost)', 'peat': 'pro_peatland = yes'}

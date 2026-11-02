@@ -18,6 +18,8 @@ from soil_diskin.constants import LAMBDA_14C
 
 DEPTH = 100.  # cm
 PROFILE = ['entry_name', 'site_name', 'pro_name', 'lyr_obs_date_y']  # one pseudo-bulk column each
+# Profile fields reported by the data contributors that mark permafrost or peat soils.
+SOIL_FLAGS = ['pro_permafrost', 'pro_peatland', 'pro_thaw_depth', 'pro_usda_soil_order']
 G_CM2_TO_KG_M2 = 10.  # 1 g/cm² = 10 kg/m²
 
 
@@ -32,11 +34,12 @@ def load_layers(path):
     lyr_c_tot; bulk density is lyr_bd_samp (coarse fragments removed), else
     lyr_bd_tot. `fallback` marks layers that used lyr_c_tot or lyr_bd_tot.
     Layers without R, a stock, bounds, a sampling year or coordinates, or with
-    zero thickness or a negative stock, are dropped.
+    zero thickness or a negative stock, are dropped. The SOIL_FLAGS profile
+    fields are kept, for permafrost_or_peat.
     """
     numeric = ['site_lat', 'site_long', 'lyr_top', 'lyr_bot', 'lyr_obs_date_y', 'lyr_c_org',
                'lyr_c_tot', 'lyr_soc', 'lyr_bd_samp', 'lyr_bd_tot', 'lyr_14c', 'lyr_fraction_modern']
-    layers = pd.read_csv(path, usecols=PROFILE[:3]+['lyr_name']+numeric,
+    layers = pd.read_csv(path, usecols=PROFILE[:3]+['lyr_name']+numeric+SOIL_FLAGS,
                          encoding_errors='replace', low_memory=False)
     layers[numeric] = layers[numeric].apply(pd.to_numeric, errors='coerce')
     year = layers.lyr_obs_date_y
@@ -52,6 +55,32 @@ def load_layers(path):
     layers['stock_kg_m2'] = stock_g_cm2*G_CM2_TO_KG_M2
     valid = layers[['R', 'stock_kg_m2', 'lyr_top', 'lyr_bot', 'lyr_obs_date_y', 'site_lat', 'site_long']].notna().all(axis=1)
     return layers[valid & (thickness > 0) & (layers.stock_kg_m2 >= 0)]
+
+
+def permafrost_or_peat(layers):
+    """Profile-years whose contributors report permafrost or peat, with the reason.
+
+    A profile-year is flagged if any of its layers has pro_permafrost or
+    pro_peatland 'yes', a reported thaw depth (the depth to frozen soil), or a
+    USDA soil order of Gelisols (permafrost soils) or Histosols (peat). Only the
+    contributors' fields are used, not ISRaD's map-derived soil orders.
+
+    Returns:
+        dict mapping PROFILE tuples to a description of the evidence.
+    """
+    orders = {'gelisols': 'Gelisols (permafrost)', 'histosols': 'Histosols (peat)'}
+    reasons = {}
+    for key, profile in layers.groupby(PROFILE, dropna=False):
+        evidence = [f'{column} = yes' for column in ['pro_permafrost', 'pro_peatland']
+                    if profile[column].astype(str).str.strip().str.lower().eq('yes').any()]
+        thaw = pd.to_numeric(profile.pro_thaw_depth, errors='coerce').dropna()
+        if len(thaw):
+            evidence.append(f'thaw depth {thaw.iloc[0]:g} cm')
+        reported = profile.pro_usda_soil_order.dropna().astype(str).str.strip().str.lower()
+        evidence += [f'soil order {orders[o]}' for o in sorted(set(reported) & set(orders))]
+        if evidence:
+            reasons[key] = '; '.join(evidence)
+    return reasons
 
 
 def pseudo_bulk(layers, depth=DEPTH):

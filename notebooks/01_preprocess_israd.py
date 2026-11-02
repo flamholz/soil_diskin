@@ -9,7 +9,10 @@ counterpart of the bulk Balesdent table of script 01, with the same units.
 Profile-years whose stock exceeds --max-stock are dropped as implausible; e.g.
 Finstad_2020 reports lyr_soc ~100x what its carbon % implies, likely in Mg C/ha
 rather than g C/cm². Entries in EXCLUDED_ENTRIES are dropped whole, for the
-reasons given there. Profiles sampled after the end of the atmospheric 14C
+reasons given there. Permafrost and peat profiles, as reported by the data
+contributors (soil_diskin.israd.permafrost_or_peat), are dropped too: they are
+outside the scope of the bulk analysis, and the models could not fit two of them
+exactly. Profiles sampled after the end of the atmospheric 14C
 record (2013) are kept, with their sampling year, and are left to the
 calibration to exclude. Profiles sampled before 1950 (e.g. archived samples) are
 kept and listed in the JSON for review.
@@ -32,7 +35,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from soil_diskin.israd import DEPTH, load_layers, pseudo_bulk
+from soil_diskin.israd import DEPTH, PROFILE, load_layers, permafrost_or_peat, pseudo_bulk
 from soil_diskin.site_inputs import distance_km, source_entry
 from soil_diskin.utils import file_digest
 
@@ -67,6 +70,11 @@ def preprocess(israd_path, balesdent_path=BALESDENT_PATH, max_stock=MAX_STOCK_KG
                         for entry, group in profiles[excluded].groupby('entry_name')}
     complete = len(profiles)
     profiles = profiles[~excluded]
+    organic = permafrost_or_peat(layers)
+    is_organic = profiles[PROFILE].apply(tuple, axis=1).isin(organic).to_numpy()
+    excluded_organic = [{**dict(zip(PROFILE, key)), 'evidence': organic[key]}
+                        for key in profiles[is_organic][PROFILE].apply(tuple, axis=1)]
+    profiles = profiles[~is_organic]
     implausible = profiles.stock_kg_m2 > max_stock
     dropped = {entry: {'profile_years': int(len(group)), 'median_stock_kg_m2': float(group.stock_kg_m2.median())}
                for entry, group in profiles[implausible].groupby('entry_name')}
@@ -81,6 +89,7 @@ def preprocess(israd_path, balesdent_path=BALESDENT_PATH, max_stock=MAX_STOCK_KG
     early = profiles[profiles.sampling_year < 1950]
     summary = {'layers_with_radiocarbon_and_stock': int(len(layers)),
                'complete_profile_years': complete, 'excluded_entries': excluded_entries,
+               'excluded_permafrost_or_peat': excluded_organic,
                'dropped_stock_above_max': dropped, 'profile_years': int(len(profiles)),
                'locations': int(len(profiles[['latitude', 'longitude']].drop_duplicates())),
                'entries': int(profiles.entry_name.nunique()),

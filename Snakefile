@@ -50,6 +50,10 @@ rule all:
         "results/04_calibration_exports/powerlaw_calibration_results_permuted.csv",
         "results/04_calibration_exports/lognormal_calibration_results.csv",
         "results/04_calibration_exports/lognormal_calibration_results_permuted.csv",
+        # ISRaD bulk profiles and their calibrations (also the `israd` target)
+        "results/israd/israd_turnover.csv",
+        "results/03_calibrate_models/israd/powerlaw_model_optimization_results.csv",
+        "results/03_calibrate_models/israd/lognormal_model_optimization_results.csv",
 
 # Step 00: Download necessary data files using curl.
 # NOTE: wget was hard to install with UV for some reason. Using curl instead.
@@ -218,7 +222,8 @@ rule turnover_14C_layered:
         "python notebooks/02c_get_layer_turnover_14C.py -i {input.layers:q} -o {output.csv:q} --shi {input.shi:q} --npp {input.npp:q}"
 
 # ISRaD: pseudo-bulk 0-100 cm profiles with radiocarbon, NPP and turnover times, the
-# ISRaD counterpart of steps 01-02. Not part of `all` yet; run `snakemake israd`.
+# ISRaD counterpart of steps 01-02, and their calibrations. Part of `all`; `snakemake
+# israd` runs just these.
 rule israd:
     input:
         "results/israd/israd_turnover.csv",
