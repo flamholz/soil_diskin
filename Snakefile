@@ -155,9 +155,10 @@ rule preprocess_balesdent:
     input:
         "data/balesdent_2018/balesdent_2018_raw.xlsx"
     output:
-        "results/processed_balesdent_2018.csv"
+        csv="results/processed_balesdent_2018.csv",
+        meta="results/processed_balesdent_2018.json",
     shell:
-        "python notebooks/01_preprocess_balesdent_data.py -i {input} -o {output} --backfill"
+        "python notebooks/01_preprocess_balesdent_data.py -i {input} -o {output.csv} --backfill"
 
 # Step 01b: Preprocess 14C atmospheric history data
 rule preprocess_14C_data:

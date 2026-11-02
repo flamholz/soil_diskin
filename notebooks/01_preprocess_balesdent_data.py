@@ -1,25 +1,30 @@
-import argparse
-import json
-from pathlib import Path
-import pandas as pd
-from soil_diskin.data_wrangling import process_balesdent_data, balesdent_sampled_layers
-from soil_diskin.soilgrids_utils_w_unc import backfill_missing_soc
-
 """
 All scripts to be run from project root directory.
 
-This script downloads and processes the raw data from Balesdent et al. 2018,
-which is used to calculate soil carbon turnover times. The processed data is
-saved to a CSV file in the results folder.
+This script processes the raw data from Balesdent et al. 2018 (the workbook
+downloaded by the Snakefile's download rule), which is used to calculate soil
+carbon turnover times. The processed data is saved to a CSV file in the results
+folder.
 
-For sites lacking SOC data, values can optionally be backfilled from SoilGrids 
-using the SoilGrids WCS service.
+For sites lacking SOC data, values can be backfilled from SoilGrids using the
+SoilGrids WCS service (--backfill, as the pipeline runs it). Retrieved values
+are cached (--soilgrids-cache), and a JSON next to the output records the
+backfill: how many rows and locations were filled, the cache and its hash, and
+the workbook's hash. If any requested location cannot be filled, the script
+stops with an error rather than dropping the site (see --allow-missing).
 
 Usage:
     python notebooks/01_preprocess_balesdent_data.py -i data/balesdent_2018/balesdent_2018_raw.xlsx --backfill
     python notebooks/01_preprocess_balesdent_data.py -i input.xlsx -o output.csv --backfill
     python notebooks/01_preprocess_balesdent_data.py --no-backfill
 """
+import argparse
+import json
+from pathlib import Path
+import pandas as pd
+from soil_diskin.data_wrangling import process_balesdent_data, balesdent_sampled_layers
+from soil_diskin.soilgrids_utils_w_unc import backfill_missing_soc
+from soil_diskin.utils import file_digest
 
 
 def parse_args():
@@ -32,35 +37,41 @@ def parse_args():
                         help='Use reported depth intervals, stocks and f_new from the Layers sheet')
     parser.add_argument('--soilgrids-cache', default='results/soilgrids_layer_cache.json',
                         help='Cache SoilGrids means and quantiles by location and depth')
-    
+
     parser.add_argument(
         '-i', '--raw-file-path',
         type=str,
         default='data/balesdent_2018/balesdent_2018_raw.xlsx',
         help='Path to the raw data file'
     )
-    
+
     parser.add_argument(
         '--backfill',
         action='store_true',
         default=False,
-        help='Backfill missing SOC data from SoilGrids using WCS'
+        help='Backfill missing SOC data from SoilGrids using WCS (the pipeline always does)'
     )
-    
+
     parser.add_argument(
         '--no-backfill',
         action='store_false',
         dest='backfill',
-        help='Do not backfill missing SOC data (default behavior)'
+        help='Do not backfill missing SOC data; sites without SOC are dropped (the default without --backfill)'
     )
-    
+
+    parser.add_argument(
+        '--allow-missing',
+        action='store_true',
+        help='With --backfill, drop bulk sites SoilGrids could not fill instead of stopping with an error'
+    )
+
     parser.add_argument(
         '-o', '--output',
         type=str,
         default=None,
         help='Output path for processed data'
     )
-    
+
     args = parser.parse_args()
     suffix = '_sampled' if args.depth_resolved else ''
     if args.depth_resolved and args.backfill:
@@ -71,13 +82,12 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    
+
     print(f"Loading raw data from {args.raw_file_path}...")
     raw_data = pd.read_excel(args.raw_file_path, skiprows=7)
     if args.depth_resolved:
         layers = balesdent_sampled_layers(raw_data, pd.read_excel(args.raw_file_path, sheet_name='Layers', header=9))
         if args.backfill:
-            from soil_diskin.utils import file_digest
             layers, metadata = backfill_missing_soc(layers, args.soilgrids_cache)
             metadata['workbook_sha256'] = file_digest(args.raw_file_path)
             Path(args.output).with_suffix('.json').write_text(json.dumps({'stock_backfill': metadata}, indent=2)+'\n')
@@ -97,7 +107,7 @@ if __name__ == "__main__":
     print("Processing Balesdent et al. 2018 data...")
     # Keep sites with missing SOC data if backfilling is enabled
     final_data = process_balesdent_data(raw_data, keep_missing_soc=args.backfill)
-    
+
     # Add a column for the source of the data
     final_data['C_data_source'] = 'Balesdent et al. 2018'
 
@@ -107,14 +117,29 @@ if __name__ == "__main__":
     # Count the number of unique locations + duration labeling combinations
     unique_loc_duration_processed = final_data[['Latitude', 'Longitude', 'Duration_labeling']].drop_duplicates()
     print(f"\t{len(unique_loc_duration_processed)} unique locations + durations in the processed data.")
-    
+
     # Backfill missing SOC data from SoilGrids if requested
     if args.backfill:
         print("\nBackfilling missing SOC data from SoilGrids...")
-        final_data, backfill_stats = backfill_missing_soc(final_data, args.soilgrids_cache)
+        n_rows = len(final_data)
+        final_data, metadata = backfill_missing_soc(final_data, args.soilgrids_cache)
+        # For the bulk table, backfill_missing_soc drops every row whose stock it could
+        # not fill: a SoilGrids request that failed (network error, timeout) or returned
+        # no valid value. The failure is caught and noted only on the rows it then drops,
+        # so without this check a transient outage would silently remove sites from
+        # every downstream step. Values come from the cache when present, so this can
+        # only happen for locations not cached yet (e.g. after deleting the cache).
+        metadata.update(rows_in=n_rows, rows_out=len(final_data), cache_path=args.soilgrids_cache,
+                        cache_sha256=file_digest(args.soilgrids_cache) if Path(args.soilgrids_cache).exists() else None,
+                        workbook_sha256=file_digest(args.raw_file_path))
+        print(metadata)
+        if metadata['n_failed'] and not args.allow_missing:
+            raise SystemExit(f"SoilGrids could not fill {metadata['n_failed']} location(s) "
+                             f"({n_rows - len(final_data)} row(s)); rerun later, or pass --allow-missing to drop them")
+        Path(args.output).with_suffix('.json').write_text(json.dumps({'stock_backfill': metadata}, indent=2)+'\n')
     else:
         print("\nSkipping backfill (use --backfill to enable)")
-    
+
     # Save the final data
     print(f"\nSaving processed data to {args.output}...")
     final_data.to_csv(args.output, index=False)
