@@ -27,7 +27,11 @@ all_site_params = []
 for model in ['CESM','IPSL','MRI']:
     mod = parse_he_data(model=model, file_names=file_names)
     extrapolated =  xr.concat([mod.sel(parameter=p).rio.write_nodata(np.nan).rio.set_spatial_dims('lon','lat').rio.write_crs(4326).rio.interpolate_na() for p in mod.parameter],dim='parameter')
-    all_site_params.append(xr.concat([extrapolated.sel(lat=site_data.iloc[i]['Latitude'],lon=site_data.iloc[i]['Longitude'],method='ffill') for i in range(site_data.shape[0])],dim='site'))
+    # Take each site's parameters from the nearest grid cell, as the CLM4.5 and JSBACH
+    # predictions do. method='ffill' (used until 2026-11-02) took the cell at or below the
+    # site's latitude and longitude instead, a neighboring cell for 73-86 of the 99 sites
+    # depending on the model (IPSL cells are 1.9 x 3.75 degrees).
+    all_site_params.append(xr.concat([extrapolated.sel(lat=site_data.iloc[i]['Latitude'],lon=site_data.iloc[i]['Longitude'],method='nearest') for i in range(site_data.shape[0])],dim='site'))
 
 all_site_params = xr.concat(all_site_params,dim='model')
 all_site_params['model'] = ['CESM','IPSL','MRI']
