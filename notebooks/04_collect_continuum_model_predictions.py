@@ -58,7 +58,7 @@ def generate_predictions(model_class, params_df, param_names, site_data=None):
 def generate_sweep_predictions(model_class, sweep_df, param_names, site_data, by='alpha'):
     """Predict f_new for long-format calibrations, one row per (by, site).
 
-    For example an alpha sweep (by='alpha') or permuted-fm replicates
+    For example an alpha sweep (by='alpha') or permutation replicates
     (by='replicate'). site_index in sweep_df aligns with site_data rows.
     Returns one row per (by, site) with leading by and site_index columns.
     """
@@ -117,9 +117,9 @@ def main():
     result.to_csv('results/04_model_predictions/soft_cutoff_power_law_model_predictions_alpha_sweep.csv', index=False)
 
 
-    #%% Permuted-fm null: power law and lognormal fit to fm shuffled across sites
+    #%% Permutation null: power law and lognormal fit to turnover shuffled across sites
 
-    # One row per (replicate, site); see 02b_permute_fm.py.
+    # One row per (replicate, site); see 02b_permute_data.py.
     for model_class, param_names, model_name, prediction_name in [
             (PowerLawDisKin, ['t_min', 't_max'], 'powerlaw', 'power_law'),
             (LognormalDisKin, ['mu', 'sigma'], 'lognormal', 'lognormal')]:

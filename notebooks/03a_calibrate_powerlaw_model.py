@@ -8,11 +8,11 @@ q05/q95 stock scenarios. Sites run in parallel.
 
 Writes the input table followed by the fitted parameters and diagnostics for
 each scenario, so the output keeps every input column (site identifiers,
-observations, and for the permuted-fm null its replicate, site_index and
-fm_obs_original), as 03b_lognormal_calibration.py does.
+observations, and for the permutation null its replicate, site_index and
+turnover_original), as 03b_lognormal_calibration.py does.
 
-Snakemake also runs this script on the permuted-fm null (--input
-results/all_sites_14C_turnover_permuted.csv, see 02b_permute_fm.py) and on the
+Snakemake also runs this script on the permutation null (--input
+results/all_sites_14C_turnover_permuted.csv, see 02b_permute_data.py) and on the
 ISRaD profiles (--input results/israd/israd_turnover.csv --year-column
 sampling_year), where each profile is fit with the atmosphere of its sampling year.
 """

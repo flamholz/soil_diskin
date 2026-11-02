@@ -15,10 +15,13 @@ age and is negative where fm_obs > 1 (post-bomb carbon).
 source_row is the 0-based row of results/processed_balesdent_2018.csv. Rows are
 site-level means, so it does not map back to a single row of the raw workbook.
 
-Each model is also exported for the permuted-fm null (02b_permute_fm.py) as
-{model}_calibration_results_permuted_balesdent.csv, with the same columns plus a leading
-replicate column and fm_obs_original. There fm_obs, and so A_r, is the permuted
-value the model was calibrated to.
+Each model is also exported for the permutation null (02b_permute_data.py) as
+{model}_calibration_results_permuted_balesdent.csv, with the same columns plus a
+leading replicate column and the shuffled column's original value: turnover is
+shuffled across sites, so turnover is the shuffled value the model was calibrated
+to and turnover_original the site's own, while fm_obs and A_r are the site's own.
+(Were fm_obs shuffled instead, the table would carry fm_obs_original, and A_r
+would be the apparent age of the shuffled fm.)
 
 With --dataset israd, the ISRaD calibrations (results/03_calibrate_models/israd)
 are exported the same way, as {model}_calibration_results[_permuted]_israd.csv. Each row is a
@@ -27,8 +30,8 @@ pro_name and sampling_year as in ISRaD; source_row is the 0-based row of
 results/israd/israd_turnover.csv. fm_obs refers to the sampling year, and so does
 A_r, which is therefore not comparable across years. calibration_status is kept:
 profiles sampled after the atmospheric record ends are 'no_atmosphere', with no
-parameters. In the permuted-turnover null turnover is the shuffled value and
-turnover_original the profile's own; fm_obs and A_r are the profile's own.
+parameters. The permutation null is exported as for Balesdent, with
+turnover_original.
 
 Run from the project root directory:
     python notebooks/04_export_calibration_results.py [--dataset israd]
@@ -59,6 +62,11 @@ MODELS = {
 OBSERVATIONS = ['turnover', 'fm_obs']
 
 
+def observation_columns(calibration):
+    """OBSERVATIONS, each followed by its original value where the permutation null shuffled it."""
+    return [c for name in OBSERVATIONS for c in [name, f'{name}_original'] if c in calibration]
+
+
 def apparent_radiocarbon_age(fm):
     """Apparent radiocarbon age in years; NaN unless fm is positive and finite."""
     fm = pd.to_numeric(fm, errors='coerce').astype(float)
@@ -68,7 +76,7 @@ def apparent_radiocarbon_age(fm):
 def export_model(sites, calibration_path, columns):
     """Combine site identifiers with one model's calibration results.
 
-    Long-format calibrations (permuted-fm replicates) give each row's site in
+    Long-format calibrations (permutation replicates) give each row's site in
     site_index; otherwise rows follow the processed sites in order.
     """
     calibration = pd.read_csv(calibration_path)
@@ -87,7 +95,7 @@ def export_model(sites, calibration_path, columns):
                         'longitude': sites.loc[rows, 'Longitude'].to_numpy()})
     if 'replicate' in calibration:
         out.insert(0, 'replicate', calibration['replicate'])
-    for name in OBSERVATIONS + (['fm_obs_original'] if 'fm_obs_original' in calibration else []):
+    for name in observation_columns(calibration):
         out[name] = calibration[name]
     out['A_r'] = apparent_radiocarbon_age(out.fm_obs)
     for name, source in columns.items():
@@ -99,7 +107,7 @@ def export_israd_model(calibration_path, columns):
     """One model's ISRaD calibration with each profile's ISRaD identifiers.
 
     The ISRaD calibrations carry every column of their input table, so no join is
-    needed. Permuted-turnover replicates give each row's profile in site_index.
+    needed. Permutation replicates give each row's profile in site_index.
     """
     calibration = pd.read_csv(calibration_path)
     out = pd.DataFrame(index=calibration.index)
@@ -108,8 +116,7 @@ def export_israd_model(calibration_path, columns):
         out['source_row'] = calibration['site_index']
     else:
         out['source_row'] = calibration.index
-    observations = ['turnover'] + (['turnover_original'] if 'turnover_original' in calibration else []) + ['fm_obs']
-    for name in ISRAD_IDENTIFIERS + observations:
+    for name in ISRAD_IDENTIFIERS + observation_columns(calibration):
         out[name] = calibration[name]
     out['A_r'] = apparent_radiocarbon_age(out.fm_obs)
     for name, source in columns.items():

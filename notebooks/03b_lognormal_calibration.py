@@ -60,7 +60,7 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--input', type=Path, default=SITES_PATH, help='Bulk or depth-resolved turnover CSV from script 02.')
     parser.add_argument('--output-dir', type=Path, help='Defaults to results/03_calibrate_models (depth_resolved subfolder for layers).')
     parser.add_argument('--output-name', default=OUTPUT_NAME,
-                        help='Output file name, e.g. for the permuted-fm null.')
+                        help='Output file name, e.g. for the permutation null.')
     parser.add_argument('--n-jobs', type=int, default=int(os.environ.get('N_JOBS', -1)),
                         help='Number of parallel jobs for joblib (-1 uses all cores).')
     parser.add_argument('--year-column', help='fit each row with the atmosphere of the year in this column '

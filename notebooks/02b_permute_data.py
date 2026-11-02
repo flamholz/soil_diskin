@@ -5,17 +5,26 @@ A permutation null for the calibrations: one observation is shuffled across
 sites, so that models calibrated to the shuffled data show how much predictive
 skill the site-level pairing of turnover and radiocarbon carries.
 
-  * Balesdent (default): fm_obs is shuffled across all sites. Each site keeps its
-    turnover but gets another site's radiocarbon. Every site's radiocarbon refers
-    to the year 2000 (the Shi et al. map), so this is equivalent to shuffling
-    turnover.
-  * ISRaD (--column turnover --year-column sampling_year --atm ...): turnover is
-    shuffled instead. Each profile's radiocarbon was measured in its own sampling
-    year and is only meaningful with that year's atmosphere, so it stays with its
-    profile (and its ISRaD identifiers), and the profile gets another profile's
-    turnover. The shuffled turnover no longer equals the row's stock / NPP. Only
-    profiles sampled within the atmospheric record (which can be calibrated) take
-    part; the others are left out of the output.
+By default turnover is shuffled, for both datasets: each site keeps its own
+radiocarbon (and its identifiers) and gets another site's turnover, so the
+shuffled turnover no longer equals the row's stock / NPP.
+  * ISRaD (--year-column sampling_year --atm ...): each profile's radiocarbon
+    was measured in its own sampling year and is only meaningful with that
+    year's atmosphere, which is why radiocarbon, not turnover, stays put. Only
+    profiles sampled within the atmospheric record (which can be calibrated)
+    take part; the others are left out of the output.
+  * Balesdent: every site's radiocarbon refers to the year 2000 (the Shi et al.
+    map), so either column can be shuffled (--column fm_obs shuffles radiocarbon
+    instead); turnover is shuffled to match ISRaD.
+
+Which column is shuffled matters once predictions are scored against each
+site's own observations (e.g. F_new at its labeling duration). Both choices
+pair random turnovers with random radiocarbon values, so the fitted parameters
+have the same distribution. But shuffling turnover keeps each site's own
+radiocarbon, so the null asks whether turnover adds skill beyond radiocarbon,
+and shuffling fm_obs asks the reverse. For Balesdent, the lognormal null that
+keeps radiocarbon predicts F_new nearly as well as the real fits (RMSE 0.108
+against 0.106; 0.118 when radiocarbon is shuffled instead).
 
 Writes the output in long format, one row per (replicate, site): replicate,
 site_index (the row in the input table), then the site's columns with the
@@ -37,7 +46,7 @@ INPUT_PATH = 'results/all_sites_14C_turnover.csv'
 OUTPUT_PATH = 'results/all_sites_14C_turnover_permuted.csv'
 
 
-def permute_fm(sites, replicates, seed, column='fm_obs', include=None):
+def permute(sites, replicates, seed, column='turnover', include=None):
     """Long-format copies of sites, with `column` shuffled across sites in each replicate.
 
     include, if given, is a boolean mask of the sites that take part; the others
@@ -66,7 +75,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--input', default=INPUT_PATH, help='turnover and fm table from step 02')
     parser.add_argument('--output', default=OUTPUT_PATH, help='permuted table')
-    parser.add_argument('--column', default='fm_obs', help='column to shuffle across sites')
+    parser.add_argument('--column', default='turnover', help='column to shuffle across sites')
     parser.add_argument('--year-column', help='only shuffle among rows whose year in this column is within the '
                                               'atmospheric record (--atm)')
     parser.add_argument('--atm', default='data/14C_atm_annot.csv', help='atmospheric record, for --year-column')
@@ -75,7 +84,7 @@ def main(argv=None):
     config = yaml.safe_load(Path(args.config).read_text())['permutation']
     sites = pd.read_csv(args.input)
     include = within_record(sites[args.year_column], args.atm) if args.year_column else None
-    permuted = permute_fm(sites, config['replicates'], config['seed'], args.column, include)
+    permuted = permute(sites, config['replicates'], config['seed'], args.column, include)
     unchanged = (permuted[args.column] == permuted[f'{args.column}_original']).groupby(permuted.replicate).sum()
     n_sites = permuted.site_index.nunique()
     print(f"{config['replicates']} replicate(s) of {n_sites} of {len(sites)} sites; "

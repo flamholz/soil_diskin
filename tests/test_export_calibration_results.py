@@ -12,7 +12,10 @@ SCRIPT = Path(__file__).resolve().parents[1]/'notebooks/04_export_calibration_re
 main = runpy.run_path(str(SCRIPT))['main']
 
 
-def test_exports_real_and_permuted_calibrations(tmp_path):
+@pytest.mark.parametrize('shuffled', ['turnover', 'fm_obs'])
+def test_exports_real_and_permuted_calibrations(tmp_path, shuffled):
+    """The permutation null shuffles turnover (02b_permute_data.py's default) or fm_obs; either way
+    the export keeps the shuffled column's original value right after it."""
     sites = pd.DataFrame({'Latitude': [10., 20., 30.], 'Longitude': [-1., -2., -3.]})
     sites.to_csv(tmp_path/'sites.csv', index=False)
     calibration = tmp_path/'calibration'
@@ -20,9 +23,10 @@ def test_exports_real_and_permuted_calibrations(tmp_path):
     real = pd.DataFrame({'turnover': [10., 20., 30.], 'fm_obs': [.9, 1.1, .8],
                          't_min': [1., 2., 3.], 't_max': [1e3, 2e3, 3e3], 'mu': [-1., -2., -3.],
                          'sigma': [1., 1.5, 2.], 'model_T': [10., 20., 30.], 'model_A': [100., 200., 300.]})
-    # Permuted rows name their site in site_index; fm_obs is another site's.
-    permuted = real.iloc[[2, 0, 1]].assign(replicate=0, site_index=[2, 0, 1], fm_obs=[.9, 1.1, .8],
-                                           fm_obs_original=[.8, .9, 1.1])
+    # Permuted rows name their site in site_index; the shuffled column holds another site's value.
+    permuted = real.iloc[[2, 0, 1]].assign(replicate=0, site_index=[2, 0, 1])
+    permuted[f'{shuffled}_original'] = permuted[shuffled]
+    permuted[shuffled] = real[shuffled].to_numpy()
     for model in ['powerlaw', 'lognormal']:
         real.to_csv(calibration/f'{model}_model_optimization_results.csv', index=False)
         permuted.to_csv(calibration/f'{model}_model_optimization_results_permuted.csv', index=False)
@@ -33,11 +37,14 @@ def test_exports_real_and_permuted_calibrations(tmp_path):
     assert list(out.columns) == ['source_row', 'latitude', 'longitude', 'turnover', 'fm_obs', 'A_r',
                                  'mu', 'sigma', 'model_T', 'model_A']
     out = pd.read_csv(tmp_path/'out'/'powerlaw_calibration_results_permuted_balesdent.csv')
-    assert list(out.columns) == ['replicate', 'source_row', 'latitude', 'longitude', 'turnover', 'fm_obs',
-                                 'fm_obs_original', 'A_r', 't_min', 't_max', 'model_T', 'model_A']
+    observations = ['turnover', 'turnover_original', 'fm_obs'] if shuffled == 'turnover' else \
+        ['turnover', 'fm_obs', 'fm_obs_original']
+    assert list(out.columns) == ['replicate', 'source_row', 'latitude', 'longitude'] + observations + \
+        ['A_r', 't_min', 't_max', 'model_T', 'model_A']
     assert out.source_row.tolist() == [2, 0, 1]
     assert out.latitude.tolist() == [30., 10., 20.]
-    # A_r is the apparent age of the permuted fm the model was calibrated to.
+    np.testing.assert_array_equal(out[f'{shuffled}_original'], real[shuffled].iloc[[2, 0, 1]])
+    # A_r is the apparent age of the fm the model was calibrated to (shuffled or not).
     np.testing.assert_allclose(out.A_r, -np.log(out.fm_obs) / LAMBDA_14C)
     assert out.t_min.tolist() == [3., 1., 2.]
 

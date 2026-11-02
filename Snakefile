@@ -45,7 +45,7 @@ rule all:
         "figures/figS6.png",
         "figures/figS7.png",
         "figures/figS8.png",
-        # Calibration exports, including the permuted-fm null
+        # Calibration exports, including the permutation null
         "results/04_calibration_exports/powerlaw_calibration_results_balesdent.csv",
         "results/04_calibration_exports/powerlaw_calibration_results_permuted_balesdent.csv",
         "results/04_calibration_exports/lognormal_calibration_results_balesdent.csv",
@@ -194,16 +194,17 @@ rule turnover_14C:
     shell:
         "python notebooks/02_get_turnover_14C.py -i {input.sites:q} -o {output.csv:q} --shi {input.shi:q} --npp {input.npp:q}"
 
-# Step 02b: Permutation null -- fm_obs shuffled across sites (see config.yaml)
-rule permute_fm:
+# Step 02b: Permutation null -- turnover shuffled across sites, each keeping its radiocarbon (see config.yaml)
+rule permute_turnover:
     input:
         sites="results/all_sites_14C_turnover.csv",
         config="config.yaml",
-        code="notebooks/02b_permute_fm.py",
+        code="notebooks/02b_permute_data.py",
     output:
         "results/all_sites_14C_turnover_permuted.csv"
     shell:
-        "python notebooks/02b_permute_fm.py --input {input.sites:q} --output {output:q} --config {input.config:q}"
+        "python notebooks/02b_permute_data.py --input {input.sites:q} --output {output:q} --config {input.config:q} "
+        "--column turnover"
 
 # Step 01c: Reported Balesdent layers; missing stocks backfilled from SoilGrids
 rule preprocess_balesdent_layers:
@@ -306,17 +307,17 @@ rule calibrate_lognormal_israd:
         "--output-dir results/03_calibrate_models/israd --year-column sampling_year --n-jobs {threads}"
 
 # ISRaD permutation null: turnover is shuffled across the profiles that can be
-# calibrated, so each keeps its radiocarbon and sampling year (see 02b_permute_fm.py).
+# calibrated, so each keeps its radiocarbon and sampling year (see 02b_permute_data.py).
 rule permute_turnover_israd:
     input:
         sites="results/israd/israd_turnover.csv",
         atm="data/14C_atm_annot.csv",
         config="config.yaml",
-        code="notebooks/02b_permute_fm.py",
+        code="notebooks/02b_permute_data.py",
     output:
         "results/israd/israd_turnover_permuted.csv"
     shell:
-        "python notebooks/02b_permute_fm.py --input {input.sites:q} --output {output:q} --config {input.config:q} "
+        "python notebooks/02b_permute_data.py --input {input.sites:q} --output {output:q} --config {input.config:q} "
         "--column turnover --year-column sampling_year --atm {input.atm:q}"
 
 rule calibrate_powerlaw_israd_permuted:
@@ -557,7 +558,7 @@ rule continuum_model_predictions:
     script:
         "notebooks/04_collect_continuum_model_predictions.py"
 
-# Export calibrated parameters with site identifiers, for the real and permuted fm
+# Export calibrated parameters with site identifiers, for the real data and the permutation null
 rule export_calibration_results:
     input:
         "results/processed_balesdent_2018.csv",
